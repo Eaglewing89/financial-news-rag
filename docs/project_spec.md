@@ -1,3 +1,24 @@
+# Table of Contents
+
+1. [Project Overview](#project-overview)
+2. [Core Objectives](#core-objectives)
+3. [Technical Implementation](#technical-implementation)
+   - [Tech Stack](#tech-stack)
+   - [API and Deployment (Future Scope)](#api-and-deployment-future-scope)
+   - [Data Sources](#data-sources)
+   - [Data Management](#data-management)
+4. [Configuration Management](#configuration-management)
+5. [Error Handling Strategy](#error-handling-strategy)
+6. [Text Processing Pipeline](#text-processing-pipeline)
+7. [Core Module Interface (MVP)](#core-module-interface-mvp)
+8. [ChromaDB Integration Details](#chromadb-integration-details)
+9. [Gemini API Integration](#gemini-api-integration)
+10. [Embedding Model](#embedding-model)
+11. [Testing Strategy](#testing-strategy)
+12. [Documentation](#documentation)
+13. [Implementation Plan](#implementation-plan)
+14. [Required Packages](#required-packages)
+
 # Financial News RAG Module Specification
 
 ## Project Overview
