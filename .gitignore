@@ -1,0 +1,32 @@
+# Environment and secrets
+.env
+venv/
+
+# Python cache and build
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+build/
+dist/
+
+# Jupyter and notebook outputs
+.ipynb_checkpoints/
+
+# VSCode and editor settings
+.vscode/
+*.code-workspace
+
+# Copilot chat logs
+docs/copilot-chats/
+
+# Test and coverage outputs
+.coverage
+htmlcov/
+.cache/
+
+# OS files
+.DS_Store
+Thumbs.db

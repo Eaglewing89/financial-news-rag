@@ -1,0 +1,18 @@
+# Core functionality
+chromadb
+google-generativeai
+requests
+python-dotenv
+
+# Text processing
+nltk
+beautifulsoup4
+
+# Testing
+pytest
+pytest-cov
+
+# Development
+black
+isort
+flake8
