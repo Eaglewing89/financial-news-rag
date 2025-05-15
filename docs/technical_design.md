@@ -14,11 +14,11 @@
 
 ---
 
-## 1. Introduction
+## Introduction
 
 This document provides a comprehensive technical design for the Financial News Retrieval Augmented Generation (RAG) module. It formalizes the system architecture, data flow, component interactions, schema definitions, error handling, and configuration management. This blueprint ensures robust, maintainable, and extensible implementation aligned with the [Project Specification](./project_spec.md).
 
-## 2. System Architecture Overview
+## System Architecture Overview
 
 The system is a modular Python package that implements a RAG pipeline for financial news. It fetches news from Marketaux, processes and embeds articles, stores them in ChromaDB, and enables semantic search with Gemini-based re-ranking. The architecture is designed for future API wrapping and multi-agent integration.
 
@@ -31,7 +31,7 @@ The system is a modular Python package that implements a RAG pipeline for financ
 - Gemini Reranker (Gemini 2.0 Flash)
 - Configuration & Error Management
 
-## 3. Component Architecture Diagram
+## Component Architecture Diagram
 
 ```
 +-------------------+
@@ -75,9 +75,9 @@ The system is a modular Python package that implements a RAG pipeline for financ
 +-------------------+
 ```
 
-## 4. Data Flow Diagrams
+## Data Flow Diagrams
 
-### 4.1 News Ingestion & Storage
+### News Ingestion & Storage
 
 1. Fetch articles from Marketaux API
 2. Clean and normalize text
@@ -85,7 +85,7 @@ The system is a modular Python package that implements a RAG pipeline for financ
 4. Generate embeddings (Google API)
 5. Store articles + embeddings in ChromaDB
 
-### 4.2 Search & Reranking
+### Search & Reranking
 
 1. User issues search query
 2. Query embedded articles in ChromaDB (semantic similarity)
@@ -93,7 +93,7 @@ The system is a modular Python package that implements a RAG pipeline for financ
 4. Top results sent to Gemini for re-ranking
 5. Return sorted, relevant articles to user
 
-## 5. ChromaDB Schema Definitions
+## ChromaDB Schema Definitions
 
 **Collection Name:** `financial_news`
 
@@ -125,7 +125,7 @@ The system is a modular Python package that implements a RAG pipeline for financ
 - `ids`: UUIDs
 - `embeddings`: Vector from Google API
 
-## 6. Component Interactions
+## Component Interactions
 
 - **News Fetcher**: Calls Marketaux API, handles retries/rate limits, returns raw articles.
 - **Text Processing**: Cleans text, extracts entities, normalizes data.
@@ -135,7 +135,7 @@ The system is a modular Python package that implements a RAG pipeline for financ
 - **Gemini Reranker**: Receives top results, re-ranks using Gemini 2.0 Flash, returns sorted list.
 - **Config/Error Management**: Loads .env, validates keys, logs errors, manages retries.
 
-## 7. Error Handling Strategies
+## Error Handling Strategies
 
 - **API Failures**: Retry with exponential backoff (see [`fetch_with_retry` pattern](marketaux_api.md#error-codes--handling))
 - **Rate Limiting**: Simple in-memory rate limiter (see [`RateLimiter` class](marketaux_api.md#error-codes--handling))
@@ -147,7 +147,7 @@ The system is a modular Python package that implements a RAG pipeline for financ
 > **Reference Patterns:**
 > The canonical implementations of `fetch_with_retry` and `RateLimiter` are maintained in the [marketaux_api.md](marketaux_api.md#error-codes--handling). This technical design document references those as the source of truth for error handling patterns.
 
-## 8. Configuration Management
+## Configuration Management
 
 - **API Keys**: Managed via `.env` file, loaded with `python-dotenv`
 - **Required Variables**:
@@ -164,13 +164,13 @@ The system is a modular Python package that implements a RAG pipeline for financ
 - **Validation**: On module init, check for required keys
 - **Environment Separation**: Support for dev/test/prod .env files
 
-## 9. Security Considerations
+## Security Considerations
 
 - API keys never hardcoded; always loaded from environment
 - Sensitive data not logged
 - Future: Use secrets manager for production
 
-## 10. Extensibility and Future Enhancements
+## Extensibility and Future Enhancements
 
 - Multi-source news ingestion (Finnhub, Newsfilter, etc.)
 - Advanced filtering, analytics, and sentiment analysis

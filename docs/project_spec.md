@@ -46,7 +46,7 @@
 3. Generate embeddings using a serverless embedding model (Google's text-embedding-004)
 4. Store news articles and embeddings in ChromaDB
 5. Implement basic semantic search functionality
-6. Use Google's Gemini API for re-ranking search results
+6. Use Google's Gemini 2.0 Flash API for re-ranking search results
 7. Create a well-structured Python module with clean interfaces
 
 **Future Enhancements:**
@@ -147,7 +147,7 @@
 ## Error Handling Strategy
 
 **MVP Requirements:**
-- Comprehensive exception handling for external API calls, retry logic, and rate limiting. See [marketaux_api.md](marketaux_api.md#error-codes--handling) and [technical_design.md](technical_design.md#error-handling-strategies) for error codes, rate limits, and detailed strategies.
+- Comprehensive exception handling for external API calls, retry logic, and rate limiting. See [marketaux_api.md#error-codes--handling](marketaux_api.md#error-codes--handling) for specific error codes, rate limits, and detailed strategies for the Marketaux API, including `fetch_with_retry` and `RateLimiter` patterns.
 - Graceful degradation for non-critical failures.
 - Detailed logging of errors with context information.
 - User-friendly error messages for common failure scenarios.
@@ -286,7 +286,7 @@ def get_market_sentiment(
 ## ChromaDB Integration Details
 
 **MVP Requirements:**
-- ChromaDB setup and configuration:
+- ChromaDB setup and configuration (see [technical_design.md#chromadb-schema-definitions](technical_design.md#chromadb-schema-definitions) for full schema details):
   ```python
   import chromadb
   
@@ -338,7 +338,7 @@ def get_market_sentiment(
 ## Gemini API Integration
 
 **MVP Requirements:**
-- Use Gemini 2.0 Flash for re-ranking search results (see [model_details.md](model_details.md) for detailed specifications)
+- Use Gemini 2.0 Flash for re-ranking search results (see [model_details.md#gemini-llm-gemini-20-flash](model_details.md#gemini-llm-gemini-20-flash) for detailed specifications and the `rerank_with_gemini` function implementation in [model_details.md#re-ranking-implementation](model_details.md#re-ranking-implementation)).
 - Simple prompt template for relevance assessment
 - Basic error handling for API failures
 - Environment variable for API key management
@@ -350,107 +350,15 @@ def get_market_sentiment(
 - Cost tracking and optimization
 
 ### Example use Gemini 2.0 Flash
-```python
-from dotenv import load_dotenv
-import os
-from google import genai
-from google.genai import types
-
-load_dotenv()
-gemini_api_key = os.getenv('GEMINI_API_KEY')
-
-client = genai.Client(api_key=gemini_api_key)
-
-input_config=types.GenerateContentConfig(
-        system_instruction="You are a wizard. You speak in riddles.",
-        max_output_tokens=500,
-        temperature=0.1
-        )
-
-input_contents="Explain how RAG works in a few words"
-
-response = client.models.generate_content(
-    model="gemini-2.0-flash", 
-    contents=input_contents,
-    config=input_config
-)
-print(response.text)
-# From dusty tomes, knowledge I glean, then weave it with queries, a vibrant scene.
-```
+See [model_details.md#example-use-gemini-20-flash](model_details.md#example-use-gemini-20-flash) for an example.
 
 ### Reranking Implementation
-
-```python
-def rerank_with_gemini(query, results, top_n=5):
-    """Rerank search results using Gemini's understanding of relevance."""
-    client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
-    
-    # Prepare prompt for reranking
-    system_instruction = """
-    You are a financial analyst assistant. Your task is to evaluate the relevance 
-    of financial news articles to a user's query. Rate each article on a scale of 0-10, 
-    where 10 means the article is perfectly relevant to answering the query, and 0 means 
-    it's completely irrelevant. Consider specificity, recency, and depth of information.
-    
-    Return a JSON array with each article's ID and its relevance score:
-    [{"id": "article-id-1", "score": 8.5}, {"id": "article-id-2", "score": 6.2}, ...]
-    """
-    
-    # Format articles for evaluation
-    articles_text = "\n\n".join([
-        f"Article ID: {result['id']}\nTitle: {result['metadata']['title']}\n"
-        f"Date: {result['metadata']['published_at']}\n"
-        f"Content: {result['content'][:500]}..."
-        for result in results
-    ])
-    
-    input_contents = f"""
-    USER QUERY: {query}
-    
-    ARTICLES TO EVALUATE:
-    {articles_text}
-    
-    Please rate the relevance of each article to the query.
-    """
-    
-    # Generate relevance ratings
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=input_contents,
-        config=types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            max_output_tokens=1024,
-            temperature=0.1
-        )
-    )
-    
-    # Parse results and rerank
-    try:
-        scores = json.loads(response.text)
-        # Create a mapping of article IDs to scores
-        score_map = {item["id"]: item["score"] for item in scores}
-        
-        # Sort results by score
-        sorted_results = sorted(
-            results, 
-            key=lambda x: score_map.get(x["id"], 0), 
-            reverse=True
-        )
-        
-        return sorted_results[:top_n]
-    except:
-        # Fallback to original ranking if parsing fails
-        return results[:top_n]
-```
-
-### Sources
-- [Google Text generation Docs](https://ai.google.dev/gemini-api/docs/text-generation)
-- [Google GenerateContentConfig Docs](https://ai.google.dev/api/generate-content)
+The `rerank_with_gemini` function is defined in [model_details.md#re-ranking-implementation](model_details.md#re-ranking-implementation).
 
 ## Embedding Model
 
 **MVP Requirements:**
-- Use Google's text-embedding-004 via Gemini API (see [model_details.md](model_details.md#gemini-embedding-model-text-embedding-004) for detailed specifications and chunking/tokenization constraints).
+- Use Google's text-embedding-004 via Gemini API (see [model_details.md#gemini-embedding-model-text-embedding-004](model_details.md#gemini-embedding-model-text-embedding-004) for detailed specifications and chunking/tokenization constraints).
 - Store embeddings alongside article metadata in ChromaDB.
 - Reuse the same API key configuration for both embedding and re-ranking.
 
@@ -460,29 +368,7 @@ def rerank_with_gemini(query, results, top_n=5):
 - Benchmark against alternative embedding providers
 
 ### Example use text-embedding-004
-```python
-from dotenv import load_dotenv
-import os
-from google import genai
-from google.genai import types
-
-load_dotenv()
-gemini_api_key = os.getenv('GEMINI_API_KEY')
-
-client = genai.Client(api_key=gemini_api_key)
-
-input_contents="What is the meaning of life?"
-
-input_config=types.EmbedContentConfig(task_type="SEMANTIC_SIMILARITY")
-
-result = client.models.embed_content(
-        model="text-embedding-004",
-        contents=input_contents,
-        config=input_config
-)
-print(result.embeddings)
-# [ContentEmbedding(values=[-0.0001, 0.0002, 0.0003, ...], statistics=None)]
-```
+See [model_details.md#example-use-text-embedding-004](model_details.md#example-use-text-embedding-004) for an example.
 
 ## Testing Strategy
 
@@ -592,6 +478,6 @@ flake8
 ## References
 
 - [marketaux_api.md](marketaux_api.md): Marketaux API usage, field definitions, error codes, and filtering options.
-- [model_details.md](model_details.md): Embedding and LLM model specifications, chunking/tokenization details.
+- [model_details.md](model_details.md): Embedding and LLM model specifications, chunking/tokenization details, example use.
 - [technical_design.md](technical_design.md): System architecture, ChromaDB schema, error handling strategies.
 - [text_processing_pipeline.md](text_processing_pipeline.md): Text cleaning, chunking, and preprocessing pipeline details.

@@ -71,6 +71,33 @@ def split_into_chunks(text, max_tokens=2048):
     return chunks
 ```
 
+
+### Example use text-embedding-004
+```python
+from dotenv import load_dotenv
+import os
+from google import genai
+from google.genai import types
+
+load_dotenv()
+gemini_api_key = os.getenv('GEMINI_API_KEY')
+
+client = genai.Client(api_key=gemini_api_key)
+
+input_contents="What is the meaning of life?"
+
+input_config=types.EmbedContentConfig(task_type="SEMANTIC_SIMILARITY")
+
+result = client.models.embed_content(
+        model="text-embedding-004",
+        contents=input_contents,
+        config=input_config
+)
+print(result.embeddings)
+# [ContentEmbedding(values=[-0.0001, 0.0002, 0.0003, ...], statistics=None)]
+```
+
+
 ## Gemini LLM: gemini-2.0-flash
 
 This model is used for re-ranking search results in the RAG pipeline.
@@ -166,6 +193,36 @@ def rerank_with_gemini(query, results, top_n=5):
         # Fallback to original ranking if parsing fails
         return results[:top_n]
 ```
+
+### Example use Gemini 2.0 Flash
+```python
+from dotenv import load_dotenv
+import os
+from google import genai
+from google.genai import types
+
+load_dotenv()
+gemini_api_key = os.getenv('GEMINI_API_KEY')
+
+client = genai.Client(api_key=gemini_api_key)
+
+input_config=types.GenerateContentConfig(
+        system_instruction="You are a wizard. You speak in riddles.",
+        max_output_tokens=500,
+        temperature=0.1
+        )
+
+input_contents="Explain how RAG works in a few words"
+
+response = client.models.generate_content(
+    model="gemini-2.0-flash", 
+    contents=input_contents,
+    config=input_config
+)
+print(response.text)
+# From dusty tomes, knowledge I glean, then weave it with queries, a vibrant scene.
+```
+
 
 ## Sources
 

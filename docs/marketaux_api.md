@@ -28,13 +28,7 @@ The Marketaux API provides access to global financial news articles, supporting 
 - **API Token Required**: All requests require an `api_token` as a query parameter.
 - **How to Obtain**: [Sign up](https://www.marketaux.com/signup) for a free account and retrieve your token from the dashboard.
 - **Usage Example**: `GET ...?api_token=YOUR_API_TOKEN`
-- **Best Practice**: Store your API token in a `.env` file and load it using `python-dotenv`:
-  ```python
-  from dotenv import load_dotenv
-  import os
-  load_dotenv()
-  marketaux_api_key = os.getenv('MARKETAUX_API_KEY')
-  ```
+- **Best Practice**: Store your API token in a `.env` file and load it using `python-dotenv`. See [technical_design.md#configuration-management](technical_design.md#configuration-management) for the standard loading pattern.
 
 ---
 
@@ -511,8 +505,11 @@ GET https://api.marketaux.com/v1/news/all?sentiment_lte=-0.1&language=en&api_tok
 
 **Error Handling Patterns:**
 - Use robust exception handling for all API calls.
-- Implement retry logic with exponential backoff for transient errors (see `fetch_with_retry` in project_spec.md):
+- Implement retry logic with exponential backoff for transient errors (see `fetch_with_retry` below):
   ```python
+  import requests
+  import time
+
   def fetch_with_retry(url, params, max_retries=3, backoff_factor=1.5):
       for attempt in range(max_retries):
           try:
@@ -521,21 +518,25 @@ GET https://api.marketaux.com/v1/news/all?sentiment_lte=-0.1&language=en&api_tok
               return response.json()
           except (requests.exceptions.RequestException, requests.exceptions.HTTPError) as e:
               if attempt == max_retries - 1:
+                  # Consider logging the error here
                   raise Exception(f"Failed after {max_retries} attempts: {str(e)}")
               time.sleep(backoff_factor ** attempt)
   ```
-- For rate limiting, use a simple in-memory rate limiter (see `RateLimiter` in project_spec.md):
+- For rate limiting, use a simple in-memory rate limiter (see `RateLimiter` below):
   ```python
+  import time
+
   class RateLimiter:
       def __init__(self, calls_per_minute=60):
           self.calls_per_minute = calls_per_minute
           self.call_times = []
       def wait_if_needed(self):
           now = time.time()
+          # Remove calls older than 60 seconds
           self.call_times = [t for t in self.call_times if now - t < 60]
           if len(self.call_times) >= self.calls_per_minute:
-              oldest_call = self.call_times[0]
-              sleep_time = 60 - (now - oldest_call)
+              oldest_call_in_window = self.call_times[0] # Oldest call within the current 60s window
+              sleep_time = 60 - (now - oldest_call_in_window)
               if sleep_time > 0:
                   time.sleep(sleep_time)
           self.call_times.append(time.time())
@@ -610,6 +611,7 @@ def fetch_financial_news(symbols, sentiment_threshold=0.2):
 ## References
 - [Marketaux API Documentation](https://www.marketaux.com/documentation)
 - [Project Specification: Error Handling](./project_spec.md#error-handling-strategy)
-- [Technical Design Document](./technical_design.md)
+- [Technical Design Document: Error Handling Strategies](./technical_design.md#error-handling-strategies)
+- [Technical Design Document: Configuration Management](./technical_design.md#configuration-management)
 
 ---
