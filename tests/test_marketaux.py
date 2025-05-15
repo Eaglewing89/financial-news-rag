@@ -130,13 +130,15 @@ class TestMarketauxNewsFetcher:
         fetcher = MarketauxNewsFetcher()
         assert fetcher.api_token == "env_test_token"
     
-    def test_initialization_missing_token(self):
+    @patch('os.getenv')
+    def test_initialization_missing_token(self, mock_getenv):
         """Test error when token is missing."""
-        # Ensure environment variable is not set
-        with patch.dict(os.environ, clear=True):
-            with pytest.raises(ValueError) as excinfo:
-                MarketauxNewsFetcher()
-            assert "Marketaux API token is required" in str(excinfo.value)
+        # Mock os.getenv to return None for MARKETAUX_API_KEY
+        mock_getenv.return_value = None
+        
+        with pytest.raises(ValueError) as excinfo:
+            MarketauxNewsFetcher()
+        assert "Marketaux API token is required" in str(excinfo.value)
     
     @patch('financial_news_rag.marketaux.fetch_with_retry')
     @patch.object(RateLimiter, 'wait_if_needed')
