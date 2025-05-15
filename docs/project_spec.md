@@ -15,6 +15,7 @@
 9. [Gemini API Integration](#gemini-api-integration)
 10. [Embedding Model](#embedding-model)
 11. [Testing Strategy](#testing-strategy)
+    - [Testing Plan and Documentation](#testing-plan-and-documentation)
 12. [Documentation](#documentation)
 13. [Implementation Plan](#implementation-plan)
 14. [Required Packages](#required-packages)
@@ -377,6 +378,7 @@ See [model_details.md#example-use-text-embedding-004](model_details.md#example-u
 - End-to-end workflow testing.
 - Coverage reporting with minimum threshold of 80%.
 - Performance benchmarks for critical operations.
+- **All details and up-to-date instructions are maintained in [testing.md](testing.md).**
 
 **Testing Quality Metrics:**
 - Precision: Accuracy of retrieved articles relative to the query
@@ -385,12 +387,9 @@ See [model_details.md#example-use-text-embedding-004](model_details.md#example-u
 - Latency: Response time for typical queries
 - Throughput: Number of queries handled per unit time
 
-**Future Enhancements:**
-- Comprehensive test suite with integration tests
-- Automated evaluation pipelines
-- Performance benchmarking for scale
-- User feedback collection system
-- A/B testing framework for model improvements
+### Testing Plan and Documentation
+
+See [docs/testing.md](testing.md) for the full testing implementation plan, test types, quality metrics, and instructions for running tests. This is the single source of truth for all testing practices in this project.
 
 ## Documentation
 

@@ -11,6 +11,7 @@
 8. [Configuration Management](#configuration-management)
 9. [Security Considerations](#security-considerations)
 10. [Extensibility and Future Enhancements](#extensibility-and-future-enhancements)
+11. [Testing](#testing)
 
 ---
 
@@ -177,6 +178,16 @@ The system is a modular Python package that implements a RAG pipeline for financ
 - API layer (FastAPI) for external access
 - Automated refresh and monitoring
 - Schema versioning and migrations
+
+## Testing
+
+All testing strategy, implementation details, and quality metrics are now documented in [testing.md](testing.md). This includes:
+- Unit, integration, and end-to-end test plans
+- Coverage and performance requirements
+- Test data and mocking strategies
+- How to run and interpret tests
+
+All contributors must follow the [testing.md](testing.md) plan for any new code or changes.
 
 ---
 
