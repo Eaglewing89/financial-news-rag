@@ -137,15 +137,15 @@ The system is a modular Python package that implements a RAG pipeline for financ
 
 ## 7. Error Handling Strategies
 
-- **API Failures**: Retry with exponential backoff (see [`fetch_with_retry` pattern](./project_spec.md#error-handling-strategy))
-- **Rate Limiting**: Simple in-memory rate limiter (see [`RateLimiter` class](./project_spec.md#error-handling-strategy))
+- **API Failures**: Retry with exponential backoff (see [`fetch_with_retry` pattern](marketaux_api.md#error-codes--handling))
+- **Rate Limiting**: Simple in-memory rate limiter (see [`RateLimiter` class](marketaux_api.md#error-codes--handling))
 - **ChromaDB Errors**: Catch and log, fail gracefully, optionally retry
 - **Embedding/Reranking Failures**: Fallback to original ranking or skip embedding
 - **Configuration Errors**: Validate on startup, raise clear exceptions if missing
 - **Logging**: All errors logged with context; user-facing errors are friendly
 
 > **Reference Patterns:**
-> The canonical implementations of `fetch_with_retry` and `RateLimiter` are maintained in the [Project Specification: Error Handling Strategy](./project_spec.md#error-handling-strategy). This technical design document references those as the source of truth for error handling patterns.
+> The canonical implementations of `fetch_with_retry` and `RateLimiter` are maintained in the [marketaux_api.md](marketaux_api.md#error-codes--handling). This technical design document references those as the source of truth for error handling patterns.
 
 ## 8. Configuration Management
 

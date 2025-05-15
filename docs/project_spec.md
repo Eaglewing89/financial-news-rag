@@ -18,6 +18,7 @@
 12. [Documentation](#documentation)
 13. [Implementation Plan](#implementation-plan)
 14. [Required Packages](#required-packages)
+15. [References](#references)
 
 # Financial News RAG Module Specification
 
@@ -104,27 +105,7 @@
 
 **MVP Requirements:**
 - ChromaDB for storing articles and embeddings
-- Basic schema for article metadata including:
-  ```json
-  {
-    "uuid": "unique-article-id", 
-    "title": "Article title",
-    "url": "https://source.com/article",
-    "source": "Source name",
-    "published_at": "2025-05-14T10:00:00Z",
-    "content": "Full article content",
-    "entities": [
-      {
-        "symbol": "TSLA", 
-        "name": "Tesla Inc.",
-        "type": "equity",
-        "sentiment_score": 0.85
-      }
-    ],
-    "embedding_model": "text-embedding-004",
-    "embedding_timestamp": "2025-05-14T10:05:00Z"
-  }
-  ```
+- Article metadata schema (see [technical_design.md](technical_design.md#chromadb-schema-definitions) and [marketaux_api.md](marketaux_api.md#response-fields) for full details)
 - Simple local file storage for configurations (.env files)
 - Manual refresh process for updating data
 
@@ -166,46 +147,10 @@
 ## Error Handling Strategy
 
 **MVP Requirements:**
-- Comprehensive exception handling for external API calls
-- Retry mechanism for transient failures with exponential backoff:
-  ```python
-  def fetch_with_retry(url, params, max_retries=3, backoff_factor=1.5):
-      """Fetch data with retry logic for handling transient failures."""
-      for attempt in range(max_retries):
-          try:
-              response = requests.get(url, params=params, timeout=10)
-              response.raise_for_status()
-              return response.json()
-          except (requests.exceptions.RequestException, requests.exceptions.HTTPError) as e:
-              if attempt == max_retries - 1:
-                  raise Exception(f"Failed after {max_retries} attempts: {str(e)}")
-              time.sleep(backoff_factor ** attempt)
-  ```
-- Rate limiting awareness for API calls:
-  ```python
-  class RateLimiter:
-      """Simple rate limiter to avoid exceeding API quotas."""
-      def __init__(self, calls_per_minute=60):
-          self.calls_per_minute = calls_per_minute
-          self.call_times = []
-          
-      def wait_if_needed(self):
-          """Wait if we've exceeded our rate limit."""
-          now = time.time()
-          # Remove calls older than 1 minute
-          self.call_times = [t for t in self.call_times if now - t < 60]
-          
-          if len(self.call_times) >= self.calls_per_minute:
-              oldest_call = self.call_times[0]
-              sleep_time = 60 - (now - oldest_call)
-              if sleep_time > 0:
-                  time.sleep(sleep_time)
-                  
-          self.call_times.append(time.time())
-  ```
-- Graceful degradation for non-critical failures
-- Detailed logging of errors with context information
-- User-friendly error messages for common failure scenarios
+- Comprehensive exception handling for external API calls, retry logic, and rate limiting. See [marketaux_api.md](marketaux_api.md#error-codes--handling) and [technical_design.md](technical_design.md#error-handling-strategies) for error codes, rate limits, and detailed strategies.
+- Graceful degradation for non-critical failures.
+- Detailed logging of errors with context information.
+- User-friendly error messages for common failure scenarios.
 
 **Future Enhancements:**
 - Circuit breaker pattern for failing services
@@ -216,30 +161,10 @@
 ## Text Processing Pipeline
 
 **MVP Requirements:**
-- Standardized text cleaning and normalization:
-  ```python
-  def clean_article_text(text):
-      """Clean and normalize article text content."""
-      # Remove HTML tags
-      text = re.sub(r'<.*?>', '', text)
-      
-      # Normalize whitespace
-      text = re.sub(r'\s+', ' ', text).strip()
-      
-      # Remove common boilerplate phrases
-      text = re.sub(r'Click here to read more\.?', '', text)
-      
-      # Fix common encoding issues
-      text = text.replace('â€™', "'").replace('â€œ', '"').replace('â€', '"')
-      
-      return text
-  ```
-- Entity extraction and normalization from financial text
-- Sentence splitting for manageable chunks - see [model_details.md](model_details.md) for detailed implementation leveraging text-embedding-004's 2048 token capacity
-- Content deduplication strategy
-- Handling of special characters and financial symbols
-- Unicode normalization
-- Optional summarization for long articles
+- Standardized text cleaning and normalization, sentence splitting, deduplication, and Unicode normalization. See [text_processing_pipeline.md](text_processing_pipeline.md) for the full implementation pipeline and code examples.
+- Entity extraction and normalization are based on Marketaux API metadata (see [marketaux_api.md](marketaux_api.md#response-fields)).
+- Chunking strategy and tokenization are described in [model_details.md](model_details.md#chunking-strategy) and [text_processing_pipeline.md](text_processing_pipeline.md#chunking-strategies-for-rag).
+- Optional summarization for long articles.
 
 **Future Enhancements:**
 - Advanced NLP for entity relationship extraction
@@ -525,10 +450,9 @@ def rerank_with_gemini(query, results, top_n=5):
 ## Embedding Model
 
 **MVP Requirements:**
-- Use Google's text-embedding-004 via Gemini API (see [model_details.md](model_details.md) for detailed specifications)
-- Implement optimized text chunking utilizing the model's 2048 token limit capacity
-- Store embeddings alongside article metadata in ChromaDB
-- Reuse the same API key configuration for both embedding and re-ranking
+- Use Google's text-embedding-004 via Gemini API (see [model_details.md](model_details.md#gemini-embedding-model-text-embedding-004) for detailed specifications and chunking/tokenization constraints).
+- Store embeddings alongside article metadata in ChromaDB.
+- Reuse the same API key configuration for both embedding and re-ranking.
 
 **Future Enhancements:**
 - Evaluate custom domain-tuned embedding models for financial texts
@@ -563,58 +487,10 @@ print(result.embeddings)
 ## Testing Strategy
 
 **MVP Requirements:**
-- Comprehensive unit testing suite using pytest:
-  ```python
-  def test_article_embedding():
-      """Test that articles are correctly embedded."""
-      article = {
-          "title": "Tesla Announces New Battery Technology",
-          "content": "Tesla Inc. has unveiled a new battery technology..."
-      }
-      embeddings = generate_embeddings(article)
-      assert len(embeddings) > 0
-      assert isinstance(embeddings[0], list)
-  ```
-- Integration tests for API interactions:
-  ```python
-  def test_marketaux_api_integration():
-      """Test that we can fetch and process data from Marketaux."""
-      with mock.patch('requests.get') as mock_get:
-          mock_get.return_value.status_code = 200
-          mock_get.return_value.json.return_value = SAMPLE_RESPONSE
-          
-          articles = fetch_financial_news(['TSLA'])
-          assert len(articles) > 0
-          assert 'title' in articles[0]
-  ```
-- Mock testing for external dependencies:
-  ```python
-  def test_gemini_reranking():
-      """Test reranking logic with mocked Gemini responses."""
-      with mock.patch('google.genai.Client') as mock_client:
-          mock_response = mock.MagicMock()
-          mock_response.text = '[{"id": "article-1", "score": 9.5}]'
-          mock_client.return_value.models.generate_content.return_value = mock_response
-          
-          results = rerank_with_gemini("Tesla news", [{"id": "article-1"}])
-          assert len(results) == 1
-  ```
-- End-to-end workflow testing
-- Coverage reporting with minimum threshold of 80%
-- Performance benchmarks for critical operations:
-  ```python
-  def test_search_performance():
-      """Test search performance with a large dataset."""
-      # Setup test collection with 1000 articles
-      setup_test_collection(1000)
-      
-      start_time = time.time()
-      results = search_news("Tesla earnings report")
-      duration = time.time() - start_time
-      
-      assert duration < 1.0  # Search should complete in under 1 second
-      assert len(results) > 0
-  ```
+- Comprehensive unit and integration testing suite using pytest. See the `tests/` directory for implementation details and [technical_design.md](technical_design.md#testing) for testing strategy and metrics.
+- End-to-end workflow testing.
+- Coverage reporting with minimum threshold of 80%.
+- Performance benchmarks for critical operations.
 
 **Testing Quality Metrics:**
 - Precision: Accuracy of retrieved articles relative to the query
@@ -712,3 +588,10 @@ black
 isort
 flake8
 ```
+
+## References
+
+- [marketaux_api.md](marketaux_api.md): Marketaux API usage, field definitions, error codes, and filtering options.
+- [model_details.md](model_details.md): Embedding and LLM model specifications, chunking/tokenization details.
+- [technical_design.md](technical_design.md): System architecture, ChromaDB schema, error handling strategies.
+- [text_processing_pipeline.md](text_processing_pipeline.md): Text cleaning, chunking, and preprocessing pipeline details.
