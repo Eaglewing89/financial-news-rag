@@ -26,6 +26,7 @@ docs/copilot-chats/
 .coverage
 htmlcov/
 .cache/
+.pytest_cache/
 
 # OS files
 .DS_Store
