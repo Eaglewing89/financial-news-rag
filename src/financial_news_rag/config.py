@@ -63,8 +63,7 @@ class Config:
                     self._config[key] = int(env_value)
                 elif isinstance(default_value, float):
                     self._config[key] = float(env_value)
-                elif isinstance(default_value, bool):
-                    self._config[key] = env_value.lower() in ("true", "yes", "1")
+# Removed unreachable boolean conversion branch as there are no boolean defaults in DEFAULT_VALUES.
                 else:
                     self._config[key] = env_value
             else:
