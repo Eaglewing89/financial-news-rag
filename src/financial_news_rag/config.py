@@ -145,7 +145,7 @@ except ValueError:
     # Users will get more specific errors when they try to use functionality
     # requiring the missing keys
     import warnings
-    warnings.warn("Missing required API keys in configuration.")
+    warnings.warn("Missing required API keys in configuration.", category=UserWarning)
 
 
 def get_config() -> Config:
