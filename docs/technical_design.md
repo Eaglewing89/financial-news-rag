@@ -21,10 +21,10 @@ This document provides a comprehensive technical design for the Financial News R
 
 ## System Architecture Overview
 
-The system is a modular Python package that implements a RAG pipeline for financial news. It fetches news from Marketaux, processes and embeds articles, stores them in ChromaDB, and enables semantic search with Gemini-based re-ranking. The architecture is designed for future API wrapping and multi-agent integration.
+The system is a modular Python package that implements a RAG pipeline for financial news. It fetches **full news articles primarily from the EODHD API**, processes and embeds them, stores them in ChromaDB, and enables semantic search with Gemini-based re-ranking. The Marketaux API may be used as a secondary source for snippets or specific metadata if needed for tasks outside the primary RAG pipeline. The architecture is designed for future API wrapping and multi-agent integration.
 
 **Key Components:**
-- News Fetcher (Marketaux API integration)
+- News Fetcher (primarily EODHD API integration, potentially Marketaux for secondary tasks)
 - Text Processing Pipeline
 - Embedding Generator (Google text-embedding-004)
 - Vector Store (ChromaDB)
@@ -47,7 +47,8 @@ The system is a modular Python package that implements a RAG pipeline for financ
          |
          v
 +-------------------+
-|  News Fetcher     |<--- Marketaux API
+|  News Fetcher     |<--- EODHD API (Primary - Full Articles)
+|                   |<--- Marketaux API (Secondary - Snippets, Optional)
 +-------------------+
          |
          v
@@ -80,9 +81,9 @@ The system is a modular Python package that implements a RAG pipeline for financ
 
 ### News Ingestion & Storage
 
-1. Fetch articles from Marketaux API
-2. Clean and normalize text
-3. Extract entities and metadata
+1. Fetch full articles from EODHD API
+2. Clean and normalize text (full content)
+3. Extract entities and metadata (from EODHD response)
 4. Generate embeddings (Google API)
 5. Store articles + embeddings in ChromaDB
 
@@ -98,38 +99,34 @@ The system is a modular Python package that implements a RAG pipeline for financ
 
 **Collection Name:** `financial_news`
 
-**Document Schema:**
+**Document Schema (based on EODHD API - see [eodhd_api.md](./eodhd_api.md#response-fields-json) for full details):**
 ```json
 {
-  "uuid": "unique-article-id",
-  "title": "Article title",
-  "url": "https://source.com/article",
-  "source": "Source name",
-  "published_at": "2025-05-14T10:00:00Z",
-  "content": "Full article content",
-  "entities": [
-    {
-      "symbol": "TSLA",
-      "name": "Tesla Inc.",
-      "type": "equity",
-      "sentiment_score": 0.85
-    }
-  ],
+  "uuid": "unique-article-id", // Generated locally or use EODHD link/guid if unique
+  "title": "Article title from EODHD",
+  "url": "https://eodhd.com/news-link or original source link",
+  "source_api": "EODHD", // To distinguish from other potential sources
+  "published_at": "2025-05-18T10:00:00Z", // From EODHD 'date' field
+  "content": "Full article content from EODHD",
+  "symbols": ["AAPL.US", "MSFT.US"], // From EODHD 'symbols' field
+  "tags": ["earnings", "technology"], // From EODHD 'tags' field
+  "sentiment": {"polarity": 0.324, "neg": 0.065, "neu": 0.862, "pos": 0.073}, // From EODHD 'sentiment' field
   "embedding_model": "text-embedding-004",
-  "embedding_timestamp": "2025-05-14T10:05:00Z"
+  "embedding_timestamp": "2025-05-18T10:05:00Z",
+  "fetched_timestamp": "2025-05-18T10:00:30Z"
 }
 ```
 
 **ChromaDB Storage:**
-- `documents`: Article content (chunked if needed)
-- `metadatas`: All fields above except embedding vector
-- `ids`: UUIDs
-- `embeddings`: Vector from Google API
+- `documents`: Full article `content` (chunked if necessary for embedding model context limits)
+- `metadatas`: All fields above (or a relevant subset) except the embedding vector itself. UUID can be part of metadata if not the primary ID.
+- `ids`: A unique identifier for each document/chunk (e.g., generated UUID, or a hash of the URL).
+- `embeddings`: Vector generated from the `content` using the Google API.
 
 ## Component Interactions
 
-- **News Fetcher**: Calls Marketaux API, handles retries/rate limits, returns raw articles.
-- **Text Processing**: Cleans text, extracts entities, normalizes data.
+- **News Fetcher**: Primarily calls EODHD API for full articles, handles retries/rate limits, returns processed articles. May interact with Marketaux API for supplementary data if configured.
+- **Text Processing**: Cleans full article text, extracts entities/tags from EODHD data, normalizes data.
 - **Embedding Generator**: Sends text to Google API, receives embedding vector.
 - **ChromaDB**: Stores/retrieves articles and embeddings, supports metadata filtering.
 - **Semantic Search**: Queries ChromaDB for similar articles.
@@ -138,29 +135,32 @@ The system is a modular Python package that implements a RAG pipeline for financ
 
 ## Error Handling Strategies
 
-- **API Failures**: Retry with exponential backoff (see [`fetch_with_retry` pattern](marketaux_api.md#error-codes--handling))
-- **Rate Limiting**: Simple in-memory rate limiter (see [`RateLimiter` class](marketaux_api.md#error-codes--handling))
+- **API Failures**: Retry with exponential backoff (see [`fetch_eodhd_with_retry` pattern in eodhd_api.md](./eodhd_api.md#error-codes--handling) for EODHD. Similar patterns apply if Marketaux is used, see [marketaux_api.md#error-codes--handling](./marketaux_api.md#error-codes--handling)).
+- **Rate Limiting**: Adhere to API-specific rate limits. For EODHD, this includes managing the 5 calls per news request and daily limits (see [eodhd_api.md](./eodhd_api.md#rate-limiting--usage-limits)). For Marketaux, refer to its documentation.
 - **ChromaDB Errors**: Catch and log, fail gracefully, optionally retry
 - **Embedding/Reranking Failures**: Fallback to original ranking or skip embedding
 - **Configuration Errors**: Validate on startup, raise clear exceptions if missing
 - **Logging**: All errors logged with context; user-facing errors are friendly
 
 > **Reference Patterns:**
-> The canonical implementations of `fetch_with_retry` and `RateLimiter` are maintained in the [marketaux_api.md](marketaux_api.md#error-codes--handling). This technical design document references those as the source of truth for error handling patterns.
+> The canonical implementations of retry logic and rate limit considerations are maintained in the respective API documentation files: [eodhd_api.md](./eodhd_api.md#error-codes--handling) for EODHD and [marketaux_api.md](./marketaux_api.md#error-codes--handling) for Marketaux. This technical design document references those as the source of truth for these error handling patterns.
 
 ## Configuration Management
 
 - **API Keys**: Managed via `.env` file, loaded with `python-dotenv`
 - **Required Variables**:
   - `GEMINI_API_KEY`
-  - `MARKETAUX_API_KEY`
+  - `EODHD_API_KEY`
+- **Optional Variables**:
+  - `MARKETAUX_API_KEY` (if Marketaux is used for secondary tasks)
 - **Loading Pattern**:
   ```python
   from dotenv import load_dotenv
   import os
   load_dotenv()
   gemini_api_key = os.getenv('GEMINI_API_KEY')
-  marketaux_api_key = os.getenv('MARKETAUX_API_KEY')
+  eodhd_api_key = os.getenv('EODHD_API_KEY')
+  marketaux_api_key = os.getenv('MARKETAUX_API_KEY') # Load if used
   ```
 - **Validation**: On module init, check for required keys
 - **Environment Separation**: Support for dev/test/prod .env files

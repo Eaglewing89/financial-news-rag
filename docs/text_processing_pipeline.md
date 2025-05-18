@@ -1,14 +1,14 @@
 # Document Text Processing Pipeline
 
 ## Description
-This document details the text processing pipeline for the Financial News RAG system. It covers text cleaning, chunking, preprocessing for embedding, and tokenization strategies, referencing architectural and implementation decisions from the project’s technical documentation.
+This document details the text processing pipeline for the Financial News RAG system. It covers text cleaning, chunking, preprocessing for embedding, and tokenization strategies, referencing architectural and implementation decisions from the project’s technical documentation. The primary source of text for this pipeline is the **full article content** obtained from the EODHD API.
 
 ---
 
 ## 1. Text Cleaning Approaches
 
 ### 1.1 Cleaning and Normalization
-- **HTML Removal:** All article text is stripped of HTML tags using regex or BeautifulSoup.
+- **HTML Removal:** All article `content` (from EODHD API) is stripped of HTML tags using regex or BeautifulSoup.
 - **Whitespace Normalization:** Consecutive whitespace is collapsed to a single space and leading/trailing whitespace is trimmed.
 - **Boilerplate Removal:** Common phrases (e.g., “Click here to read more.”) are removed using regex.
 - **Encoding Fixes:** Known encoding issues (e.g., smart quotes, dashes) are replaced with standard ASCII equivalents.
@@ -19,7 +19,7 @@ This document details the text processing pipeline for the Financial News RAG sy
 **Reference Implementation:**
 ```python
 def clean_article_text(text):
-    """Clean and normalize article text content."""
+    """Clean and normalize article text content (primarily from EODHD API)."""
     # Remove HTML tags
     text = re.sub(r'<.*?>', '', text)
     # Normalize whitespace
@@ -41,7 +41,7 @@ def clean_article_text(text):
 
 ### 2.2 Chunking Method
 - **Sentence-Based Splitting:**
-  - Articles are split into sentences using NLTK’s `sent_tokenize`.
+  - Full article `content` from EODHD is split into sentences using NLTK’s `sent_tokenize`.
   - Sentences are grouped into chunks such that the total estimated tokens per chunk does not exceed 2,048.
   - Token estimation: `len(text) // 4`.
 - **No Overlap (MVP):** Chunks are non-overlapping for simplicity. Overlapping windows may be considered in future enhancements.
@@ -50,6 +50,7 @@ def clean_article_text(text):
 **Reference Implementation:**
 ```python
 def split_into_chunks(text, max_tokens=2048):
+    """Splits full article text into manageable chunks for embedding."""
     sentences = nltk.sent_tokenize(text)
     chunks = []
     current_chunk = []
@@ -74,13 +75,13 @@ def split_into_chunks(text, max_tokens=2048):
 ## 3. Preprocessing for Embedding Generation
 
 - **Pipeline Order:**
-  1. Clean and normalize text (see above)
-  2. Split into chunks (see above)
+  1. Clean and normalize full article `content` from EODHD (see above).
+  2. Split into chunks (see above).
   3. (Optional) Summarize if article is extremely long
   4. Remove duplicate or near-duplicate chunks
   5. Validate chunk size (≤2,048 tokens)
-- **Entity Extraction:** Entities are extracted from the cleaned text using Marketaux API metadata and/or NER tools for additional normalization.
-- **Metadata Association:** Each chunk is associated with article metadata (title, uuid, published_at, entities, etc.) for downstream storage and retrieval.
+- **Entity Extraction:** Entities are primarily identified from the EODHD API response fields (e.g., `symbols`, `tags`). 
+- **Metadata Association:** Each chunk is associated with article metadata (title, uuid, published_at, EODHD symbols/tags, etc.) for downstream storage and retrieval.
 - **Unicode and Encoding:** All text is normalized to ensure compatibility with embedding API.
 
 ---
@@ -91,8 +92,9 @@ def split_into_chunks(text, max_tokens=2048):
   - For chunking, tokens are estimated as `len(text) // 4` (Gemini models: 1 token ≈ 4 characters).
   - For embedding, the Google API handles tokenization internally, but pre-chunking ensures compliance with limits.
 - **Text Elements:**
-  - Title, snippet, and main content are all cleaned and chunked as needed.
-  - Entities and highlights are preserved in metadata, not embedded directly.
+  - The `content` field from the EODHD API response (full article text) is the primary input for cleaning, chunking, and embedding.
+  - Article `title` from EODHD may also be considered for embedding or as metadata.
+  - EODHD `symbols` and `tags` are preserved in metadata.
 - **Special Handling:**
   - Financial symbols, tickers, and numbers are preserved in the text.
   - Non-ASCII characters are normalized or removed if not relevant.
@@ -103,7 +105,7 @@ def split_into_chunks(text, max_tokens=2048):
 - [Project Specification](./project_spec.md)
 - [Model Details](./model_details.md)
 - [Technical Design](./technical_design.md)
-- [Marketaux API Guide](./marketaux_api.md)
+- [EODHD API Guide](./eodhd_api.md) (Primary source for article content)
 
 ---
 

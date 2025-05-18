@@ -19,7 +19,18 @@
 
 ## Overview
 
-The Marketaux API provides access to global financial news articles, supporting entity, sentiment, and metadata filtering. This guide details how to integrate Marketaux into the Financial News RAG module, including authentication, endpoint usage, error handling, and best practices for robust operation.
+The Marketaux API provides access to global financial news article snippets, supporting entity, sentiment, and metadata filtering. This guide details its integration into the Financial News RAG module.
+
+**Important Note on Usage:** The Marketaux API returns only **snippets** of articles, not full content. Due to this limitation, it is **no longer the primary source for populating our RAG vector database**. The EODHD API, which provides full article content, has replaced Marketaux for this core purpose.
+
+Marketaux may still be used for other potential features, such as:
+- Simple entity sentiment analysis.
+- Quick checks for news mentions without needing full content.
+- Exploring broader news trends via snippets if full content processing is too resource-intensive for that specific task.
+
+However, it will **not be included in the MVP for the RAG system's primary news ingestion pipeline.**
+
+This guide covers authentication, endpoint usage, error handling, and best practices for any continued or future use of the Marketaux API.
 
 ---
 
@@ -37,7 +48,7 @@ The Marketaux API provides access to global financial news articles, supporting 
 ### Finance & Market News
 - **Endpoint**: `GET https://api.marketaux.com/v1/news/all`
 - **Available on**: All plans
-- **Purpose**: Retrieve the latest global financial news and filter by entities, sentiment, industry, and more. Entity analysis is provided for each identified entity in articles. Not all articles have entities; use `must_have_entities=true` or entity filters for more concise results.
+- **Purpose**: Retrieve snippets of the latest global financial news and filter by entities, sentiment, industry, and more. Entity analysis is provided for each identified entity in articles. Not all articles have entities; use `must_have_entities=true` or entity filters for more concise results. **Note: Returns article snippets, not full content.**
 
 #### HTTP GET Parameters
 | Name                | Required | Description |
@@ -505,12 +516,12 @@ GET https://api.marketaux.com/v1/news/all?sentiment_lte=-0.1&language=en&api_tok
 
 **Error Handling Patterns:**
 - Use robust exception handling for all API calls.
-- Implement retry logic with exponential backoff for transient errors (see `fetch_with_retry` below):
+- Implement retry logic with exponential backoff for transient errors (see `fetch_marketaux_with_retry` below):
   ```python
   import requests
   import time
 
-  def fetch_with_retry(url, params, max_retries=3, backoff_factor=1.5):
+  def fetch_marketaux_with_retry(url, params, max_retries=3, backoff_factor=1.5):
       for attempt in range(max_retries):
           try:
               response = requests.get(url, params=params, timeout=10)
@@ -522,11 +533,11 @@ GET https://api.marketaux.com/v1/news/all?sentiment_lte=-0.1&language=en&api_tok
                   raise Exception(f"Failed after {max_retries} attempts: {str(e)}")
               time.sleep(backoff_factor ** attempt)
   ```
-- For rate limiting, use a simple in-memory rate limiter (see `RateLimiter` below):
+- For rate limiting, use a simple in-memory rate limiter (see `MarketauxRateLimiter` below):
   ```python
   import time
 
-  class RateLimiter:
+  class MarketauxRateLimiter:
       def __init__(self, calls_per_minute=60):
           self.calls_per_minute = calls_per_minute
           self.call_times = []
@@ -580,38 +591,51 @@ GET https://api.marketaux.com/v1/news/all?sentiment_lte=-0.1&language=en&api_tok
 
 ## Integration Patterns
 
-**Typical Workflow:**
-1. Fetch articles from Marketaux using `/v1/news/all` with appropriate filters.
-2. Clean and process article text.
-3. Store articles and metadata in your vector database (e.g., ChromaDB).
-4. Use robust error and rate limit handling as described above.
+**Typical Workflow (for secondary uses, not RAG pipeline):**
+1. Fetch article snippets from Marketaux using `/v1/news/all` with appropriate filters if a quick overview or sentiment check is needed.
+2. Process the snippet and associated metadata (e.g., entities, sentiment scores).
+3. Use this information for tasks like dashboarding sentiment trends or identifying articles for later full-text retrieval via another source if necessary.
+4. Implement robust error and rate limit handling as described.
 
-**Python Example:**
+**Note:** For the primary RAG pipeline, refer to the `eodhd_api.md` documentation for fetching and processing full articles.
+
+**Python Example (for fetching snippets):**
 ```python
 import requests
 from dotenv import load_dotenv
 import os
+
 load_dotenv()
 API_TOKEN = os.getenv('MARKETAUX_API_KEY')
 API_URL = 'https://api.marketaux.com/v1/news/all'
-def fetch_financial_news(symbols, sentiment_threshold=0.2):
+
+def fetch_marketaux_news_snippets(symbols, sentiment_threshold=0.2):
+    if not API_TOKEN:
+        print("MARKETAUX_API_KEY not found in environment variables.")
+        return []
     params = {
         'api_token': API_TOKEN,
         'symbols': ','.join(symbols),
         'sentiment_gte': sentiment_threshold,
-        'must_have_entities': 'true'
+        'must_have_entities': 'true',
+        'limit': 3 # Example limit, adjust as needed per plan
     }
-    response = requests.get(API_URL, params=params)
-    response.raise_for_status()
-    return response.json().get('data', [])
+    try:
+        response = requests.get(API_URL, params=params, timeout=10)
+        response.raise_for_status()
+        return response.json().get('data', [])
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching Marketaux snippets: {e}")
+        return []
+
+# Example usage:
+# snippets = fetch_marketaux_news_snippets(['TSLA', 'AAPL'])
+# for snippet_data in snippets:
+#     print(f"Title: {snippet_data['title']}, Snippet: {snippet_data['snippet']}")
 ```
 
 ---
 
 ## References
 - [Marketaux API Documentation](https://www.marketaux.com/documentation)
-- [Project Specification: Error Handling](./project_spec.md#error-handling-strategy)
-- [Technical Design Document: Error Handling Strategies](./technical_design.md#error-handling-strategies)
-- [Technical Design Document: Configuration Management](./technical_design.md#configuration-management)
-
----
+- [EODHD API Integration Guide](./eodhd_api.md) (for primary RAG news source)

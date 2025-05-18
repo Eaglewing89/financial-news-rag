@@ -7,24 +7,24 @@ providing functions to fetch, process, and search news articles with semantic un
 
 from financial_news_rag.config import get_config
 from financial_news_rag.data import (
-    fetch_financial_news,
-    normalize_news_data,
-    search_entities,
-    get_entity_types,
-    get_industry_list,
-    get_news_sources
+    fetch_marketaux_news_snippets,
+    normalize_marketaux_news_data,
+    search_marketaux_entities,
+    get_marketaux_entity_types,
+    get_marketaux_industry_list,
+    get_marketaux_news_sources
 )
-from financial_news_rag.marketaux import MarketauxNewsFetcher, RateLimiter, fetch_with_retry
+from financial_news_rag.marketaux import MarketauxNewsFetcher, MarketauxRateLimiter, fetch_marketaux_with_retry
 
 __all__ = [
     "MarketauxNewsFetcher", 
-    "RateLimiter", 
-    "fetch_with_retry",
+    "MarketauxRateLimiter", 
+    "fetch_marketaux_with_retry",
     "get_config",
-    "fetch_financial_news",
-    "normalize_news_data",
-    "search_entities",
-    "get_entity_types",
-    "get_industry_list",
-    "get_news_sources"
+    "fetch_marketaux_news_snippets",
+    "normalize_marketaux_news_data",
+    "search_marketaux_entities",
+    "get_marketaux_entity_types",
+    "get_marketaux_industry_list",
+    "get_marketaux_news_sources"
 ]

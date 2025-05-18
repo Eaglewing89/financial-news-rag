@@ -42,7 +42,7 @@
 ## Core Objectives
 
 **MVP Requirements:**
-1. Fetch financial news articles from a single reliable API (Marketaux.com)
+1. Fetch financial news articles from a reliable API that provides **full article content** (EODHD API).
 2. Process and clean text content of news articles
 3. Generate embeddings using a serverless embedding model (Google's text-embedding-004)
 4. Store news articles and embeddings in ChromaDB
@@ -51,7 +51,7 @@
 7. Create a well-structured Python module with clean interfaces
 
 **Future Enhancements:**
-1. Integrate multiple news sources with fallback mechanisms (Finnhub.io, Newsfilter.io)
+1. Integrate multiple news sources with fallback mechanisms (e.g., Marketaux for snippets if full content isn't needed for a specific task, Finnhub.io, Newsfilter.io).
 2. Implement advanced filtering by company, sector, and time range
 3. Add source credibility scoring and article relevance metrics
 4. Create automated data refresh and maintenance workflows
@@ -89,15 +89,19 @@
 ### Data Sources
 
 **MVP Requirements:**
-- [Marketaux.com](https://www.marketaux.com/) as primary source
-  - Specific endpoint: `GET https://api.marketaux.com/v1/news/all`
-  - Authentication via API token in query parameters
-  - Free tier usage with appropriate rate limit handling
-- Basic error handling for API failures
-- Simple caching to minimize redundant calls
+- **Primary Source:** [EODHD API](https://eodhd.com/financial-apis/stock-market-financial-news-api) for fetching **full news articles**.
+  - Specific endpoint: `GET https://eodhd.com/api/news`
+  - Authentication via API token in query parameters (`api_token`).
+  - Free tier usage with appropriate rate limit handling (e.g., 5 API calls per news request, 20 calls/day limit).
+  - See [eodhd_api.md](eodhd_api.md) for detailed integration, parameters, and response structure.
+- Basic error handling for API failures.
+- Simple caching to minimize redundant calls (especially important for EODHD due to call costs).
 
 **Future Enhancements:**
-- Multiple financial news APIs (Finnhub.io, Newsfilter.io, etc.)
+- Integrate other financial news APIs (Finnhub.io, Newsfilter.io, etc.) for broader coverage or fallback.
+- **Secondary/Potential Future Source (Not for RAG MVP):** [Marketaux.com](https://www.marketaux.com/) for article **snippets**, entity/sentiment data if needed for other tasks.
+  - Marketaux is **not** used for the primary RAG pipeline due to providing only snippets.
+  - See [marketaux_api.md](marketaux_api.md) for its details.
 - SEC EDGAR filings integration
 - Source credibility scoring system
 - Rate-limiting and advanced request management
@@ -105,9 +109,9 @@
 ### Data Management
 
 **MVP Requirements:**
-- ChromaDB for storing articles and embeddings
-- Article metadata schema (see [technical_design.md](technical_design.md#chromadb-schema-definitions) and [marketaux_api.md](marketaux_api.md#response-fields) for full details)
-- Simple local file storage for configurations (.env files)
+- ChromaDB for storing articles and embeddings.
+- Article metadata schema (see [technical_design.md](technical_design.md#chromadb-schema-definitions) and [eodhd_api.md](eodhd_api.md#response-fields-json) for EODHD full article metadata).
+- Simple local file storage for configurations (.env files).
 - Manual refresh process for updating data
 
 **Future Enhancements:**
@@ -124,7 +128,8 @@
 - Standard .env file with required API keys:
   ```
   GEMINI_API_KEY=your_gemini_api_key
-  MARKETAUX_API_KEY=your_marketaux_api_key
+  EODHD_API_KEY=your_eodhd_api_key
+  MARKETAUX_API_KEY=your_marketaux_api_key # Optional, if Marketaux is used for secondary tasks
   ```
 - Configuration loading pattern:
   ```python
@@ -133,7 +138,8 @@
   
   load_dotenv()
   gemini_api_key = os.getenv('GEMINI_API_KEY')
-  marketaux_api_key = os.getenv('MARKETAUX_API_KEY')
+  eodhd_api_key = os.getenv('EODHD_API_KEY')
+  marketaux_api_key = os.getenv('MARKETAUX_API_KEY') # Load if used
   ```
 - Configuration validation on module initialization
 - Separate configuration for development/testing environments
@@ -148,7 +154,7 @@
 ## Error Handling Strategy
 
 **MVP Requirements:**
-- Comprehensive exception handling for external API calls, retry logic, and rate limiting. See [marketaux_api.md#error-codes--handling](marketaux_api.md#error-codes--handling) for specific error codes, rate limits, and detailed strategies for the Marketaux API, including `fetch_with_retry` and `RateLimiter` patterns.
+- Comprehensive exception handling for external API calls, retry logic, and rate limiting. See [eodhd_api.md#error-codes--handling](eodhd_api.md#error-codes--handling) for specific error codes, rate limits, and detailed strategies.
 - Graceful degradation for non-critical failures.
 - Detailed logging of errors with context information.
 - User-friendly error messages for common failure scenarios.
@@ -163,7 +169,7 @@
 
 **MVP Requirements:**
 - Standardized text cleaning and normalization, sentence splitting, deduplication, and Unicode normalization. See [text_processing_pipeline.md](text_processing_pipeline.md) for the full implementation pipeline and code examples.
-- Entity extraction and normalization are based on Marketaux API metadata (see [marketaux_api.md](marketaux_api.md#response-fields)).
+- Entity extraction and normalization will primarily rely on data from the EODHD API response (e.g., `symbols`, `tags`).  
 - Chunking strategy and tokenization are described in [model_details.md](model_details.md#chunking-strategy) and [text_processing_pipeline.md](text_processing_pipeline.md#chunking-strategies-for-rag).
 - Optional summarization for long articles.
 
@@ -418,13 +424,17 @@ See [docs/testing.md](testing.md) for the full testing implementation plan, test
    │       ├── __init__.py
    │       ├── search.py
    │       ├── embeddings.py
-   │       ├── data.py
+   │       ├── data.py           # Will handle EODHD and potentially Marketaux fetching
+   │       ├── eodhd.py          # Specific EODHD API interaction logic (new or in data.py)
+   │       ├── marketaux.py      # Specific Marketaux API interaction logic (if kept for other tasks)
    │       ├── config.py
    │       └── utils.py
    ├── tests/
    │   ├── test_search.py
    │   ├── test_embeddings.py
-   │   └── test_data.py
+   │   ├── test_data.py        # Tests for data fetching and processing
+   │   ├── test_eodhd.py       # (new or in test_data.py)
+   │   └── test_marketaux.py   # (if kept)
    ├── docs/
    │   └── ...
    ├── examples/
@@ -435,9 +445,9 @@ See [docs/testing.md](testing.md) for the full testing implementation plan, test
    ├── setup.py
    └── README.md
    ```
-2. Implement news fetching from the Marketaux API
-3. Create text processing and embedding pipeline
-4. Set up ChromaDB integration
+2. Implement news fetching from the EODHD API (primary source for full articles).
+3. Optionally, retain or adapt Marketaux API fetching for snippets/metadata if specific secondary uses are identified.
+4. Create text processing and embedding pipeline (focused on full content from EODHD).
 5. Implement basic search functionality
 6. Add Gemini re-ranking capability
 7. Create clean, well-documented module interfaces
@@ -476,7 +486,8 @@ flake8
 
 ## References
 
-- [marketaux_api.md](marketaux_api.md): Marketaux API usage, field definitions, error codes, and filtering options.
+- [eodhd_api.md](eodhd_api.md): EODHD API usage, field definitions, error codes, and filtering options (Primary RAG source).
+- [marketaux_api.md](marketaux_api.md): Marketaux API usage, field definitions, error codes, and filtering options (Secondary/potential source for snippets).
 - [model_details.md](model_details.md): Embedding and LLM model specifications, chunking/tokenization details, example use.
 - [technical_design.md](technical_design.md): System architecture, ChromaDB schema, error handling strategies.
 - [text_processing_pipeline.md](text_processing_pipeline.md): Text cleaning, chunking, and preprocessing pipeline details.

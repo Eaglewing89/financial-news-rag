@@ -14,7 +14,7 @@ import requests
 from dotenv import load_dotenv
 
 
-class RateLimiter:
+class MarketauxRateLimiter:
     """
     Implements a simple in-memory rate limiter to respect Marketaux API limits.
     
@@ -53,7 +53,7 @@ class RateLimiter:
         self.call_times.append(time.time())
 
 
-def fetch_with_retry(url: str, params: Dict[str, Any], max_retries: int = 3, 
+def fetch_marketaux_with_retry(url: str, params: Dict[str, Any], max_retries: int = 3, 
                     backoff_factor: float = 1.5, timeout: int = 10) -> Dict[str, Any]:
     """
     Fetch data from an API with exponential backoff retry logic.
@@ -107,7 +107,7 @@ class MarketauxNewsFetcher:
     Attributes:
         api_token (str): Marketaux API authentication token.
         base_url (str): Base URL for Marketaux API endpoints.
-        rate_limiter (RateLimiter): Rate limiting instance to prevent API throttling.
+        rate_limiter (MarketauxRateLimiter): Rate limiting instance to prevent API throttling.
     """
     
     # API endpoint URLs
@@ -140,7 +140,7 @@ class MarketauxNewsFetcher:
             )
         
         self.api_token = api_token
-        self.rate_limiter = RateLimiter()
+        self.rate_limiter = MarketauxRateLimiter()
     
     def fetch_news(self, 
                   symbols: Optional[List[str]] = None,
@@ -290,7 +290,7 @@ class MarketauxNewsFetcher:
         self.rate_limiter.wait_if_needed()
         
         # Make API request with retry logic
-        return fetch_with_retry(self.NEWS_API_URL, params)
+        return fetch_marketaux_with_retry(self.NEWS_API_URL, params)
     
     def search_entities(self,
                        search: Optional[str] = None,
@@ -342,7 +342,7 @@ class MarketauxNewsFetcher:
         self.rate_limiter.wait_if_needed()
         
         # Make API request with retry logic
-        return fetch_with_retry(self.ENTITY_SEARCH_URL, params)
+        return fetch_marketaux_with_retry(self.ENTITY_SEARCH_URL, params)
     
     def get_entity_types(self) -> Dict[str, Any]:
         """
@@ -360,7 +360,7 @@ class MarketauxNewsFetcher:
         self.rate_limiter.wait_if_needed()
         
         # Make API request with retry logic
-        return fetch_with_retry(self.ENTITY_TYPE_URL, params)
+        return fetch_marketaux_with_retry(self.ENTITY_TYPE_URL, params)
     
     def get_industry_list(self) -> Dict[str, Any]:
         """
@@ -378,7 +378,7 @@ class MarketauxNewsFetcher:
         self.rate_limiter.wait_if_needed()
         
         # Make API request with retry logic
-        return fetch_with_retry(self.INDUSTRY_LIST_URL, params)
+        return fetch_marketaux_with_retry(self.INDUSTRY_LIST_URL, params)
     
     def get_news_sources(self,
                         distinct_domain: bool = False,
@@ -410,7 +410,7 @@ class MarketauxNewsFetcher:
         self.rate_limiter.wait_if_needed()
         
         # Make API request with retry logic
-        return fetch_with_retry(self.SOURCES_URL, params)
+        return fetch_marketaux_with_retry(self.SOURCES_URL, params)
     
     def normalize_article_data(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

@@ -1,6 +1,7 @@
 # Environment and secrets
 .env
 venv/
+example_data/
 
 # Python cache and build
 __pycache__/

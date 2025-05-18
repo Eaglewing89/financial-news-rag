@@ -43,7 +43,7 @@ This document defines the testing strategy, implementation plan, and quality met
   - `test_search.py`: Search and re-ranking logic
   - `test_embeddings.py`: Embedding and chunking logic
   - `test_data.py`: Data ingestion, cleaning, and storage
-- Use mocking for all external API calls (Marketaux, Gemini, Google Embeddings) to ensure tests are deterministic and do not require network access.
+- Use mocking for all external API calls (EODHD, Gemini, Google Embeddings) to ensure tests are deterministic and do not require network access.
 - Use temporary or in-memory ChromaDB instances for tests to avoid polluting production data.
 - Add fixtures for common test data (sample articles, embeddings, etc.).
 - Run all tests and coverage checks before each release or major change.

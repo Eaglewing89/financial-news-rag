@@ -7,17 +7,17 @@ from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta
 
 from financial_news_rag.data import (
-    fetch_financial_news,
-    normalize_news_data,
-    search_entities,
-    get_entity_types,
-    get_industry_list,
-    get_news_sources
+    fetch_marketaux_news_snippets,
+    normalize_marketaux_news_data,
+    search_marketaux_entities,
+    get_marketaux_entity_types,
+    get_marketaux_industry_list,
+    get_marketaux_news_sources
 )
 
 
 @patch('financial_news_rag.data.MarketauxNewsFetcher')
-def test_fetch_financial_news_basic(mock_marketaux_class):
+def test_fetch_marketaux_news_snippets_basic(mock_marketaux_class):
     """Test basic news fetching functionality."""
     # Set up mock
     mock_marketaux = MagicMock()
@@ -28,7 +28,7 @@ def test_fetch_financial_news_basic(mock_marketaux_class):
     mock_marketaux_class.return_value = mock_marketaux
     
     # Call function
-    result = fetch_financial_news(
+    result = fetch_marketaux_news_snippets(
         symbols=["TSLA", "AAPL"],
         language=["en"],
         limit=3
@@ -48,7 +48,7 @@ def test_fetch_financial_news_basic(mock_marketaux_class):
 
 
 @patch('financial_news_rag.data.MarketauxNewsFetcher')
-def test_fetch_financial_news_with_dates(mock_marketaux_class):
+def test_fetch_marketaux_news_snippets_with_dates(mock_marketaux_class):
     """Test fetching news with date parameters."""
     # Set up mock
     mock_marketaux = MagicMock()
@@ -56,7 +56,7 @@ def test_fetch_financial_news_with_dates(mock_marketaux_class):
     mock_marketaux_class.return_value = mock_marketaux
     
     # Call with days_back
-    fetch_financial_news(days_back=5)
+    fetch_marketaux_news_snippets(days_back=5)
     
     # Verify date handling
     call_kwargs = mock_marketaux.fetch_news.call_args[1]
@@ -70,7 +70,7 @@ def test_fetch_financial_news_with_dates(mock_marketaux_class):
     # Call with date_range
     start_date = datetime(2025, 5, 1)
     end_date = datetime(2025, 5, 10)
-    fetch_financial_news(date_range=(start_date, end_date))
+    fetch_marketaux_news_snippets(date_range=(start_date, end_date))
     
     # Verify date range handling
     call_kwargs = mock_marketaux.fetch_news.call_args[1]
@@ -79,8 +79,8 @@ def test_fetch_financial_news_with_dates(mock_marketaux_class):
 
 
 @patch('financial_news_rag.data.MarketauxNewsFetcher')
-def test_fetch_financial_news_error_handling(mock_marketaux_class):
-    """Test error handling in fetch_financial_news."""
+def test_fetch_marketaux_news_snippets_error_handling(mock_marketaux_class):
+    """Test error handling in fetch_marketaux_news_snippets."""
     # Set up mock to raise exception
     mock_marketaux = MagicMock()
     mock_marketaux.fetch_news.side_effect = Exception("API error")
@@ -88,12 +88,12 @@ def test_fetch_financial_news_error_handling(mock_marketaux_class):
     
     # Call should raise exception
     with pytest.raises(Exception) as excinfo:
-        fetch_financial_news(symbols=["TSLA"])
+        fetch_marketaux_news_snippets(symbols=["TSLA"])
     
     assert "API error" in str(excinfo.value)
 
 
-def test_normalize_news_data():
+def test_normalize_marketaux_news_data():
     """Test normalization of news data."""
     # Create sample articles
     articles = [
@@ -116,7 +116,7 @@ def test_normalize_news_data():
             }
         ]
         
-        result = normalize_news_data(articles)
+        result = normalize_marketaux_news_data(articles)
         
         # Check result
         assert result[0]["uuid"] == "test-uuid"
@@ -127,7 +127,7 @@ def test_normalize_news_data():
 
 
 @patch('financial_news_rag.data.MarketauxNewsFetcher')
-def test_search_entities(mock_marketaux_class):
+def test_search_marketaux_entities(mock_marketaux_class):
     """Test entity search functionality."""
     # Set up mock
     mock_marketaux = MagicMock()
@@ -137,7 +137,7 @@ def test_search_entities(mock_marketaux_class):
     mock_marketaux_class.return_value = mock_marketaux
     
     # Call function
-    result = search_entities(search="Tesla", entity_types=["equity"])
+    result = search_marketaux_entities(search="Tesla", entity_types=["equity"])
     
     # Check results
     assert result["data"][0]["symbol"] == "TSLA"
@@ -150,7 +150,7 @@ def test_search_entities(mock_marketaux_class):
 
 
 @patch('financial_news_rag.data.MarketauxNewsFetcher')
-def test_get_entity_types(mock_marketaux_class):
+def test_get_marketaux_entity_types(mock_marketaux_class):
     """Test fetching entity types."""
     # Set up mock
     mock_marketaux = MagicMock()
@@ -160,7 +160,7 @@ def test_get_entity_types(mock_marketaux_class):
     mock_marketaux_class.return_value = mock_marketaux
     
     # Call function
-    result = get_entity_types()
+    result = get_marketaux_entity_types()
     
     # Check results
     assert len(result) == 3
@@ -172,7 +172,7 @@ def test_get_entity_types(mock_marketaux_class):
 
 
 @patch('financial_news_rag.data.MarketauxNewsFetcher')
-def test_get_industry_list(mock_marketaux_class):
+def test_get_marketaux_industry_list(mock_marketaux_class):
     """Test fetching industry list."""
     # Set up mock
     mock_marketaux = MagicMock()
@@ -182,7 +182,7 @@ def test_get_industry_list(mock_marketaux_class):
     mock_marketaux_class.return_value = mock_marketaux
     
     # Call function
-    result = get_industry_list()
+    result = get_marketaux_industry_list()
     
     # Check results
     assert len(result) == 2
@@ -194,7 +194,7 @@ def test_get_industry_list(mock_marketaux_class):
 
 
 @patch('financial_news_rag.data.MarketauxNewsFetcher')
-def test_get_news_sources(mock_marketaux_class):
+def test_get_marketaux_news_sources(mock_marketaux_class):
     """Test fetching news sources."""
     # Set up mock
     mock_marketaux = MagicMock()
@@ -207,7 +207,7 @@ def test_get_news_sources(mock_marketaux_class):
     mock_marketaux_class.return_value = mock_marketaux
     
     # Call function
-    result = get_news_sources(language=["en"], distinct_domain=True)
+    result = get_marketaux_news_sources(language=["en"], distinct_domain=True)
     
     # Check results
     assert len(result["data"]) == 2

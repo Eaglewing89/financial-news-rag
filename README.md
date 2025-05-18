@@ -44,10 +44,10 @@ You can obtain a Marketaux API key by signing up at [marketaux.com](https://www.
 ### Fetching News Articles
 
 ```python
-from financial_news_rag import fetch_financial_news
+from financial_news_rag import fetch_marketaux_news_snippets
 
 # Fetch recent news for Tesla and Apple
-news = fetch_financial_news(
+news = fetch_marketaux_news_snippets(
     symbols=["TSLA", "AAPL"],
     days_back=7,
     language=["en"],
@@ -66,17 +66,17 @@ for article in news["data"]:
 ### Filtering by Sentiment
 
 ```python
-from financial_news_rag import fetch_financial_news
+from financial_news_rag import fetch_marketaux_news_snippets
 
 # Get positive news (sentiment >= 0.2)
-positive_news = fetch_financial_news(
+positive_news = fetch_marketaux_news_snippets(
     symbols=["MSFT"],
     sentiment_gte=0.2,
     days_back=7
 )
 
 # Get negative news (sentiment <= -0.2)
-negative_news = fetch_financial_news(
+negative_news = fetch_marketaux_news_snippets(
     symbols=["MSFT"],
     sentiment_lte=-0.2,
     days_back=7
@@ -86,10 +86,10 @@ negative_news = fetch_financial_news(
 ### Text Search
 
 ```python
-from financial_news_rag import fetch_financial_news
+from financial_news_rag import fetch_marketaux_news_snippets
 
 # Search for specific terms
-results = fetch_financial_news(
+results = fetch_marketaux_news_snippets(
     search="AI earnings",
     days_back=7,
     language=["en"]

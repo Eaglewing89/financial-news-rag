@@ -10,17 +10,17 @@ from datetime import datetime
 
 from financial_news_rag.marketaux import (
     MarketauxNewsFetcher, 
-    RateLimiter,
-    fetch_with_retry
+    MarketauxRateLimiter,
+    fetch_marketaux_with_retry
 )
 
 
-class TestRateLimiter:
-    """Tests for the RateLimiter class."""
+class TestMarketauxRateLimiter:
+    """Tests for the MarketauxRateLimiter class."""
     
     def test_initialization(self):
         """Test that rate limiter initializes with correct values."""
-        limiter = RateLimiter(calls_per_minute=30)
+        limiter = MarketauxRateLimiter(calls_per_minute=30)
         assert limiter.calls_per_minute == 30
         assert limiter.call_times == []
     
@@ -32,7 +32,7 @@ class TestRateLimiter:
         mock_time.return_value = 1000
         
         # Initialize with 2 calls per minute
-        limiter = RateLimiter(calls_per_minute=2)
+        limiter = MarketauxRateLimiter(calls_per_minute=2)
         
         # Add two calls just within the window (less than 60s ago)
         limiter.call_times = [950, 970]
@@ -49,7 +49,7 @@ class TestRateLimiter:
 
 
 class TestFetchWithRetry:
-    """Tests for fetch_with_retry function."""
+    """Tests for fetch_marketaux_with_retry function."""
     
     @patch('requests.get')
     def test_successful_request(self, mock_get):
@@ -59,7 +59,7 @@ class TestFetchWithRetry:
         mock_response.json.return_value = {"data": "test_data"}
         mock_get.return_value = mock_response
         
-        result = fetch_with_retry("https://api.test.com", params={"key": "value"})
+        result = fetch_marketaux_with_retry("https://api.test.com", params={"key": "value"})
         
         # Should return the JSON response
         assert result == {"data": "test_data"}
@@ -77,7 +77,7 @@ class TestFetchWithRetry:
         mock_error = requests.exceptions.RequestException("Test error")
         mock_get.side_effect = [mock_error, mock_error, mock_response]
         
-        result = fetch_with_retry(
+        result = fetch_marketaux_with_retry(
             "https://api.test.com", 
             params={"key": "value"},
             max_retries=3,
@@ -100,7 +100,7 @@ class TestFetchWithRetry:
         mock_get.side_effect = [mock_error, mock_error, mock_error]
         
         with pytest.raises(Exception) as excinfo:
-            fetch_with_retry(
+            fetch_marketaux_with_retry(
                 "https://api.test.com", 
                 params={"key": "value"},
                 max_retries=3,
@@ -122,7 +122,7 @@ class TestMarketauxNewsFetcher:
         """Test initialization with explicit token."""
         fetcher = MarketauxNewsFetcher(api_token="test_token")
         assert fetcher.api_token == "test_token"
-        assert isinstance(fetcher.rate_limiter, RateLimiter)
+        assert isinstance(fetcher.rate_limiter, MarketauxRateLimiter)
     
     @patch.dict(os.environ, {"MARKETAUX_API_KEY": "env_test_token"})
     def test_initialization_from_env(self):
@@ -140,11 +140,11 @@ class TestMarketauxNewsFetcher:
             MarketauxNewsFetcher()
         assert "Marketaux API token is required" in str(excinfo.value)
     
-    @patch('financial_news_rag.marketaux.fetch_with_retry')
-    @patch.object(RateLimiter, 'wait_if_needed')
+    @patch('financial_news_rag.marketaux.fetch_marketaux_with_retry')
+    @patch.object(MarketauxRateLimiter, 'wait_if_needed')
     def test_fetch_news_basic(self, mock_wait, mock_fetch):
         """Test basic news fetching with minimal parameters."""
-        # Mock fetch_with_retry response
+        # Mock fetch_marketaux_with_retry response
         mock_fetch.return_value = {
             "data": [{"title": "Test Article"}],
             "meta": {"found": 1, "returned": 1}
@@ -156,7 +156,7 @@ class TestMarketauxNewsFetcher:
         # Rate limiter should be called
         mock_wait.assert_called_once()
         
-        # fetch_with_retry should be called with correct params
+        # fetch_marketaux_with_retry should be called with correct params
         mock_fetch.assert_called_once()
         call_args = mock_fetch.call_args[0]
         assert call_args[0] == MarketauxNewsFetcher.NEWS_API_URL
@@ -170,7 +170,7 @@ class TestMarketauxNewsFetcher:
         # Should return the mock response
         assert result["data"][0]["title"] == "Test Article"
     
-    @patch('financial_news_rag.marketaux.fetch_with_retry')
+    @patch('financial_news_rag.marketaux.fetch_marketaux_with_retry')
     def test_fetch_news_all_parameters(self, mock_fetch):
         """Test news fetching with all parameters."""
         mock_fetch.return_value = {"data": []}
@@ -202,7 +202,7 @@ class TestMarketauxNewsFetcher:
             page=2
         )
         
-        # Check parameters passed to fetch_with_retry
+        # Check parameters passed to fetch_marketaux_with_retry
         call_args = mock_fetch.call_args[0]
         params = call_args[1]
         
@@ -230,7 +230,7 @@ class TestMarketauxNewsFetcher:
         assert params["limit"] == 10
         assert params["page"] == 2
     
-    @patch('financial_news_rag.marketaux.fetch_with_retry')
+    @patch('financial_news_rag.marketaux.fetch_marketaux_with_retry')
     def test_invalid_sort_option(self, mock_fetch):
         """Test error when invalid sort option is provided."""
         fetcher = MarketauxNewsFetcher(api_token="test_token")
@@ -239,10 +239,10 @@ class TestMarketauxNewsFetcher:
             fetcher.fetch_news(sort="invalid_option")
         
         assert "Invalid sort option" in str(excinfo.value)
-        # fetch_with_retry should not be called
+        # fetch_marketaux_with_retry should not be called
         mock_fetch.assert_not_called()
     
-    @patch('financial_news_rag.marketaux.fetch_with_retry')
+    @patch('financial_news_rag.marketaux.fetch_marketaux_with_retry')
     def test_search_entities(self, mock_fetch):
         """Test entity search functionality."""
         mock_fetch.return_value = {"data": [{"symbol": "TSLA"}]}
@@ -254,7 +254,7 @@ class TestMarketauxNewsFetcher:
             types=["equity"]
         )
         
-        # Check parameters passed to fetch_with_retry
+        # Check parameters passed to fetch_marketaux_with_retry
         call_args = mock_fetch.call_args[0]
         assert call_args[0] == MarketauxNewsFetcher.ENTITY_SEARCH_URL
         
