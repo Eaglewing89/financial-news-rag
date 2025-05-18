@@ -116,7 +116,7 @@ def fetch_marketaux_news_snippets(
         raise
 
 
-def normalize_news_data(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def normalize_marketaux_news_data(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Normalize news article data for storage in the database.
     
@@ -133,7 +133,7 @@ def normalize_news_data(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return marketaux.normalize_article_data(articles)
 
 
-def search_entities(
+def search_marketaux_entities(
     search: Optional[str] = None,
     symbols: Optional[List[str]] = None,
     entity_types: Optional[List[str]] = None,
@@ -178,7 +178,7 @@ def search_entities(
         raise
 
 
-def get_entity_types(api_token: Optional[str] = None) -> List[str]:
+def get_marketaux_entity_types(api_token: Optional[str] = None) -> List[str]:
     """
     Get all supported entity types from the Marketaux API.
     
@@ -203,7 +203,7 @@ def get_entity_types(api_token: Optional[str] = None) -> List[str]:
         raise
 
 
-def get_industry_list(api_token: Optional[str] = None) -> List[str]:
+def get_marketaux_industry_list(api_token: Optional[str] = None) -> List[str]:
     """
     Get all supported industries from the Marketaux API.
     
@@ -228,7 +228,7 @@ def get_industry_list(api_token: Optional[str] = None) -> List[str]:
         raise
 
 
-def get_news_sources(
+def get_marketaux_news_sources(
     distinct_domain: bool = False,
     language: Optional[List[str]] = None,
     page: int = 1,

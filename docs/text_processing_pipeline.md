@@ -80,7 +80,7 @@ def split_into_chunks(text, max_tokens=2048):
   3. (Optional) Summarize if article is extremely long
   4. Remove duplicate or near-duplicate chunks
   5. Validate chunk size (≤2,048 tokens)
-- **Entity Extraction:** Entities are primarily identified from the EODHD API response fields (e.g., `symbols`, `tags`). If Marketaux API is used for supplementary data, its entity metadata can also be incorporated.
+- **Entity Extraction:** Entities are primarily identified from the EODHD API response fields (e.g., `symbols`, `tags`). 
 - **Metadata Association:** Each chunk is associated with article metadata (title, uuid, published_at, EODHD symbols/tags, etc.) for downstream storage and retrieval.
 - **Unicode and Encoding:** All text is normalized to ensure compatibility with embedding API.
 
@@ -95,7 +95,6 @@ def split_into_chunks(text, max_tokens=2048):
   - The `content` field from the EODHD API response (full article text) is the primary input for cleaning, chunking, and embedding.
   - Article `title` from EODHD may also be considered for embedding or as metadata.
   - EODHD `symbols` and `tags` are preserved in metadata.
-  - If Marketaux is used, its `snippet` and entity highlights are secondary and handled as metadata.
 - **Special Handling:**
   - Financial symbols, tickers, and numbers are preserved in the text.
   - Non-ASCII characters are normalized or removed if not relevant.
@@ -107,7 +106,6 @@ def split_into_chunks(text, max_tokens=2048):
 - [Model Details](./model_details.md)
 - [Technical Design](./technical_design.md)
 - [EODHD API Guide](./eodhd_api.md) (Primary source for article content)
-- [Marketaux API Guide](./marketaux_api.md) (Secondary source for snippets/metadata)
 
 ---
 

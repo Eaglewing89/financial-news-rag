@@ -141,7 +141,7 @@ def fetch_eodhd_with_retry(url, params, max_retries=3, backoff_factor=1.5):
             time.sleep(backoff_factor ** attempt)
     return None # Should not be reached if max_retries > 0
 ```
-- Response time for requests can sometimes take up to 20 seconds, so ensure your HTTP client timeout is configured appropriately.
+- Response time for requests can sometimes take up to 60 seconds, so ensure your HTTP client timeout is configured appropriately.
 
 ---
 
@@ -155,7 +155,7 @@ def fetch_eodhd_with_retry(url, params, max_retries=3, backoff_factor=1.5):
     - Given the low daily limit on the free plan, space out your 4 news requests. For example, one request every 15 seconds within a minute, once per day.
     - Monitor API call usage if you upgrade to a paid plan.
     - Cache results where appropriate to avoid redundant calls, although freshness is key for our RAG.
-    - The `limit` parameter can request up to 1000 articles, but be mindful of processing time and API call costs if fetching large numbers of articles per request on a paid plan.
+    - The `limit` parameter can request up to 1000 articles, but be mindful of processing time.
 
 ---
 

@@ -516,12 +516,12 @@ GET https://api.marketaux.com/v1/news/all?sentiment_lte=-0.1&language=en&api_tok
 
 **Error Handling Patterns:**
 - Use robust exception handling for all API calls.
-- Implement retry logic with exponential backoff for transient errors (see `fetch_with_retry` below):
+- Implement retry logic with exponential backoff for transient errors (see `fetch_marketaux_with_retry` below):
   ```python
   import requests
   import time
 
-  def fetch_with_retry(url, params, max_retries=3, backoff_factor=1.5):
+  def fetch_marketaux_with_retry(url, params, max_retries=3, backoff_factor=1.5):
       for attempt in range(max_retries):
           try:
               response = requests.get(url, params=params, timeout=10)
@@ -533,11 +533,11 @@ GET https://api.marketaux.com/v1/news/all?sentiment_lte=-0.1&language=en&api_tok
                   raise Exception(f"Failed after {max_retries} attempts: {str(e)}")
               time.sleep(backoff_factor ** attempt)
   ```
-- For rate limiting, use a simple in-memory rate limiter (see `RateLimiter` below):
+- For rate limiting, use a simple in-memory rate limiter (see `MarketauxRateLimiter` below):
   ```python
   import time
 
-  class RateLimiter:
+  class MarketauxRateLimiter:
       def __init__(self, calls_per_minute=60):
           self.calls_per_minute = calls_per_minute
           self.call_times = []

@@ -154,7 +154,7 @@
 ## Error Handling Strategy
 
 **MVP Requirements:**
-- Comprehensive exception handling for external API calls, retry logic, and rate limiting. See [eodhd_api.md#error-codes--handling](eodhd_api.md#error-codes--handling) and [marketaux_api.md#error-codes--handling](marketaux_api.md#error-codes--handling) for specific error codes, rate limits, and detailed strategies for each API, including `fetch_with_retry` and `RateLimiter` patterns where applicable.
+- Comprehensive exception handling for external API calls, retry logic, and rate limiting. See [eodhd_api.md#error-codes--handling](eodhd_api.md#error-codes--handling) for specific error codes, rate limits, and detailed strategies.
 - Graceful degradation for non-critical failures.
 - Detailed logging of errors with context information.
 - User-friendly error messages for common failure scenarios.
@@ -169,7 +169,7 @@
 
 **MVP Requirements:**
 - Standardized text cleaning and normalization, sentence splitting, deduplication, and Unicode normalization. See [text_processing_pipeline.md](text_processing_pipeline.md) for the full implementation pipeline and code examples.
-- Entity extraction and normalization will primarily rely on data from the EODHD API response (e.g., `symbols`, `tags`). Marketaux API metadata ([marketaux_api.md](marketaux_api.md#response-fields)) can be a secondary source if that API is used.
+- Entity extraction and normalization will primarily rely on data from the EODHD API response (e.g., `symbols`, `tags`).  
 - Chunking strategy and tokenization are described in [model_details.md](model_details.md#chunking-strategy) and [text_processing_pipeline.md](text_processing_pipeline.md#chunking-strategies-for-rag).
 - Optional summarization for long articles.
 
