@@ -16,7 +16,7 @@ from financial_news_rag.utils import safe_get
 logger = logging.getLogger("financial_news_rag")
 
 
-def fetch_financial_news(
+def fetch_marketaux_news_snippets(
     symbols: Optional[List[str]] = None,
     sentiment_gte: Optional[float] = None,
     sentiment_lte: Optional[float] = None,

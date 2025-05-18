@@ -7,7 +7,7 @@ providing functions to fetch, process, and search news articles with semantic un
 
 from financial_news_rag.config import get_config
 from financial_news_rag.data import (
-    fetch_financial_news,
+    fetch_marketaux_news_snippets,
     normalize_news_data,
     search_entities,
     get_entity_types,
@@ -21,7 +21,7 @@ __all__ = [
     "RateLimiter", 
     "fetch_with_retry",
     "get_config",
-    "fetch_financial_news",
+    "fetch_marketaux_news_snippets",
     "normalize_news_data",
     "search_entities",
     "get_entity_types",
