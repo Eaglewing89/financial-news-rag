@@ -1,14 +1,16 @@
 # Financial News RAG Module
 
-A Retrieval Augmented Generation (RAG) system for financial news. This Python module fetches, processes, and enables semantic search over financial news articles.
+A Retrieval Augmented Generation (RAG) system for financial news. This Python module fetches, processes, and enables semantic search over financial news articles with re-ranking capabilities.
 
 ## Features
 
-- Fetch financial news articles from Marketaux API
-- Filter by company symbols, sentiment, date ranges, and more
-- Entity information extraction
-- Robust error handling with retries and rate limiting
-- Clean and normalized article data structure
+- Fetch complete financial news articles from EODHD API
+- Filter news by ticker symbols, topic tags, date ranges, and more
+- Process and clean article text for embedding generation
+- Store articles and vectors in ChromaDB for efficient semantic search
+- Re-rank results using Gemini 2.0 Flash for improved relevance
+- Robust error handling with exponential backoff retry mechanism
+- SQLite database for tracking processed articles and API usage
 
 ## Installation
 
@@ -33,72 +35,67 @@ pip install -e .
 Create a `.env` file in the root directory with your API keys:
 
 ```
-MARKETAUX_API_KEY=your_marketaux_api_key
+EODHD_API_KEY=your_eodhd_api_key
 GEMINI_API_KEY=your_gemini_api_key
 ```
 
-You can obtain a Marketaux API key by signing up at [marketaux.com](https://www.marketaux.com/).
+You can obtain an EODHD API key by signing up at [eodhd.com](https://eodhd.com/).
 
 ## Usage Examples
 
-### Fetching News Articles
+### Fetching News Articles with EODHD API
 
 ```python
-from financial_news_rag import fetch_marketaux_news_snippets
+from financial_news_rag import EODHDClient
 
-# Fetch recent news for Tesla and Apple
-news = fetch_marketaux_news_snippets(
-    symbols=["TSLA", "AAPL"],
-    days_back=7,
-    language=["en"],
-    filter_entities=True
+# Create EODHD client
+client = EODHDClient()
+
+# Fetch news articles by topic tag
+merger_news = client.fetch_news(
+    tag="MERGERS AND ACQUISITIONS",
+    from_date="2025-05-01",
+    to_date="2025-05-19",
+    limit=5
 )
 
-# Access the articles
-for article in news["data"]:
+# Fetch news for a specific ticker symbol
+tech_news = client.fetch_news(
+    symbols=["AAPL.US"],  # Use a single symbol
+    from_date="2025-05-01",
+    to_date="2025-05-19",
+    limit=10
+)
+
+# Process the normalized articles
+for article in merger_news:
     print(f"Title: {article['title']}")
-    print(f"Source: {article['source']}")
-    print(f"URL: {article['url']}")
     print(f"Published: {article['published_at']}")
+    print(f"URL: {article['url']}")
+    print(f"Sentiment: {article['sentiment']['polarity']}")
     print("---")
 ```
 
-### Filtering by Sentiment
+### Semantic Search with Re-ranking
 
 ```python
-from financial_news_rag import fetch_marketaux_news_snippets
+from financial_news_rag import search_news
 
-# Get positive news (sentiment >= 0.2)
-positive_news = fetch_marketaux_news_snippets(
-    symbols=["MSFT"],
-    sentiment_gte=0.2,
-    days_back=7
+# Search for news about AI acquisitions
+results = search_news(
+    query="AI companies acquiring startups",
+    max_results=5,
+    rerank=True,
+    date_range=("2025-01-01", "2025-05-19")
 )
 
-# Get negative news (sentiment <= -0.2)
-negative_news = fetch_marketaux_news_snippets(
-    symbols=["MSFT"],
-    sentiment_lte=-0.2,
-    days_back=7
-)
-```
-
-### Text Search
-
-```python
-from financial_news_rag import fetch_marketaux_news_snippets
-
-# Search for specific terms
-results = fetch_marketaux_news_snippets(
-    search="AI earnings",
-    days_back=7,
-    language=["en"]
+# Search with entity filter
+results = search_news(
+    query="earnings report",
+    entity_filter=["AAPL.US", "GOOGL.US"],
+    max_results=5
 )
 ```
-
-### Entity Search
-
-```python
 from financial_news_rag import search_entities
 
 # Search for AI-related companies
@@ -109,15 +106,27 @@ entities = search_entities(
 )
 ```
 
+## Component Architecture
+
+The Financial News RAG system consists of several interconnected components:
+
+1. **News Fetcher**: Primarily uses EODHD API to fetch full news articles. Marketaux API is available as a secondary source for news snippets.
+2. **Text Processing Pipeline**: Cleans and normalizes article content for embedding generation.
+3. **SQLite Database**: Tracks processed articles and API usage to prevent duplicates and optimize API calls.
+4. **Embedding Generator**: Generates vector embeddings for articles using Google's text-embedding-004 model.
+5. **Vector Database**: Stores articles and embeddings in ChromaDB for efficient semantic search.
+6. **Semantic Search Engine**: Finds relevant articles based on query similarity.
+7. **Gemini Re-ranker**: Uses Gemini 2.0 Flash model to improve search result relevance.
+
 ## Documentation
 
 See the `docs/` directory for detailed documentation:
 
 - [Project Specification](docs/project_spec.md)
 - [Technical Design](docs/technical_design.md)
-- [Marketaux API Integration](docs/marketaux_api.md)
-- [Model Details](docs/model_details.md)
+- [EODHD API Integration](docs/eodhd_api.md)
 - [Text Processing Pipeline](docs/text_processing_pipeline.md)
+- [Model Details](docs/model_details.md)
 
 For development guidelines, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
@@ -125,7 +134,8 @@ For development guidelines, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 The `examples/` directory contains Jupyter notebooks demonstrating various features:
 
-- [Basic Search](examples/basic_search.ipynb): Demonstrates fetching and filtering news
+- [EODHD Example](examples/eodhd_example.ipynb): Working with the EODHD API
+- [Basic Search](examples/basic_search.ipynb): Demonstrates semantic search capabilities
 - [Refresh Data](examples/refresh_data.ipynb): Shows how to refresh the news database
 
 ## Testing
