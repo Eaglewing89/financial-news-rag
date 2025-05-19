@@ -59,9 +59,9 @@ merger_news = client.fetch_news(
     limit=5
 )
 
-# Fetch news for specific ticker symbols
+# Fetch news for a specific ticker symbol
 tech_news = client.fetch_news(
-    symbols=["AAPL.US", "MSFT.US"],
+    symbols=["AAPL.US"],  # Use a single symbol
     from_date="2025-05-01",
     to_date="2025-05-19",
     limit=10
