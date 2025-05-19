@@ -63,6 +63,27 @@ def main():
         limit=10  # Increased to demonstrate duplication handling
     )
     
+    # Log the API call
+    if articles:
+        # Find the oldest and newest article dates
+        oldest_date = min([a.get('published_at', '') for a in articles]) if articles else None
+        newest_date = max([a.get('published_at', '') for a in articles]) if articles else None
+        
+        # Log the successful API call
+        pipeline.log_api_call(
+            query_type='tag',
+            query_value='MERGERS AND ACQUISITIONS',
+            from_date=week_ago_str,
+            to_date=today_str,
+            limit=10,
+            offset=0,
+            articles_retrieved_count=len(articles),
+            oldest_article_date=oldest_date,
+            newest_article_date=newest_date,
+            api_call_successful=True,
+            http_status_code=200  # Assuming success
+        )
+    
     if not articles:
         print("No articles found. Trying another tag...")
         articles = client.fetch_news(
@@ -71,6 +92,25 @@ def main():
             to_date=today_str,
             limit=10
         )
+        
+        # Log the API call for the fallback tag
+        if articles:
+            oldest_date = min([a.get('published_at', '') for a in articles]) if articles else None
+            newest_date = max([a.get('published_at', '') for a in articles]) if articles else None
+            
+            pipeline.log_api_call(
+                query_type='tag',
+                query_value='EARNINGS RELEASES AND OPERATING RESULTS',
+                from_date=week_ago_str,
+                to_date=today_str,
+                limit=10,
+                offset=0,
+                articles_retrieved_count=len(articles),
+                oldest_article_date=oldest_date,
+                newest_article_date=newest_date,
+                api_call_successful=True,
+                http_status_code=200  # Assuming success
+            )
     
     if not articles:
         print("No articles found. Try adjusting the date range or topic tag.")

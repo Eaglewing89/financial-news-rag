@@ -15,6 +15,7 @@ import sqlite3
 import unicodedata
 from hashlib import sha256
 from typing import Dict, List, Optional, Tuple, Union, Any
+from datetime import datetime, timezone
 
 import nltk
 from nltk.tokenize import sent_tokenize
@@ -713,6 +714,78 @@ class TextProcessingPipeline:
             str: SHA-256 hash of the URL
         """
         return sha256(url.encode('utf-8')).hexdigest()
+
+    def log_api_call(
+        self,
+        query_type: str,
+        query_value: str,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        articles_retrieved_count: int = 0,
+        oldest_article_date: Optional[str] = None,
+        newest_article_date: Optional[str] = None,
+        api_call_successful: bool = True,
+        http_status_code: Optional[int] = None,
+        error_message: Optional[str] = None
+    ) -> int:
+        """
+        Log an API call to the api_call_log table.
+        
+        Args:
+            query_type: Type of query ('tag' or 'symbol')
+            query_value: The tag or symbol used in the query
+            from_date: The from date parameter used in the API call
+            to_date: The to date parameter used in the API call
+            limit: The limit parameter used in the API call
+            offset: The offset parameter used in the API call
+            articles_retrieved_count: Number of articles retrieved
+            oldest_article_date: Oldest publication date among retrieved articles
+            newest_article_date: Newest publication date among retrieved articles
+            api_call_successful: Whether the API call was successful
+            http_status_code: HTTP status code of the response
+            error_message: Error message if the API call failed
+            
+        Returns:
+            int: ID of the logged API call (log_id)
+        """
+        query = """
+        INSERT INTO api_call_log (
+            query_type, query_value, last_fetched_timestamp,
+            from_date_param, to_date_param, limit_param, offset_param,
+            articles_retrieved_count, oldest_article_date_in_batch, newest_article_date_in_batch,
+            api_call_successful, http_status_code, error_message
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        
+        current_timestamp = datetime.now(timezone.utc).isoformat()
+        api_call_successful_int = 1 if api_call_successful else 0
+        
+        params = (
+            query_type,
+            query_value,
+            current_timestamp,
+            from_date,
+            to_date,
+            limit,
+            offset,
+            articles_retrieved_count,
+            oldest_article_date,
+            newest_article_date,
+            api_call_successful_int,
+            http_status_code,
+            error_message
+        )
+        
+        try:
+            cursor = self._execute_query(query, params, commit=True)
+            log_id = cursor.lastrowid
+            logger.info(f"API call logged with ID {log_id}")
+            return log_id
+        except sqlite3.Error as e:
+            logger.error(f"Error logging API call: {e}")
+            return -1
 
 
 # Convenience functions
