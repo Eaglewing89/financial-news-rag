@@ -69,8 +69,9 @@ class EODHDClient:
         Fetch financial news articles from EODHD API.
         
         Args:
-            symbols: Ticker symbol(s) to filter news for. Can be a string (single symbol or comma-separated) 
-                   or a list of symbols that will be joined with commas.
+            symbols: Ticker symbol(s) to filter news for. Can be a string (single symbol), a comma-separated string, 
+                   or a list of symbols. If a list or a comma-separated string is provided, a warning will be triggered, 
+                   and only the first symbol will be used.
             tag: Topic tag to filter news for (e.g., "mergers and acquisitions").
             from_date: Start date for filtering news (YYYY-MM-DD).
             to_date: End date for filtering news (YYYY-MM-DD).
