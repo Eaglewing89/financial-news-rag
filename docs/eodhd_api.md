@@ -41,7 +41,7 @@ The EODHD Financial News API provides access to global financial news articles, 
 #### HTTP GET Parameters
 | Parameter  | Required           | Type    | Description                                                                 |
 |------------|--------------------|---------|-----------------------------------------------------------------------------|
-| `s`        | Yes (if `t` not set) | string  | The ticker code to retrieve news for, e.g., `AAPL.US`. Multiple symbols can be comma-separated. |
+| `s`        | Yes (if `t` not set) | string  | The ticker code to retrieve news for, e.g., `AAPL.US`. **Important**: Despite official documentation, only a single symbol is supported. Multiple symbols in a comma-separated list will result in empty responses. |
 | `t`        | Yes (if `s` not set) | string  | The topic tag to retrieve news for, e.g., `technology`. Use `%20` for spaces in multi-word tags (e.g., `mergers%20and%20acquisitions`). |
 | `from`     | No                 | string  | Start date for filtering news (YYYY-MM-DD).                                 |
 | `to`       | No                 | string  | End date for filtering news (YYYY-MM-DD).                                   |
@@ -62,8 +62,8 @@ Each article in the JSON response array includes:
 | `title`   | string              | Headline of the news article.                    |
 | `content` | string              | Full article body.                               |
 | `link`    | string              | Direct URL to the article.                       |
-| `symbols` | array               | List of ticker symbols mentioned in the article.  |
-| `tags`    | array               | Article topic tags (may be empty, max 20 shown, alphabetically sorted). |
+| `symbols` | array               | List of ticker symbols mentioned in the article. **May be empty.** |
+| `tags`    | array               | Article topic tags. **May be empty.** (max 20 shown, alphabetically sorted). |
 | `sentiment`| object             | Sentiment scores: `polarity`, `neg`, `neu`, `pos`.|
 
 #### Example Request
@@ -109,6 +109,12 @@ The EODHD API allows filtering news by topic tags using the `t` parameter. While
 ```http
 GET https://eodhd.com/api/news?s=AAPL.US&limit=3&api_token=YOUR_API_TOKEN&fmt=json
 ```
+
+**Important Note on Symbol Queries:**
+Despite what the official EODHD documentation suggests, our testing has revealed that:
+1. Only a single symbol is accepted in the `s` parameter
+2. Using comma-separated symbols (e.g., `s=AAPL.US,MSFT.US`) results in empty responses
+3. If you need to fetch news for multiple symbols, you must make separate API calls for each symbol
 
 **Fetching news for a topic tag with date range:**
 ```http

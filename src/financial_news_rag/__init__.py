@@ -14,13 +14,23 @@ from financial_news_rag.data import (
     get_marketaux_industry_list,
     get_marketaux_news_sources
 )
+from financial_news_rag.eodhd import EODHDClient, EODHDApiError
 from financial_news_rag.marketaux import MarketauxNewsFetcher, MarketauxRateLimiter, fetch_marketaux_with_retry
 
 __all__ = [
+    # EODHD API
+    "EODHDClient",
+    "EODHDApiError",
+    
+    # Marketaux API
     "MarketauxNewsFetcher", 
     "MarketauxRateLimiter", 
     "fetch_marketaux_with_retry",
+    
+    # Configuration
     "get_config",
+    
+    # Data functions
     "fetch_marketaux_news_snippets",
     "normalize_marketaux_news_data",
     "search_marketaux_entities",
