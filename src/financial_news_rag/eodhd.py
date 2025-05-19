@@ -184,14 +184,14 @@ class EODHDClient:
                 
                 # If we received an empty list, it's valid but means no articles found
                 if data == [] and 's' in params:
-                    print(f"No articles found for symbols: {params['s']}")
+                    logging.info(f"No articles found for symbols: {params['s']}")
                 
                 return data if isinstance(data, list) else []
                 
             except (requests.exceptions.RequestException, ValueError) as e:
                 # Log the error with attempt information
                 error_msg = f"Attempt {attempt + 1}/{max_retries} failed: {str(e)}"
-                print(error_msg)  # Basic logging, replace with proper logging
+                logging.error(error_msg)  # Log the error message
                 
                 # If this was the last attempt, raise the error
                 if attempt == max_retries - 1:
