@@ -66,6 +66,35 @@ Each article in the JSON response array includes:
 | `tags`    | array               | Article topic tags. **May be empty.** (max 20 shown, alphabetically sorted). |
 | `sentiment`| object             | Sentiment scores: `polarity`, `neg`, `neu`, `pos`.|
 
+Our `EODHDClient` processes the raw API response and returns a list of dictionaries, where each dictionary represents an article with the following structure. Note that `url_hash`, `fetched_at`, `source_api` are added by our client, and `published_at` is a normalized version of the original `date` field.
+
+| Field          | Type                | Description                                                                                                                               |
+|----------------|---------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `url_hash`     | string              | A SHA-256 hash of the article's URL. This can be used as a unique identifier or primary key. **(Custom field)**                             |
+| `title`        | string              | Headline of the news article.                                                                                                             |
+| `content`      | string              | Full article body.                                                                                                                        |
+| `url`          | string              | Direct URL to the article.                                                                                                                |
+| `published_at` | string (ISO 8601)   | Normalized publication date and time of the article. Original `date` field is parsed and stored in a consistent ISO 8601 format.           |
+| `fetched_at`   | string (ISO 8601)   | Timestamp of when the article was fetched by our client. **(Custom field)**                                                                 |
+| `source_api`   | string              | Indicates the API source, e.g., 'EODHD'. **(Custom field)**                                                                               |
+| `symbols`      | array               | List of ticker symbols mentioned in the article. May be empty.                                                                            |
+| `tags`         | array               | Article topic tags. May be empty.                                                                                                         |
+| `sentiment`    | object              | Sentiment scores: `polarity`, `neg`, `neu`, `pos`.                                                                                        |
+
+**Note on `published_at` normalization:**
+The `date` field from the EODHD API response is normalized into the `published_at` field. The normalization process involves:
+```python
+# Pseudo-code for normalization
+try:
+    # Parse the ISO 8601 date
+    published_at = datetime.fromisoformat(article['date'].replace('Z', '+00:00'))
+    # Store it in ISO format for consistent representation
+    published_at_iso = published_at.isoformat()
+except (KeyError, ValueError):
+    # Fallback if date is missing or invalid
+    published_at_iso = datetime.now(timezone.utc).isoformat()
+```
+
 #### Example Request
 ```http
 GET https://eodhd.com/api/news?t=mergers%20and%20acquisitions&limit=5&from=2025-05-01&to=2025-05-18&api_token=YOUR_API_TOKEN&fmt=json
@@ -187,55 +216,107 @@ def fetch_eodhd_with_retry(url, params, max_retries=3, backoff_factor=1.5):
 7.  Update your local tracking database with the URLs of newly processed articles and any relevant metadata for API call strategy.
 8.  Adhere to rate limits.
 
-**Python Example (Basic Fetch):**
+For more details on the `EODHDClient` class and its methods, refer to the `src/financial_news_rag/eodhd.py` file.
+
+**Python Examples using `EODHDClient`:**
+
+The following examples demonstrate how to use the `EODHDClient` from our project to fetch news.
+
 ```python
-import requests
-from dotenv import load_dotenv
+# Imports
 import os
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+from financial_news_rag.eodhd import EODHDClient # Assuming EODHDClient is in this path
 
-load_dotenv()
-API_TOKEN = os.getenv('EODHD_API_KEY') # Ensure this matches your .env file
-API_URL = 'https://eodhd.com/api/news'
+# Load environment variables
+load_dotenv() # Make sure your .env file has EODHD_API_KEY
 
-def fetch_eodhd_news(tag=None, symbols=None, from_date=None, to_date=None, limit=10, offset=0):
-    if not API_TOKEN:
-        raise ValueError("EODHD_API_KEY not found in environment variables.")
-    params = {
-        'api_token': API_TOKEN,
-        'fmt': 'json',
-        'limit': limit,
-        'offset': offset
-    }
-    if tag:
-        params['t'] = tag
-    elif symbols:
-        params['s'] = symbols # Can be a comma-separated string of symbols
-    else:
-        raise ValueError("Either 'tag' or 'symbols' must be provided.")
+# Create an EODHD client
+# The client will automatically pick up the API key from the environment variable EODHD_API_KEY
+client = EODHDClient()
 
-    if from_date:
-        params['from'] = from_date
-    if to_date:
-        params['to'] = to_date
+# Define date range for the last 7 days
+today = datetime.now()
+week_ago = today - timedelta(days=7)
+today_str = today.strftime("%Y-%m-%d")
+week_ago_str = week_ago.strftime("%Y-%m-%d")
 
-    # Using the retry mechanism defined earlier
-    # response_data = fetch_eodhd_with_retry(API_URL, params)
-    # For standalone example:
-    try:
-        response = requests.get(API_URL, params=params, timeout=25)
-        response.raise_for_status()
-        response_data = response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching EODHD news: {e}")
-        return []
-        
-    return response_data
+# Example 1: Fetch news by tag (Mergers and Acquisitions)
+# This will fetch up to 10 articles tagged with "MERGERS AND ACQUISITIONS"
+# published between week_ago_str and today_str.
+merger_news = client.fetch_news(
+    tag="MERGERS AND ACQUISITIONS",
+    from_date=week_ago_str,
+    to_date=today_str,
+    limit=10
+)
 
-# Example usage:
-# news_articles = fetch_eodhd_news(tag="mergers%20and%20acquisitions", limit=5)
-# for article in news_articles:
-# print(f"Title: {article['title']}, URL: {article['link']}")
+# Example merger_news output (structure):
+# [
+#     {
+#         'url_hash': '458b3e5a901a99886feef68be6ef3f3e55381c1cdf6a71e8984ec3e8949275a3',
+#         'title': 'Article title',
+#         'content': 'Full article content here...',
+#         'url': 'https://example.com/news/article.html',
+#         'published_at': '2025-05-19T13:37:00+00:00', # Normalized date
+#         'fetched_at': '2025-05-19T17:09:17.540581+00:00', # Custom field
+#         'source_api': 'EODHD', # Custom field
+#         'symbols': [],
+#         'tags': ['EUROPEAN REGULATORY NEWS', 'MERGERS AND ACQUISITIONS'],
+#         'sentiment': {'polarity': 0.997, 'neg': 0.005, 'neu': 0.887, 'pos': 0.107}
+#     }
+#     # ... more articles ...
+# ]
+
+if merger_news:
+    print(f"Fetched {len(merger_news)} articles for 'MERGERS AND ACQUISITIONS'")
+    # print(merger_news[0]) # To inspect the first article
+else:
+    print("No articles found for 'MERGERS AND ACQUISITIONS' in the last 7 days.")
+
+# Example 2: Fetch news for a specific symbol (Apple)
+# This will fetch up to 10 articles related to "AAPL.US"
+# published between week_ago_str and today_str.
+apple_news = client.fetch_news(
+    symbols="AAPL.US", 
+    from_date=week_ago_str,
+    to_date=today_str,
+    limit=10
+)
+
+# Example apple_news output (structure):
+# [
+#     {
+#         'url_hash': '458b3e5a901a99886feef68be6ef3f3e55381c1cdf6a71e8984ec3e8949275a3',
+#         'title': 'Article title',
+#         'content': "Full article content here...",
+#         'url': 'https://example.com/news/article.html',
+#         'published_at': '2025-05-19T12:46:30+00:00', # Normalized date
+#         'fetched_at': '2025-05-19T17:30:10.329923+00:00', # Custom field
+#         'source_api': 'EODHD', # Custom field
+#         'symbols': ['AAPL.US', 'BABA.US', 'BABAF.US'],
+#         'tags': [],
+#         'sentiment': {'polarity': -0.881, 'neg': 0.097, 'neu': 0.863, 'pos': 0.04}
+#     }
+#     # ... more articles ...
+# ]
+
+if apple_news:
+    print(f"Fetched {len(apple_news)} articles for 'AAPL.US'")
+    # print(apple_news[0]) # To inspect the first article
+else:
+    print("No articles found for 'AAPL.US' in the last 7 days.")
+
 ```
+
+**Explanation of Custom Fields in `EODHDClient` Response:**
+When using our `EODHDClient`, the response for each article includes a few additional fields not present in the raw EODHD API response:
+-   `source_api`: A string field (e.g., "EODHD") to identify the origin of the data, useful if integrating multiple news sources.
+-   `fetched_at`: An ISO 8601 timestamp indicating when our system retrieved the article.
+-   `url_hash`: A SHA-256 hash of the article's `url`. Since the `url` is the only guaranteed unique identifier from the EODHD API, this hash can serve as a reliable primary key for database storage or for quick comparisons to avoid processing duplicate articles.
+
+These additions aid in data management, tracking, and ensuring data integrity within our RAG system.
 
 ### API Call Strategy
 (Adapted from exploration notes)
@@ -302,5 +383,6 @@ This database will help in:
 ## References
 - [EODHD Financial News API Documentation](https://eodhd.com/financial-apis/stock-market-financial-news-api)
 - [Project Technical Design: Configuration Management](./technical_design.md#configuration-management) (for API key handling)
+- [EODHDClient source code](../src/financial_news_rag/eodhd.py)
 
 ---
