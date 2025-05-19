@@ -174,6 +174,60 @@ class TestEODHDClient:
         assert kwargs["params"]["limit"] == 20
         assert kwargs["params"]["offset"] == 40
     
+    def test_fetch_news_invalid_limit(self):
+        """Test that using an invalid limit raises ValueError."""
+        # Test limit below the minimum (1)
+        with pytest.raises(ValueError) as exc_info:
+            self.client.fetch_news(tag="HOSPITALITY", limit=0)
+        assert "'limit' must be between 1 and 1000" in str(exc_info.value)
+        
+        # Test limit above the maximum (1000)
+        with pytest.raises(ValueError) as exc_info:
+            self.client.fetch_news(tag="HOSPITALITY", limit=1001)
+        assert "'limit' must be between 1 and 1000" in str(exc_info.value)
+    
+    def test_fetch_news_invalid_date_format(self):
+        """Test that using invalid date formats raises ValueError."""
+        # Test invalid from_date format
+        with pytest.raises(ValueError) as exc_info:
+            self.client.fetch_news(tag="HOSPITALITY", from_date="05-01-2025")
+        assert "'from_date' must be in YYYY-MM-DD format" in str(exc_info.value)
+        
+        # Test invalid to_date format
+        with pytest.raises(ValueError) as exc_info:
+            self.client.fetch_news(tag="HOSPITALITY", to_date="2025/05/01")
+        assert "'to_date' must be in YYYY-MM-DD format" in str(exc_info.value)
+        
+        # Test both invalid date formats
+        with pytest.raises(ValueError) as exc_info:
+            self.client.fetch_news(
+                tag="HOSPITALITY", 
+                from_date="May 1, 2025",
+                to_date="May 10, 2025"
+            )
+        assert "'from_date' must be in YYYY-MM-DD format" in str(exc_info.value)
+    
+    def test_fetch_news_valid_date_format(self):
+        """Test that using valid date formats works correctly."""
+        # Set up the mock
+        with patch("requests.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = SAMPLE_RESPONSE
+            mock_get.return_value = mock_response
+            
+            # Test valid from_date and to_date formats
+            articles = self.client.fetch_news(
+                tag="HOSPITALITY",
+                from_date="2025-05-01",
+                to_date="2025-05-31"
+            )
+            
+            # Check the call parameters
+            mock_get.assert_called_once()
+            args, kwargs = mock_get.call_args
+            assert kwargs["params"]["from"] == "2025-05-01"
+            assert kwargs["params"]["to"] == "2025-05-31"
+    
     @patch("requests.get")
     def test_normalize_article(self, mock_get):
         """Test the normalization of API response articles."""

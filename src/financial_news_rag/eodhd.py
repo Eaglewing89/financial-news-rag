@@ -9,6 +9,7 @@ import os
 import time
 import hashlib
 import warnings
+import logging
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Union
 
@@ -85,8 +86,28 @@ class EODHDClient:
             
         Raises:
             ValueError: If neither symbols nor tag is provided.
+            ValueError: If limit is outside the valid range of 1-1000.
+            ValueError: If from_date or to_date has an invalid format.
             EODHDApiError: If the API request fails after retries.
         """
+        # Validate limit parameter
+        if not 1 <= limit <= 1000:
+            raise ValueError("'limit' must be between 1 and 1000")
+        
+        # Validate date format
+        date_format = "%Y-%m-%d"
+        if from_date:
+            try:
+                datetime.strptime(from_date, date_format)
+            except ValueError:
+                raise ValueError("'from_date' must be in YYYY-MM-DD format")
+        
+        if to_date:
+            try:
+                datetime.strptime(to_date, date_format)
+            except ValueError:
+                raise ValueError("'to_date' must be in YYYY-MM-DD format")
+        
         # Construct parameters
         if not symbols and not tag:
             raise ValueError("Either 'symbols' or 'tag' must be provided.")
