@@ -16,6 +16,7 @@ from financial_news_rag.data import (
 )
 from financial_news_rag.eodhd import EODHDClient, EODHDApiError
 from financial_news_rag.marketaux import MarketauxNewsFetcher, MarketauxRateLimiter, fetch_marketaux_with_retry
+from financial_news_rag.text_processor import TextProcessingPipeline, clean_text, split_text
 
 __all__ = [
     # EODHD API
@@ -36,5 +37,10 @@ __all__ = [
     "search_marketaux_entities",
     "get_marketaux_entity_types",
     "get_marketaux_industry_list",
-    "get_marketaux_news_sources"
+    "get_marketaux_news_sources",
+    
+    # Text processing
+    "TextProcessingPipeline",
+    "clean_text",
+    "split_text"
 ]

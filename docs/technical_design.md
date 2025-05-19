@@ -21,13 +21,14 @@ This document provides a comprehensive technical design for the Financial News R
 
 ## System Architecture Overview
 
-The system is a modular Python package that implements a RAG pipeline for financial news. It fetches **full news articles primarily from the EODHD API**, processes and embeds them, stores them in ChromaDB, and enables semantic search with Gemini-based re-ranking. The Marketaux API may be used as a secondary source for snippets or specific metadata if needed for tasks outside the primary RAG pipeline. The architecture is designed for future API wrapping and multi-agent integration.
+The system is a modular Python package that implements a RAG pipeline for financial news. It fetches **full news articles primarily from the EODHD API**. The fetched articles, along with their metadata and processing status, are stored in a **local SQLite database**. The text content is then processed and embedded. These **embeddings, along with a reference to the SQLite database, are stored in ChromaDB**. The system enables semantic search (querying ChromaDB for relevant embedding IDs and then retrieving full content from SQLite) with Gemini-based re-ranking. The Marketaux API may be used as a secondary source for snippets or specific metadata if needed for tasks outside the primary RAG pipeline. The architecture is designed for future API wrapping and multi-agent integration.
 
 **Key Components:**
-- News Fetcher (primarily EODHD API integration, potentially Marketaux for secondary tasks)
+- News Fetcher (primarily EODHD API integration)
+- **SQLite Database (Primary store for article metadata, raw content, processed content, and pipeline status)**
 - Text Processing Pipeline
 - Embedding Generator (Google text-embedding-004)
-- Vector Store (ChromaDB)
+- **Vector Store (ChromaDB - Stores embeddings and references to SQLite)**
 - Semantic Search Engine
 - Gemini Reranker (Gemini 2.0 Flash)
 - Configuration & Error Management
@@ -48,10 +49,19 @@ The system is a modular Python package that implements a RAG pipeline for financ
          v
 +-------------------+
 |  News Fetcher     |<--- EODHD API (Primary - Full Articles)
-|                   |<--- Marketaux API (Secondary - Snippets, Optional)
 +-------------------+
          |
          v
++-------------------+
+|  SQLite Database  |
+| (Articles Table:  |
+| metadata, raw &   |
+| processed content,|
+| status)           |
++-------------------+
+         |         ^
+         |         |
+         v         |
 +-------------------+
 | Text Processing   |
 +-------------------+
@@ -64,11 +74,14 @@ The system is a modular Python package that implements a RAG pipeline for financ
          v
 +-------------------+
 |   ChromaDB        |
+| (Embeddings +     |
+|  SQLite Ref ID)   |
 +-------------------+
-         |
-         v
+         |         ^
+         |         |
+         v         |
 +-------------------+
-| Semantic Search   |
+| Semantic Search   |--- (Retrieves content from SQLite via Ref ID)
 +-------------------+
          |
          v
@@ -81,55 +94,49 @@ The system is a modular Python package that implements a RAG pipeline for financ
 
 ### News Ingestion & Storage
 
-1. Fetch full articles from EODHD API
-2. Clean and normalize text (full content)
-3. Extract entities and metadata (from EODHD response)
-4. Generate embeddings (Google API)
-5. Store articles + embeddings in ChromaDB
+1. Fetch full articles from EODHD API.
+2. Store raw article content and metadata in the **SQLite database** (see `articles` table in [eodhd_api.md](./eodhd_api.md#articles-table)). Update status.
+3. Clean and normalize text (from raw content in SQLite). Store processed content in SQLite. Update status.
+4. Extract entities and metadata (from EODHD response, already in SQLite).
+5. Generate embeddings from processed content (Google API).
+6. Store embeddings in **ChromaDB** with a reference ID (e.g., `url_hash`) linking back to the article's record in SQLite. Update status in SQLite.
 
 ### Search & Reranking
 
-1. User issues search query
-2. Query embedded articles in ChromaDB (semantic similarity)
-3. (Optional) Filter by entity/date
-4. Top results sent to Gemini for re-ranking
-5. Return sorted, relevant articles to user
+1. User issues search query.
+2. Query embedded articles in **ChromaDB** (semantic similarity) to get relevant reference IDs (e.g., `url_hash`) and scores.
+3. (Optional) Filter by entity/date (can be done via ChromaDB metadata if limited metadata is stored there, or by querying SQLite after initial ID retrieval).
+4. Retrieve full processed content and other necessary metadata from **SQLite** using the reference IDs.
+5. Top results (content from SQLite) sent to Gemini for re-ranking.
+6. Return sorted, relevant articles to user.
 
 ## ChromaDB Schema Definitions
 
-**Collection Name:** `financial_news`
+**Collection Name:** `financial_news_embeddings` (or similar to distinguish its purpose)
 
-**Document Schema (based on EODHD API - see [eodhd_api.md](./eodhd_api.md#response-fields-json) for full details):**
-```json
-{
-  "uuid": "unique-article-id", // Generated locally or use EODHD link/guid if unique
-  "title": "Article title from EODHD",
-  "url": "https://eodhd.com/news-link or original source link",
-  "source_api": "EODHD", // To distinguish from other potential sources
-  "published_at": "2025-05-18T10:00:00Z", // From EODHD 'date' field
-  "content": "Full article content from EODHD",
-  "symbols": ["AAPL.US", "MSFT.US"], // From EODHD 'symbols' field
-  "tags": ["earnings", "technology"], // From EODHD 'tags' field
-  "sentiment": {"polarity": 0.324, "neg": 0.065, "neu": 0.862, "pos": 0.073}, // From EODHD 'sentiment' field
-  "embedding_model": "text-embedding-004",
-  "embedding_timestamp": "2025-05-18T10:05:00Z",
-  "fetched_timestamp": "2025-05-18T10:00:30Z"
-}
-```
+**ChromaDB Entry Structure:**
+- **`ids`**: A unique identifier for each embedding, which **must correspond to the `url_hash` (or other primary key) in the SQLite `articles` table**. This ensures a direct link back to the full article metadata and content.
+- **`embeddings`**: Vector generated from the `processed_content` (stored in SQLite) using the Google API.
+- **`metadatas` (Optional but Recommended for pre-filtering):** A *minimal* set of metadata can be stored here if needed for filtering directly in ChromaDB before fetching from SQLite. For example:
+  ```json
+  {
+    "published_at_timestamp": 1678886400, // e.g., Unix timestamp for date filtering
+    "source_query_tag": "technology" // If filtering by original query tag is needed in ChromaDB
+  }
+  ```
+  However, the primary source for all detailed metadata remains the SQLite database. The schema for the SQLite `articles` table is the comprehensive reference and is detailed in [eodhd_api.md](./eodhd_api.md#articles-table).
 
-**ChromaDB Storage:**
-- `documents`: Full article `content` (chunked if necessary for embedding model context limits)
-- `metadatas`: All fields above (or a relevant subset) except the embedding vector itself. UUID can be part of metadata if not the primary ID.
-- `ids`: A unique identifier for each document/chunk (e.g., generated UUID, or a hash of the URL).
-- `embeddings`: Vector generated from the `content` using the Google API.
+**SQLite Database Schema:**
+The definitive schema for the SQLite database, particularly the `articles` table which stores all metadata, raw content, processed content, and pipeline statuses, is maintained in the [EODHD API Integration Guide](./eodhd_api.md#database-for-tracking-api-usage). ChromaDB entries will link to this table via a shared ID (e.g., `url_hash`).
 
 ## Component Interactions
 
-- **News Fetcher**: Primarily calls EODHD API for full articles, handles retries/rate limits, returns processed articles. May interact with Marketaux API for supplementary data if configured.
-- **Text Processing**: Cleans full article text, extracts entities/tags from EODHD data, normalizes data.
-- **Embedding Generator**: Sends text to Google API, receives embedding vector.
-- **ChromaDB**: Stores/retrieves articles and embeddings, supports metadata filtering.
-- **Semantic Search**: Queries ChromaDB for similar articles.
+- **News Fetcher**: Primarily calls EODHD API for full articles, handles retries/rate limits.
+- **SQLite Database**: Stores fetched articles (raw content, metadata), processed content, and pipeline statuses. Acts as the source of truth for article data.
+- **Text Processing**: Reads raw content from SQLite, cleans it, and writes processed content back to SQLite.
+- **Embedding Generator**: Reads processed content from SQLite, sends text to Google API, receives embedding vector.
+- **ChromaDB**: Stores embeddings and their corresponding reference IDs (linking to SQLite). Supports similarity search on embeddings.
+- **Semantic Search**: Queries ChromaDB for similar embedding IDs, then retrieves full article details from SQLite using these IDs.
 - **Gemini Reranker**: Receives top results, re-ranks using Gemini 2.0 Flash, returns sorted list.
 - **Config/Error Management**: Loads .env, validates keys, logs errors, manages retries.
 
