@@ -16,6 +16,16 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from dotenv import load_dotenv
+# Import and download nltk data before importing our modules
+import nltk
+try:
+    # Try to find punkt package
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    # Download punkt package if not found
+    print("Downloading required NLTK data files...")
+    nltk.download('punkt', quiet=True)
+
 from financial_news_rag.eodhd import EODHDClient
 from financial_news_rag.text_processor import TextProcessingPipeline
 
@@ -50,7 +60,7 @@ def main():
         tag="MERGERS AND ACQUISITIONS",
         from_date=week_ago_str,
         to_date=today_str,
-        limit=5  # Limited for example purposes
+        limit=10  # Increased to demonstrate duplication handling
     )
     
     if not articles:
@@ -59,7 +69,7 @@ def main():
             tag="EARNINGS RELEASES AND OPERATING RESULTS",
             from_date=week_ago_str,
             to_date=today_str,
-            limit=5
+            limit=10
         )
     
     if not articles:
@@ -78,10 +88,18 @@ def main():
         # Add source query tag for tracking
         article['source_query_tag'] = "MERGERS AND ACQUISITIONS"
     
+    # Check how many articles already exist in the database
+    existing_count = 0
+    for article in articles:
+        if pipeline.article_exists(article['url_hash']):
+            existing_count += 1
+    
+    print(f"Found {existing_count} articles that already exist in the database")
+    
     # Store articles in the database
     print("Storing articles in SQLite database...")
     stored_count = pipeline.store_articles(articles)
-    print(f"Stored {stored_count} articles")
+    print(f"Stored {stored_count} articles (duplicates are automatically skipped)")
     
     # Process the articles (clean and normalize text)
     print("Processing articles...")

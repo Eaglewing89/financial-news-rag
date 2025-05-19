@@ -19,18 +19,30 @@ from typing import Dict, List, Optional, Tuple, Union, Any
 import nltk
 from nltk.tokenize import sent_tokenize
 
-# Ensure NLTK packages are downloaded
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Ensure NLTK packages are downloaded
+def download_nltk_data():
+    """Download required NLTK data if not already available."""
+    try:
+        nltk.data.find('tokenizers/punkt')
+        logger.debug("NLTK punkt tokenizer already downloaded")
+    except LookupError:
+        logger.info("Downloading NLTK punkt tokenizer...")
+        try:
+            nltk.download('punkt', quiet=True)
+            logger.info("Successfully downloaded NLTK punkt tokenizer")
+        except Exception as e:
+            logger.warning(f"Failed to download NLTK punkt tokenizer: {e}")
+            logger.warning("Fallback sentence splitting will be used")
+
+# Try to download NLTK data during module import
+download_nltk_data()
 
 
 class TextProcessingPipeline:
@@ -396,10 +408,15 @@ class TextProcessingPipeline:
         try:
             for article in articles:
                 # Check required fields
-                required_fields = ['url_hash', 'raw_content', 'url', 'published_at', 'fetched_at']
+                required_fields = ['url_hash', 'url', 'published_at', 'fetched_at']
                 if not all(field in article for field in required_fields):
                     logger.warning(f"Skipping article with missing required fields: {article.get('url_hash', 'unknown')}")
                     continue
+                
+                # Handle the case where raw_content is None
+                raw_content = article.get('raw_content', '')
+                if raw_content is None:
+                    raw_content = ''
                 
                 # Convert lists and dicts to JSON strings
                 symbols_json = json.dumps(article.get('symbols', []))
@@ -413,7 +430,7 @@ class TextProcessingPipeline:
                 params = (
                     article['url_hash'],
                     article.get('title', ''),
-                    article['raw_content'],
+                    raw_content,
                     article['url'],
                     article['published_at'],
                     article['fetched_at'],
@@ -505,8 +522,10 @@ class TextProcessingPipeline:
             sentences = sent_tokenize(processed_text)
         except Exception as e:
             logger.error(f"Error tokenizing text: {e}")
-            # Fallback to simple splitting if sentence tokenization fails
+            # Fallback to simple regex-based sentence splitting
+            # This will work even if NLTK data is not available
             sentences = re.split(r'(?<=[.!?])\s+', processed_text)
+            logger.info(f"Using fallback sentence tokenization. Split into {len(sentences)} sentences.")
         
         chunks = []
         current_chunk = []
@@ -521,9 +540,37 @@ class TextProcessingPipeline:
             # If adding this sentence would exceed max tokens, start a new chunk
             if current_length + sentence_tokens > self.max_tokens_per_chunk and current_chunk:
                 chunks.append(' '.join(current_chunk))
-                current_chunk = [sentence]
-                current_length = sentence_tokens
+                current_chunk = []
+                current_length = 0
+            
+            # If a single sentence is too long, we need to split it further
+            if sentence_tokens > self.max_tokens_per_chunk:
+                # If we have content in the current chunk, add it
+                if current_chunk:
+                    chunks.append(' '.join(current_chunk))
+                    current_chunk = []
+                    current_length = 0
+                
+                # Split the long sentence into smaller parts
+                words = sentence.split()
+                temp_chunk = []
+                temp_length = 0
+                
+                for word in words:
+                    word_tokens = token_estimator(word + " ")
+                    if temp_length + word_tokens <= self.max_tokens_per_chunk:
+                        temp_chunk.append(word)
+                        temp_length += word_tokens
+                    else:
+                        if temp_chunk:
+                            chunks.append(' '.join(temp_chunk))
+                        temp_chunk = [word]
+                        temp_length = word_tokens
+                
+                if temp_chunk:
+                    chunks.append(' '.join(temp_chunk))
             else:
+                # Add sentence to current chunk
                 current_chunk.append(sentence)
                 current_length += sentence_tokens
                 
@@ -555,6 +602,17 @@ class TextProcessingPipeline:
         for article in articles:
             url_hash = article['url_hash']
             try:
+                # Check if raw_content is None or empty
+                if not article.get('raw_content'):
+                    logger.warning(f"Empty or missing raw content for article {url_hash}")
+                    self.update_article_processing_status(
+                        url_hash, 
+                        status='FAILED', 
+                        error_message='Empty or missing raw content'
+                    )
+                    failure_count += 1
+                    continue
+                
                 # Clean the raw content
                 processed_content = self.clean_article_text(article['raw_content'])
                 
