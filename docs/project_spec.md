@@ -109,13 +109,14 @@
 ### Data Management
 
 **MVP Requirements:**
-- ChromaDB for storing articles and embeddings.
-- Article metadata schema (see [technical_design.md](technical_design.md#chromadb-schema-definitions) and [eodhd_api.md](eodhd_api.md#response-fields-json) for EODHD full article metadata).
+- **Primary Data Store (SQLite):** A local SQLite database will serve as the primary store for all fetched article metadata and content (both raw and processed). This includes detailed information as outlined in the `articles` table schema within the [EODHD API Integration Guide](./eodhd_api.md#articles-table). This approach ensures data persistence, facilitates detailed pipeline status tracking, and allows for robust recovery from processing failures.
+- **Vector Store (ChromaDB):** ChromaDB will be used exclusively for storing embeddings of the processed article content. Each entry in ChromaDB will contain the embedding vector and a reference (e.g., `url_hash`) back to the corresponding article record in the SQLite database.
+- Article metadata schema for SQLite is detailed in [eodhd_api.md](./eodhd_api.md#articles-table).
 - Simple local file storage for configurations (.env files).
-- Manual refresh process for updating data
+- Manual refresh process for updating data in SQLite and subsequently in ChromaDB.
 
 **Future Enhancements:**
-- Automated data refresh strategies
+- Automated data refresh strategies for both SQLite and ChromaDB
 - Data retention policies
 - Versioning for embeddings
 - Performance monitoring for database
@@ -168,8 +169,8 @@
 ## Text Processing Pipeline
 
 **MVP Requirements:**
-- Standardized text cleaning and normalization, sentence splitting, deduplication, and Unicode normalization. See [text_processing_pipeline.md](text_processing_pipeline.md) for the full implementation pipeline and code examples.
-- Entity extraction and normalization will primarily rely on data from the EODHD API response (e.g., `symbols`, `tags`).  
+- Standardized text cleaning and normalization, sentence splitting, deduplication, and Unicode normalization. The raw article content will be stored in the SQLite database, and a processed version will also be stored there before being used for embedding. See [text_processing_pipeline.md](text_processing_pipeline.md) for the full implementation pipeline and code examples.
+- Entity extraction and normalization will primarily rely on data from the EODHD API response (e.g., `symbols`, `tags`), stored in SQLite.  
 - Chunking strategy and tokenization are described in [model_details.md](model_details.md#chunking-strategy) and [text_processing_pipeline.md](text_processing_pipeline.md#chunking-strategies-for-rag).
 - Optional summarization for long articles.
 

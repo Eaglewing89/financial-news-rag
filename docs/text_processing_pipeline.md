@@ -1,25 +1,28 @@
 # Document Text Processing Pipeline
 
 ## Description
-This document details the text processing pipeline for the Financial News RAG system. It covers text cleaning, chunking, preprocessing for embedding, and tokenization strategies, referencing architectural and implementation decisions from the project’s technical documentation. The primary source of text for this pipeline is the **full article content** obtained from the EODHD API.
+This document details the text processing pipeline for the Financial News RAG system. It covers text cleaning, chunking, preprocessing for embedding, and tokenization strategies, referencing architectural and implementation decisions from the project’s technical documentation. The primary source of text for this pipeline is the **full article content** obtained from the EODHD API and initially stored in our **SQLite database** as `raw_content`. The processed text is also stored back in SQLite as `processed_content` before being used for embedding.
 
 ---
 
 ## 1. Text Cleaning Approaches
 
 ### 1.1 Cleaning and Normalization
-- **HTML Removal:** All article `content` (from EODHD API) is stripped of HTML tags using regex or BeautifulSoup.
+- **Input:** The `raw_content` field from the `articles` table in the SQLite database.
+- **HTML Removal:** All article `raw_content` is stripped of HTML tags using regex or BeautifulSoup.
 - **Whitespace Normalization:** Consecutive whitespace is collapsed to a single space and leading/trailing whitespace is trimmed.
 - **Boilerplate Removal:** Common phrases (e.g., “Click here to read more.”) are removed using regex.
 - **Encoding Fixes:** Known encoding issues (e.g., smart quotes, dashes) are replaced with standard ASCII equivalents.
 - **Unicode Normalization:** All text is normalized to NFC form to ensure consistent representation.
 - **Special Characters:** Financial symbols and special characters are preserved if relevant, but extraneous non-informative characters are removed.
 - **Deduplication:** Duplicate content is detected and removed at the article and chunk level.
+- **Output:** Cleaned text, which will be stored in the `processed_content` field in the SQLite `articles` table.
 
 **Reference Implementation:**
 ```python
-def clean_article_text(text):
-    """Clean and normalize article text content (primarily from EODHD API)."""
+def clean_article_text(raw_text_from_sqlite):
+    """Clean and normalize article text content (primarily from EODHD API, fetched from SQLite)."""
+    text = raw_text_from_sqlite
     # Remove HTML tags
     text = re.sub(r'<.*?>', '', text)
     # Normalize whitespace
@@ -40,17 +43,20 @@ def clean_article_text(text):
 - **Token Limit:** 2,048 tokens per chunk (~1,500–1,600 words; 1 token ≈ 4 characters)
 
 ### 2.2 Chunking Method
+- **Input:** The `processed_content` from the SQLite `articles` table (after initial cleaning and normalization).
 - **Sentence-Based Splitting:**
-  - Full article `content` from EODHD is split into sentences using NLTK’s `sent_tokenize`.
+  - `processed_content` is split into sentences using NLTK’s `sent_tokenize`.
   - Sentences are grouped into chunks such that the total estimated tokens per chunk does not exceed 2,048.
   - Token estimation: `len(text) // 4`.
 - **No Overlap (MVP):** Chunks are non-overlapping for simplicity. Overlapping windows may be considered in future enhancements.
 - **Chunk Metadata:** Each chunk retains reference to its parent article and position for traceability.
+- **Output:** A list of text chunks. These chunks are what will be sent to the embedding model. The relationship between chunks and the parent article (identified by `url_hash` in SQLite) must be maintained.
 
 **Reference Implementation:**
 ```python
-def split_into_chunks(text, max_tokens=2048):
-    """Splits full article text into manageable chunks for embedding."""
+def split_into_chunks(processed_text_from_sqlite, max_tokens=2048):
+    """Splits processed article text (from SQLite) into manageable chunks for embedding."""
+    text = processed_text_from_sqlite
     sentences = nltk.sent_tokenize(text)
     chunks = []
     current_chunk = []
@@ -75,26 +81,28 @@ def split_into_chunks(text, max_tokens=2048):
 ## 3. Preprocessing for Embedding Generation
 
 - **Pipeline Order:**
-  1. Clean and normalize full article `content` from EODHD (see above).
-  2. Split into chunks (see above).
-  3. (Optional) Summarize if article is extremely long
-  4. Remove duplicate or near-duplicate chunks
-  5. Validate chunk size (≤2,048 tokens)
-- **Entity Extraction:** Entities are primarily identified from the EODHD API response fields (e.g., `symbols`, `tags`). 
-- **Metadata Association:** Each chunk is associated with article metadata (title, uuid, published_at, EODHD symbols/tags, etc.) for downstream storage and retrieval.
-- **Unicode and Encoding:** All text is normalized to ensure compatibility with embedding API.
+  1. Fetch `raw_content` from SQLite.
+  2. Clean and normalize `raw_content` to produce `cleaned_text`. Store `cleaned_text` as `processed_content` in SQLite. Update `status_text_processing` in SQLite.
+  3. Split `processed_content` (from SQLite) into chunks.
+  4. (Optional) Summarize if article is extremely long (this step would modify `processed_content` or be part of chunking).
+  5. Remove duplicate or near-duplicate chunks.
+  6. Validate chunk size (≤2,048 tokens).
+  7. For each valid chunk, generate an embedding. Store the embedding in ChromaDB, linking it back to the SQLite `articles` table via `url_hash`. Update `status_embedding` in SQLite.
+- **Entity Extraction:** Entities are primarily identified from the EODHD API response fields (e.g., `symbols`, `tags`), which are stored alongside the article in SQLite.
+- **Metadata Association:** Each chunk is implicitly associated with its parent article's metadata stored in SQLite (title, `url_hash`, published_at, EODHD symbols/tags, etc.). ChromaDB entries will store the embedding and the `url_hash`.
 
 ---
 
 ## 4. Tokenization Approach
 
 - **Token Estimation:**
-  - For chunking, tokens are estimated as `len(text) // 4` (Gemini models: 1 token ≈ 4 characters).
+  - For chunking `processed_content` from SQLite, tokens are estimated as `len(text) // 4` (Gemini models: 1 token ≈ 4 characters).
   - For embedding, the Google API handles tokenization internally, but pre-chunking ensures compliance with limits.
 - **Text Elements:**
-  - The `content` field from the EODHD API response (full article text) is the primary input for cleaning, chunking, and embedding.
-  - Article `title` from EODHD may also be considered for embedding or as metadata.
-  - EODHD `symbols` and `tags` are preserved in metadata.
+  - The `raw_content` field from the SQLite `articles` table is the initial input.
+  - The `processed_content` field in SQLite is the direct input for chunking and then embedding.
+  - Article `title` from SQLite may also be considered for embedding or as metadata.
+  - EODHD `symbols` and `tags` are preserved in metadata in SQLite.
 - **Special Handling:**
   - Financial symbols, tickers, and numbers are preserved in the text.
   - Non-ASCII characters are normalized or removed if not relevant.
@@ -105,8 +113,8 @@ def split_into_chunks(text, max_tokens=2048):
 - [Project Specification](./project_spec.md)
 - [Model Details](./model_details.md)
 - [Technical Design](./technical_design.md)
-- [EODHD API Guide](./eodhd_api.md) (Primary source for article content)
+- [EODHD API Guide](./eodhd_api.md) (Primary source for article content and detailed SQLite schema)
 
 ---
 
-**This document is the authoritative reference for the text processing pipeline in the Financial News RAG system. All implementation and future design decisions should align with this pipeline.**
+**This document is the authoritative reference for the text processing pipeline in the Financial News RAG system. All implementation and future design decisions should align with this pipeline, recognizing SQLite as the primary store for text at various stages.**
