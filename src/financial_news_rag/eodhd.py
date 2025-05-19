@@ -7,7 +7,7 @@ It includes robust error handling, rate limiting, and normalization of API respo
 
 import os
 import time
-import uuid
+import hashlib
 import warnings
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Union
@@ -213,8 +213,9 @@ class EODHDClient:
         Returns:
             Normalized article dictionary with consistent field names.
         """
-        # Generate a UUID if we need one for tracking
-        article_uuid = str(uuid.uuid4())
+        # Generate a hash of the URL to create a unique identifier
+        url = article.get('link', '')
+        url_hash = hashlib.sha256(url.encode()).hexdigest() if url else ''
         
         # Normalize date format
         try:
@@ -228,7 +229,7 @@ class EODHDClient:
         
         # Build normalized article structure
         normalized = {
-            'uuid': article_uuid,
+            'url_hash': url_hash,
             'title': article.get('title', ''),
             'content': article.get('content', ''),
             'url': article.get('link', ''),
