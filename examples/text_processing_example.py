@@ -85,34 +85,6 @@ def main():
         )
     
     if not articles:
-        print("No articles found. Trying another tag...")
-        articles = client.fetch_news(
-            tag="EARNINGS RELEASES AND OPERATING RESULTS",
-            from_date=week_ago_str,
-            to_date=today_str,
-            limit=10
-        )
-        
-        # Log the API call for the fallback tag
-        if articles:
-            oldest_date = min([a.get('published_at', '') for a in articles]) if articles else None
-            newest_date = max([a.get('published_at', '') for a in articles]) if articles else None
-            
-            pipeline.log_api_call(
-                query_type='tag',
-                query_value='EARNINGS RELEASES AND OPERATING RESULTS',
-                from_date=week_ago_str,
-                to_date=today_str,
-                limit=10,
-                offset=0,
-                articles_retrieved_count=len(articles),
-                oldest_article_date=oldest_date,
-                newest_article_date=newest_date,
-                api_call_successful=True,
-                http_status_code=200  # Assuming success
-            )
-    
-    if not articles:
         print("No articles found. Try adjusting the date range or topic tag.")
         return
     
