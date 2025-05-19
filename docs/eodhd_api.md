@@ -41,7 +41,7 @@ The EODHD Financial News API provides access to global financial news articles, 
 #### HTTP GET Parameters
 | Parameter  | Required           | Type    | Description                                                                 |
 |------------|--------------------|---------|-----------------------------------------------------------------------------|
-| `s`        | Yes (if `t` not set) | string  | The ticker code to retrieve news for, e.g., `AAPL.US`. **Important**: Despite official documentation, only a single symbol is supported. Multiple symbols in a comma-separated list will result in empty responses. |
+| `s`        | Yes (if `t` not set) | string  | The ticker code to retrieve news for, e.g., `AAPL.US`. **Important**: Only a single symbol is supported. If multiple symbols are provided in a comma-separated list, the client will split the input, use the first symbol, and issue a warning. |
 | `t`        | Yes (if `s` not set) | string  | The topic tag to retrieve news for, e.g., `technology`. Use `%20` for spaces in multi-word tags (e.g., `mergers%20and%20acquisitions`). |
 | `from`     | No                 | string  | Start date for filtering news (YYYY-MM-DD).                                 |
 | `to`       | No                 | string  | End date for filtering news (YYYY-MM-DD).                                   |
