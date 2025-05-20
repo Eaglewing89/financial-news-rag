@@ -366,17 +366,18 @@ The `rerank_with_gemini` function is defined in [model_details.md#re-ranking-imp
 ## Embedding Model
 
 **MVP Requirements:**
-- Use Google's text-embedding-004 via Gemini API (see [model_details.md#gemini-embedding-model-text-embedding-004](model_details.md#gemini-embedding-model-text-embedding-004) for detailed specifications and chunking/tokenization constraints).
+- Use Google's text-embedding-004 via Gemini API, implemented in [`src/financial_news_rag/embeddings.py`](../src/financial_news_rag/embeddings.py) as `EmbeddingsGenerator`.
 - Store embeddings alongside article metadata in ChromaDB.
 - Reuse the same API key configuration for both embedding and re-ranking.
+
+**Example usage:** See [`examples/generate_embeddings_example.py`](../examples/generate_embeddings_example.py).
+
+**Unit tests:** See [`tests/test_embeddings.py`](../tests/test_embeddings.py).
 
 **Future Enhancements:**
 - Evaluate custom domain-tuned embedding models for financial texts
 - Implement more sophisticated chunking strategies with overlap
 - Benchmark against alternative embedding providers
-
-### Example use text-embedding-004
-See [model_details.md#example-use-text-embedding-004](model_details.md#example-use-text-embedding-004) for an example.
 
 ## Testing Strategy
 

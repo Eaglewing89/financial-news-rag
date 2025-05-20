@@ -3,6 +3,7 @@ chromadb
 google-generativeai
 requests
 python-dotenv
+tenacity
 
 # Text processing
 nltk

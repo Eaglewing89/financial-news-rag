@@ -134,7 +134,7 @@ The definitive schema for the SQLite database, particularly the `articles` table
 - **News Fetcher**: Primarily calls EODHD API for full articles, handles retries/rate limits.
 - **SQLite Database**: Stores fetched articles (raw content, metadata), processed content, and pipeline statuses. Acts as the source of truth for article data.
 - **Text Processing**: Reads raw content from SQLite, cleans it, and writes processed content back to SQLite.
-- **Embedding Generator**: Reads processed content from SQLite, sends text to Google API, receives embedding vector.
+- **Embedding Generator**: Reads processed content from SQLite, sends text to Google API, receives embedding vector. This is implemented in [`src/financial_news_rag/embeddings.py`](../src/financial_news_rag/embeddings.py) as the `EmbeddingsGenerator` class.
 - **ChromaDB**: Stores embeddings and their corresponding reference IDs (linking to SQLite). Supports similarity search on embeddings.
 - **Semantic Search**: Queries ChromaDB for similar embedding IDs, then retrieves full article details from SQLite using these IDs.
 - **Gemini Reranker**: Receives top results, re-ranks using Gemini 2.0 Flash, returns sorted list.
@@ -145,7 +145,7 @@ The definitive schema for the SQLite database, particularly the `articles` table
 - **API Failures**: Retry with exponential backoff (see [`fetch_eodhd_with_retry` pattern in eodhd_api.md](./eodhd_api.md#error-codes--handling) for EODHD. Similar patterns apply if Marketaux is used, see [marketaux_api.md#error-codes--handling](./marketaux_api.md#error-codes--handling)).
 - **Rate Limiting**: Adhere to API-specific rate limits. For EODHD, this includes managing the 5 calls per news request and daily limits (see [eodhd_api.md](./eodhd_api.md#rate-limiting--usage-limits)). For Marketaux, refer to its documentation.
 - **ChromaDB Errors**: Catch and log, fail gracefully, optionally retry
-- **Embedding/Reranking Failures**: Fallback to original ranking or skip embedding
+- **Embedding/Reranking Failures**: Fallback to original ranking or skip embedding. Embedding API errors and retries are handled in [`src/financial_news_rag/embeddings.py`](../src/financial_news_rag/embeddings.py).
 - **Configuration Errors**: Validate on startup, raise clear exceptions if missing
 - **Logging**: All errors logged with context; user-facing errors are friendly
 
@@ -154,7 +154,7 @@ The definitive schema for the SQLite database, particularly the `articles` table
 
 ## Configuration Management
 
-- **API Keys**: Managed via `.env` file, loaded with `python-dotenv`
+- **API Keys**: Managed via `.env` file, loaded with `python-dotenv` (see [`src/financial_news_rag/config.py`](../src/financial_news_rag/config.py) and [`src/financial_news_rag/embeddings.py`](../src/financial_news_rag/embeddings.py)).
 - **Required Variables**:
   - `GEMINI_API_KEY`
   - `EODHD_API_KEY`
