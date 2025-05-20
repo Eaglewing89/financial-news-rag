@@ -72,29 +72,20 @@ def split_into_chunks(text, max_tokens=2048):
 ```
 
 
-### Example use text-embedding-004
+
+### Embedding Generation in the RAG Pipeline
+
+Embeddings for article chunks are generated using the `EmbeddingsGenerator` class in [`src/financial_news_rag/embeddings.py`](../src/financial_news_rag/embeddings.py). This class wraps the Gemini API and handles API key management, error handling, and retry logic.
+
+**Example usage:** See [`examples/generate_embeddings_example.py`](../examples/generate_embeddings_example.py) for a full workflow.
+
+**Unit tests:** See [`tests/test_embeddings.py`](../tests/test_embeddings.py).
+
+**Direct Gemini API usage example:**
 ```python
-from dotenv import load_dotenv
-import os
-from google import genai
-from google.genai import types
-
-load_dotenv()
-gemini_api_key = os.getenv('GEMINI_API_KEY')
-
-client = genai.Client(api_key=gemini_api_key)
-
-input_contents="What is the meaning of life?"
-
-input_config=types.EmbedContentConfig(task_type="SEMANTIC_SIMILARITY")
-
-result = client.models.embed_content(
-        model="text-embedding-004",
-        contents=input_contents,
-        config=input_config
-)
-print(result.embeddings)
-# [ContentEmbedding(values=[-0.0001, 0.0002, 0.0003, ...], statistics=None)]
+from financial_news_rag.embeddings import EmbeddingsGenerator
+embedder = EmbeddingsGenerator()
+embeddings = embedder.generate_embeddings(["Some text chunk.", "Another chunk."])
 ```
 
 

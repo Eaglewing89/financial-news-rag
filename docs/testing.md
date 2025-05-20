@@ -1,3 +1,10 @@
+# Embedding Generation
+
+Unit tests for the embedding generation logic are in [`tests/test_embeddings.py`](../tests/test_embeddings.py). This covers:
+- Successful embedding generation
+- API error handling and retry logic
+- API key loading and validation
+
 # Testing and Quality Assurance for Financial News RAG
 
 ## Purpose
