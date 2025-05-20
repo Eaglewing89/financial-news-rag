@@ -141,8 +141,8 @@ class EmbeddingsGenerator:
         Returns:
             A list of embedding vectors, where each vector corresponds to a text chunk
             
-        Raises:
-            ValueError: If text_chunks is empty
+        Note:
+            If `text_chunks` is empty, a warning is logged, and an empty list is returned.
         """
         if not text_chunks:
             logger.warning("No text chunks provided for embedding generation")
