@@ -22,8 +22,8 @@ except LookupError:
 
 from financial_news_rag.text_processor import TextProcessingPipeline
 from financial_news_rag.embeddings import EmbeddingsGenerator
-from financial_news_rag.eodhd import EODHDClient
-from datetime import datetime, timedelta
+# from financial_news_rag.eodhd import EODHDClient
+# from datetime import datetime, timedelta
 
 
 def main():
@@ -43,37 +43,37 @@ def main():
     
     # --- Setup for example data (mimicking an orchestrator's first steps) ---
     # This part ensures we have data in the 'processed_content' field
-    from financial_news_rag.eodhd import EODHDClient
-    from datetime import datetime, timedelta
+    # from financial_news_rag.eodhd import EODHDClient
+    # from datetime import datetime, timedelta
     
-    if not os.getenv('EODHD_API_KEY'):
-        print("EODHD_API_KEY needed for example data setup. Skipping example data generation.")
-        pipeline.close_connection()
-        return
+    # if not os.getenv('EODHD_API_KEY'):
+    #     print("EODHD_API_KEY needed for example data setup. Skipping example data generation.")
+    #     pipeline.close_connection()
+    #     return
         
-    eodhd_client = EODHDClient()
-    today = datetime.now()
-    week_ago = today - timedelta(days=30)  # Wider range to ensure some news
-    fetched_articles = eodhd_client.fetch_news(
-        tag="TECHNOLOGY",  # A common tag
-        from_date=week_ago.strftime("%Y-%m-%d"),
-        to_date=today.strftime("%Y-%m-%d"),
-        limit=5
-    )
+    # eodhd_client = EODHDClient()
+    # today = datetime.now()
+    # week_ago = today - timedelta(days=30)  # Wider range to ensure some news
+    # fetched_articles = eodhd_client.fetch_news(
+    #     tag="TECHNOLOGY",  # A common tag
+    #     from_date=week_ago.strftime("%Y-%m-%d"),
+    #     to_date=today.strftime("%Y-%m-%d"),
+    #     limit=5
+    # )
 
-    if not fetched_articles:
-        print("No articles fetched by EODHD client for example setup. Exiting.")
-        pipeline.close_connection()
-        return
+    # if not fetched_articles:
+    #     print("No articles fetched by EODHD client for example setup. Exiting.")
+    #     pipeline.close_connection()
+    #     return
 
-    print(f"Fetched {len(fetched_articles)} raw articles for setup.")
-    for article in fetched_articles:
-        article['raw_content'] = article.pop('content', '')
-        article['source_query_tag'] = "TECHNOLOGY"
+    # print(f"Fetched {len(fetched_articles)} raw articles for setup.")
+    # for article in fetched_articles:
+    #     article['raw_content'] = article.pop('content', '')
+    #     article['source_query_tag'] = "TECHNOLOGY"
     
-    pipeline.store_articles(fetched_articles)
-    processed_count, _ = pipeline.process_articles()
-    print(f"Processed {processed_count} articles for setup.")
+    # pipeline.store_articles(fetched_articles)
+    # processed_count, _ = pipeline.process_articles()
+    # print(f"Processed {processed_count} articles for setup.")
     # --- End of setup for example data ---
 
     # Now, fetch articles that have 'processed_content' and are ready for embedding
