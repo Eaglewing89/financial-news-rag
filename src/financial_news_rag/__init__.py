@@ -14,6 +14,7 @@ from financial_news_rag.data import (
     get_marketaux_industry_list,
     get_marketaux_news_sources
 )
+from financial_news_rag.embeddings import EmbeddingsGenerator
 from financial_news_rag.eodhd import EODHDClient, EODHDApiError
 from financial_news_rag.marketaux import MarketauxNewsFetcher, MarketauxRateLimiter, fetch_marketaux_with_retry
 from financial_news_rag.text_processor import TextProcessingPipeline, clean_text, split_text
@@ -42,5 +43,8 @@ __all__ = [
     # Text processing
     "TextProcessingPipeline",
     "clean_text",
-    "split_text"
+    "split_text",
+    
+    # Embedding generation
+    "EmbeddingsGenerator"
 ]

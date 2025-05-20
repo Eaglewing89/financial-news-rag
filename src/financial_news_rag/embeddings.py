@@ -1,1 +1,185 @@
-# src/financial_news_rag/embeddings.py
+"""
+Embeddings Generator for Financial News RAG.
+
+This module provides a class for generating embeddings from text chunks
+using Google's text-embedding-004 model via the Gemini API.
+"""
+
+import logging
+import os
+import time
+from typing import List, Optional, Union, Dict, Any
+
+from dotenv import load_dotenv
+import numpy as np
+from google import genai
+from google.genai import types
+from google.api_core.exceptions import GoogleAPIError, RetryError, ServiceUnavailable
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+class EmbeddingsGenerator:
+    """
+    A class for generating embedding vectors for text chunks using Google's text-embedding-004 model.
+    
+    This class is responsible for:
+    - Initializing a Gemini API client
+    - Loading the API key from environment variables
+    - Generating embeddings for text chunks
+    - Handling API errors gracefully with retry logic
+    """
+    
+    # Default model and task type for embeddings
+    DEFAULT_MODEL = "text-embedding-004"
+    DEFAULT_TASK_TYPE = "SEMANTIC_SIMILARITY"
+    
+    def __init__(self, api_key: Optional[str] = None, model_name: str = DEFAULT_MODEL):
+        """
+        Initialize the EmbeddingsGenerator with API key and model settings.
+        
+        Args:
+            api_key: The Gemini API key. If None, loads from GEMINI_API_KEY environment variable.
+            model_name: The name of the embedding model to use.
+        
+        Raises:
+            ValueError: If the API key is not provided and not found in environment variables.
+        """
+        # Load API key from environment if not provided
+        if api_key is None:
+            load_dotenv()
+            api_key = os.getenv('GEMINI_API_KEY')
+            
+        if not api_key:
+            raise ValueError(
+                "Gemini API key is required. Please provide it as an argument "
+                "or set the GEMINI_API_KEY environment variable."
+            )
+            
+        # Initialize Gemini client
+        self.client = genai.Client(api_key=api_key)
+        self.model_name = model_name
+        
+        logger.info(f"EmbeddingsGenerator initialized with model: {model_name}")
+    
+    @retry(
+        retry=retry_if_exception_type((GoogleAPIError, ServiceUnavailable, ConnectionError)),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=2, max=60),
+        reraise=True
+    )
+    def _embed_single_text(self, text: str, task_type: str = DEFAULT_TASK_TYPE) -> List[float]:
+        """
+        Generate an embedding for a single text chunk.
+        
+        Args:
+            text: The text to embed
+            task_type: The type of task for which the embedding will be used
+            
+        Returns:
+            A list of floating-point values representing the embedding vector
+            
+        Raises:
+            GoogleAPIError: If there's an issue with the API call
+            ValueError: If the text is empty or the embedding fails
+        """
+        if not text or not text.strip():
+            raise ValueError("Cannot generate embedding for empty text")
+        
+        # Configure embedding request
+        config = types.EmbedContentConfig(task_type=task_type)
+        
+        start_time = time.time()
+        try:
+            # Call the API to generate embedding
+            result = self.client.models.embed_content(
+                model=self.model_name,
+                contents=text,
+                config=config
+            )
+            
+            # Extract and return the embedding values
+            embedding_vector = result.embeddings[0].values
+            
+            # Log successful embedding
+            duration = time.time() - start_time
+            logger.debug(f"Successfully generated embedding in {duration:.2f}s. "
+                        f"Vector dimension: {len(embedding_vector)}")
+            
+            return embedding_vector
+            
+        except Exception as e:
+            duration = time.time() - start_time
+            logger.error(f"Error generating embedding after {duration:.2f}s: {str(e)}")
+            
+            # Re-raise appropriate exceptions for retry logic
+            if isinstance(e, (GoogleAPIError, ServiceUnavailable, ConnectionError)):
+                logger.info(f"Retrying due to {type(e).__name__}: {str(e)}")
+                raise
+            else:
+                # For other exceptions, wrap in ValueError
+                raise ValueError(f"Failed to generate embedding: {str(e)}") from e
+    
+    def generate_embeddings(
+        self, 
+        text_chunks: List[str], 
+        task_type: str = DEFAULT_TASK_TYPE
+    ) -> List[List[float]]:
+        """
+        Generate embeddings for a list of text chunks.
+        
+        Args:
+            text_chunks: List of text chunks to embed
+            task_type: The type of task for which the embeddings will be used
+            
+        Returns:
+            A list of embedding vectors, where each vector corresponds to a text chunk
+            
+        Raises:
+            ValueError: If text_chunks is empty
+        """
+        if not text_chunks:
+            logger.warning("No text chunks provided for embedding generation")
+            return []
+        
+        embeddings = []
+        errors = 0
+        
+        logger.info(f"Generating embeddings for {len(text_chunks)} text chunks")
+        
+        # Process each chunk and generate its embedding
+        for i, chunk in enumerate(text_chunks):
+            try:
+                # Add slight delay between requests to avoid rate limiting
+                if i > 0:
+                    time.sleep(0.05)  # 50ms delay
+                
+                embedding = self._embed_single_text(chunk, task_type)
+                embeddings.append(embedding)
+                
+                # Log progress periodically
+                if (i + 1) % 10 == 0 or (i + 1) == len(text_chunks):
+                    logger.info(f"Processed {i+1}/{len(text_chunks)} chunks")
+                
+            except Exception as e:
+                logger.error(f"Failed to generate embedding for chunk {i+1}/{len(text_chunks)}: {str(e)}")
+                errors += 1
+                
+                # Append a zero vector as a placeholder for failed embeddings
+                # This ensures the output list matches the input list in length
+                embeddings.append([0.0] * 768)  # 768 is the dimension of text-embedding-004
+        
+        # Report completion stats
+        success_count = len(text_chunks) - errors
+        logger.info(f"Embedding generation complete. Success: {success_count}/{len(text_chunks)}")
+        
+        if errors > 0:
+            logger.warning(f"Failed to generate embeddings for {errors} chunks")
+        
+        return embeddings
