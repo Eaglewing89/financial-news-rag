@@ -113,26 +113,39 @@ def main():
 
             # Prepare article metadata (excluding processed_content)
             article_metadata = {k: v for k, v in article.items() if k != 'processed_content'}
-            
+
             all_article_embeddings.append({
                 "article_metadata": article_metadata,
                 "chunk_embeddings": chunk_embeddings,
                 "chunks_text": chunks_text_only  # For reference
             })
-            
-            # Update status in the database to indicate successful embedding
-            pipeline.update_article_embedding_status(
-                url_hash=article['url_hash'],
-                status='SUCCESS',
-                embedding_model='text-embedding-004'
+
+            # Check for zero vectors in the embeddings
+            zero_vec = [0.0] * embedder.embedding_dim
+            has_zero_vector = any(
+                emb == zero_vec for emb in chunk_embeddings
             )
-            print(f"Updated embedding status for article {article['url_hash']} to SUCCESS.")
-            
+
+            if has_zero_vector:
+                print(f"One or more chunk embeddings failed for article {article['url_hash']}. Marking as FAILED.")
+                pipeline.update_article_embedding_status(
+                    url_hash=article['url_hash'],
+                    status='FAILED',
+                    embedding_model=embedder.model_name,
+                    error_message='One or more chunk embeddings failed (zero vector)'
+                )
+            else:
+                pipeline.update_article_embedding_status(
+                    url_hash=article['url_hash'],
+                    status='SUCCESS',
+                    embedding_model=embedder.model_name
+                )
+                print(f"Updated embedding status for article {article['url_hash']} to SUCCESS.")
+
             # In a real pipeline, here you would call vector_db_manager.store_embeddings(...)
-            
+
         except Exception as e:
             print(f"Error generating embeddings for article {article['url_hash']}: {e}")
-            
             # Update status to indicate failure
             pipeline.update_article_embedding_status(
                 url_hash=article['url_hash'],

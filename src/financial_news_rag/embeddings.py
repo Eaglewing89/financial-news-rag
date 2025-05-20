@@ -39,6 +39,11 @@ class EmbeddingsGenerator:
     # Default model and task type for embeddings
     DEFAULT_MODEL = "text-embedding-004"
     DEFAULT_TASK_TYPE = "SEMANTIC_SIMILARITY"
+    # Known output dimensions for supported models
+    MODEL_DIMENSIONS = {
+        "text-embedding-004": 768
+        # Add other models and their dimensions here if needed
+    }
     
     def __init__(self, api_key: Optional[str] = None, model_name: str = DEFAULT_MODEL):
         """
@@ -65,8 +70,14 @@ class EmbeddingsGenerator:
         # Initialize Gemini client
         self.client = genai.Client(api_key=api_key)
         self.model_name = model_name
-        
-        logger.info(f"EmbeddingsGenerator initialized with model: {model_name}")
+        # Set embedding dimension based on model, fail if unknown
+        if model_name not in self.MODEL_DIMENSIONS:
+            raise ValueError(
+                f"Embedding dimension for model '{model_name}' is not defined. "
+                f"Please add it to MODEL_DIMENSIONS in EmbeddingsGenerator."
+            )
+        self.embedding_dim = self.MODEL_DIMENSIONS[model_name]
+        logger.info(f"EmbeddingsGenerator initialized with model: {model_name} (dim={self.embedding_dim})")
     
     @retry(
         retry=retry_if_exception_type((GoogleAPIError, ServiceUnavailable, ConnectionError)),
@@ -150,36 +161,27 @@ class EmbeddingsGenerator:
         
         embeddings = []
         errors = 0
-        
         logger.info(f"Generating embeddings for {len(text_chunks)} text chunks")
-        
         # Process each chunk and generate its embedding
         for i, chunk in enumerate(text_chunks):
             try:
                 # Add slight delay between requests to avoid rate limiting
                 if i > 0:
                     time.sleep(0.05)  # 50ms delay
-                
                 embedding = self._embed_single_text(chunk, task_type)
                 embeddings.append(embedding)
-                
                 # Log progress periodically
                 if (i + 1) % 10 == 0 or (i + 1) == len(text_chunks):
                     logger.info(f"Processed {i+1}/{len(text_chunks)} chunks")
-                
             except Exception as e:
                 logger.error(f"Failed to generate embedding for chunk {i+1}/{len(text_chunks)}: {str(e)}")
                 errors += 1
-                
                 # Append a zero vector as a placeholder for failed embeddings
                 # This ensures the output list matches the input list in length
-                embeddings.append([0.0] * 768)  # 768 is the dimension of text-embedding-004
-        
+                embeddings.append([0.0] * self.embedding_dim)
         # Report completion stats
         success_count = len(text_chunks) - errors
         logger.info(f"Embedding generation complete. Success: {success_count}/{len(text_chunks)}")
-        
         if errors > 0:
             logger.warning(f"Failed to generate embeddings for {errors} chunks")
-        
         return embeddings
