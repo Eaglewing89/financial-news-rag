@@ -60,6 +60,8 @@ def main():
         print("Please run the end_to_end_pipeline_example.py first to populate the database.")
         return
     
+    CONTENT_PREVIEW_LENGTH = 500
+    
     # 1. Define a sample query
     query = "Artificial intelligence innovations in finance"
     print(f"\nSample query: '{query}'")
@@ -70,7 +72,7 @@ def main():
     
     # 3. Initial retrieval from ChromaDB
     print("Retrieving relevant articles from ChromaDB...")
-    n_results = 5  # Number of results to retrieve
+    n_results = 10  # Number of results to retrieve
     
     # Query the vector database
     chroma_results = chroma_manager.query_embeddings(
@@ -117,7 +119,7 @@ def main():
     for i, article in enumerate(articles):
         print(f"{i+1}. {article.get('title', 'Untitled')}")
         print(f"   URL Hash: {article.get('url_hash')}")
-        content_preview = article.get('processed_content', '')[:150] + "..." if article.get('processed_content') else 'No content'
+        content_preview = article.get('processed_content', '')[:CONTENT_PREVIEW_LENGTH] + "..." if article.get('processed_content') else 'No content'
         print(f"   Content preview: {content_preview}")
         print()
     
@@ -125,7 +127,7 @@ def main():
     for i, article in enumerate(reranked_articles):
         print(f"{i+1}. {article.get('title', 'Untitled')} (Score: {article.get('rerank_score', 0.0):.2f})")
         print(f"   URL Hash: {article.get('url_hash')}")
-        content_preview = article.get('processed_content', '')[:150] + "..." if article.get('processed_content') else 'No content'
+        content_preview = article.get('processed_content', '')[:CONTENT_PREVIEW_LENGTH] + "..." if article.get('processed_content') else 'No content'
         print(f"   Content preview: {content_preview}")
         print()
     
