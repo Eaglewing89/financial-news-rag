@@ -5,6 +5,7 @@ This package implements a Retrieval Augmented Generation (RAG) system for financ
 providing functions to fetch, process, and search news articles with semantic understanding.
 """
 
+from financial_news_rag.chroma_manager import ChromaDBManager
 from financial_news_rag.config import get_config
 from financial_news_rag.data import (
     fetch_marketaux_news_snippets,
@@ -46,5 +47,8 @@ __all__ = [
     "split_text",
     
     # Embedding generation
-    "EmbeddingsGenerator"
+    "EmbeddingsGenerator",
+
+    # Chroma database manager
+    "ChromaDBManager"
 ]

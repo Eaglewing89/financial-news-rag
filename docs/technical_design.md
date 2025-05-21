@@ -112,30 +112,38 @@ The system is a modular Python package that implements a RAG pipeline for financ
 
 ## ChromaDB Schema Definitions
 
-**Collection Name:** `financial_news_embeddings` (or similar to distinguish its purpose)
+**Collection Name:** `financial_news_embeddings` (Default collection name in `ChromaDBManager`)
 
-**ChromaDB Entry Structure:**
-- **`ids`**: A unique identifier for each embedding, which **must correspond to the `url_hash` (or other primary key) in the SQLite `articles` table**. This ensures a direct link back to the full article metadata and content.
-- **`embeddings`**: Vector generated from the `processed_content` (stored in SQLite) using the Google API.
-- **`metadatas` (Optional but Recommended for pre-filtering):** A *minimal* set of metadata can be stored here if needed for filtering directly in ChromaDB before fetching from SQLite. For example:
+**ChromaDB Entry Structure:** 
+Implemented in [`src/financial_news_rag/chroma_manager.py`](../src/financial_news_rag/chroma_manager.py) as `ChromaDBManager.add_embeddings()`:
+
+- **`ids`**: A unique identifier for each chunk embedding, formatted as `"{article_url_hash}_{chunk_index}"`. This ensures a direct link back to the article in SQLite and maintains the sequence of chunks.
+- **`embeddings`**: Vector (dimension 768) generated from chunks of `processed_content` (stored in SQLite) using Google's text-embedding-004 model.
+- **`documents`**: The actual text content of each chunk, stored to enable direct document retrieval during querying.
+- **`metadatas`**: A set of metadata for filtering directly in ChromaDB:
   ```json
   {
-    "published_at_timestamp": 1678886400, // e.g., Unix timestamp for date filtering
-    "source_query_tag": "technology" // If filtering by original query tag is needed in ChromaDB
+    "article_url_hash": "hash_value",       // Links directly to SQLite article
+    "chunk_index": 0,                       // Position of chunk in article
+    "published_at_timestamp": 1678886400,   // Optional: timestamp for date filtering
+    "source_query_tag": "technology"        // Optional: filtering by original query tag
   }
   ```
-  However, the primary source for all detailed metadata remains the SQLite database. The schema for the SQLite `articles` table is the comprehensive reference and is detailed in [eodhd_api.md](./eodhd_api.md#articles-table).
+
+The implementation maintains the primary source of detailed metadata in the SQLite database, with ChromaDB storing only the minimal necessary metadata for efficient filtering. The schema for the SQLite `articles` table is detailed in [eodhd_api.md](./eodhd_api.md#articles-table).
+
+For a working example of the full end-to-end process (from SQLite to embeddings to ChromaDB), see [`examples/generate_and_store_embeddings_example.py`](../examples/generate_and_store_embeddings_example.py).
 
 **SQLite Database Schema:**
-The definitive schema for the SQLite database, particularly the `articles` table which stores all metadata, raw content, processed content, and pipeline statuses, is maintained in the [EODHD API Integration Guide](./eodhd_api.md#database-for-tracking-api-usage). ChromaDB entries will link to this table via a shared ID (e.g., `url_hash`).
+The definitive schema for the SQLite database, particularly the `articles` table which stores all metadata, raw content, processed content, and pipeline statuses, is maintained in the [EODHD API Integration Guide](./eodhd_api.md#database-for-tracking-api-usage). ChromaDB entries link to this table via the `article_url_hash` field in each chunk's metadata.
 
 ## Component Interactions
 
 - **News Fetcher**: Primarily calls EODHD API for full articles, handles retries/rate limits.
 - **SQLite Database**: Stores fetched articles (raw content, metadata), processed content, and pipeline statuses. Acts as the source of truth for article data.
-- **Text Processing**: Reads raw content from SQLite, cleans it, and writes processed content back to SQLite.
-- **Embedding Generator**: Reads processed content from SQLite, sends text to Google API, receives embedding vector. This is implemented in [`src/financial_news_rag/embeddings.py`](../src/financial_news_rag/embeddings.py) as the `EmbeddingsGenerator` class.
-- **ChromaDB**: Stores embeddings and their corresponding reference IDs (linking to SQLite). Supports similarity search on embeddings.
+- **Text Processing**: Reads raw content from SQLite, cleans it, and writes processed content back to SQLite. Implemented in [`src/financial_news_rag/text_processor.py`](../src/financial_news_rag/text_processor.py) as `TextProcessingPipeline`.
+- **Embedding Generator**: Reads processed content from SQLite, sends text to Google API, receives embedding vectors. Implemented in [`src/financial_news_rag/embeddings.py`](../src/financial_news_rag/embeddings.py) as `EmbeddingsGenerator`.
+- **ChromaDB Manager**: Handles all ChromaDB operations, including storing embeddings with references to SQLite and querying similar vectors. Implemented in [`src/financial_news_rag/chroma_manager.py`](../src/financial_news_rag/chroma_manager.py) as `ChromaDBManager`.
 - **Semantic Search**: Queries ChromaDB for similar embedding IDs, then retrieves full article details from SQLite using these IDs.
 - **Gemini Reranker**: Receives top results, re-ranks using Gemini 2.0 Flash, returns sorted list.
 - **Config/Error Management**: Loads .env, validates keys, logs errors, manages retries.
@@ -144,7 +152,7 @@ The definitive schema for the SQLite database, particularly the `articles` table
 
 - **API Failures**: Retry with exponential backoff (see [`fetch_eodhd_with_retry` pattern in eodhd_api.md](./eodhd_api.md#error-codes--handling) for EODHD. Similar patterns apply if Marketaux is used, see [marketaux_api.md#error-codes--handling](./marketaux_api.md#error-codes--handling)).
 - **Rate Limiting**: Adhere to API-specific rate limits. For EODHD, this includes managing the 5 calls per news request and daily limits (see [eodhd_api.md](./eodhd_api.md#rate-limiting--usage-limits)). For Marketaux, refer to its documentation.
-- **ChromaDB Errors**: Catch and log, fail gracefully, optionally retry
+- **ChromaDB Errors**: Catch and log, fail gracefully with appropriate status returns. Implemented in [`src/financial_news_rag/chroma_manager.py`](../src/financial_news_rag/chroma_manager.py) with comprehensive exception handling.
 - **Embedding/Reranking Failures**: Fallback to original ranking or skip embedding. Embedding API errors and retries are handled in [`src/financial_news_rag/embeddings.py`](../src/financial_news_rag/embeddings.py).
 - **Configuration Errors**: Validate on startup, raise clear exceptions if missing
 - **Logging**: All errors logged with context; user-facing errors are friendly
