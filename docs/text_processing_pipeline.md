@@ -88,7 +88,8 @@ def split_into_chunks(self, processed_text: str) -> List[str]:
      c. Store `processed_content` in SQLite and update `status_text_processing` (e.g., to 'SUCCESS' or 'FAILED').
   4. Retrieve `processed_content` for embedding (e.g., using `TextProcessingPipeline.get_processed_articles_for_embedding()` or `get_chunks_for_article()`).
   5. Split `processed_content` into chunks using `split_into_chunks()`.
-  6. (Future Step) Generate embeddings for each valid chunk and store them in a vector database (e.g., ChromaDB), linking back to the SQLite `articles` table via `url_hash`. Update `status_embedding` in SQLite.
+  6. Generate embeddings for each chunk (using `EmbeddingsGenerator` from `src/financial_news_rag/embeddings.py`).
+  7. Store embeddings in ChromaDB using `ChromaDBManager` from `src/financial_news_rag/chroma_manager.py`, linking back to the SQLite `articles` table via `url_hash`. Update `status_embedding` in SQLite.
 - **Entity Extraction:** Entities are primarily identified from the EODHD API response fields (e.g., `symbols`, `tags`), which are stored alongside the article in SQLite.
 - **Metadata Association:** Each chunk is associated with its parent article's metadata stored in SQLite (title, `url_hash`, published_at, EODHD symbols/tags, etc.). This is evident in the output of `TextProcessingPipeline.get_chunks_for_article()`.
 
@@ -133,8 +134,14 @@ The script `examples/text_processing_example.py` provides a practical demonstrat
 ---
 
 ## 7. References
-- **Source Code:** `src/financial_news_rag/text_processor.py`
-- **Example Usage:** `examples/text_processing_example.py`
+- **Source Code:**
+  - Text Processing: `src/financial_news_rag/text_processor.py`
+  - Embeddings Generation: `src/financial_news_rag/embeddings.py`
+  - ChromaDB Integration: `src/financial_news_rag/chroma_manager.py`
+- **Example Usage:**
+  - Text Processing: `examples/text_processing_example.py`
+  - End-to-End Embedding & Storage: `examples/generate_and_store_embeddings_example.py`
+- **Comprehensive Tests:** `tests/test_chroma_manager.py`
 - [Project Specification](./project_spec.md)
 - [Model Details](./model_details.md)
 - [Technical Design](./technical_design.md)

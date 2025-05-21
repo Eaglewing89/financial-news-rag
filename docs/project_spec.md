@@ -293,55 +293,54 @@ def get_market_sentiment(
 
 ## ChromaDB Integration Details
 
-**MVP Requirements:**
-- ChromaDB setup and configuration (see [technical_design.md#chromadb-schema-definitions](technical_design.md#chromadb-schema-definitions) for full schema details):
-  ```python
-  import chromadb
-  
-  # Initialize client with persistence
-  client = chromadb.PersistentClient(path="./chroma_db")
-  
-  # Create collection with appropriate schema
-  collection = client.create_collection(
-      name="financial_news",
-      metadata={"description": "Financial news articles for RAG"},
-  )
-  ```
-- Vector storage and retrieval:
-  ```python
-  # Add documents to collection
-  collection.add(
-      documents=["Article content here..."],
-      metadatas=[{"source": "Marketaux", "published_at": "2025-05-14T10:00:00Z"}],
-      ids=["article-uuid"]
-  )
-  
-  # Query the collection
-  results = collection.query(
-      query_texts=["What's happening with Tesla stock?"],
-      n_results=5
-  )
-  ```
-- Collection management:
-  ```python
-  # List collections
-  collections = client.list_collections()
-  
-  # Get collection
-  collection = client.get_collection("financial_news")
-  
-  # Delete old items
-  collection.delete(
-      where={"published_at": {"$lt": "2025-01-01T00:00:00Z"}}
-  )
-  ```
-- Migrations and schema evolution strategy
+**Implementation:**
+- ChromaDB setup and management is implemented in [`src/financial_news_rag/chroma_manager.py`](../src/financial_news_rag/chroma_manager.py) as the `ChromaDBManager` class.
+- Main functionalities include:
+  - Collection initialization and persistence management
+  - Adding and updating embeddings with reference to SQLite
+  - Querying similar vectors with optional metadata filtering
+  - Collection status reporting
+  - Deleting embeddings by article ID
 
-**Future Enhancements:**
-- Advanced ChromaDB filtering
-- Multi-collection design for different news categories or time periods
-- Backup and restore procedures for ChromaDB
-- Performance tuning for larger datasets
+**Example Usage:**
+```python
+from financial_news_rag.chroma_manager import ChromaDBManager
+
+# Initialize with default or custom parameters
+chroma_manager = ChromaDBManager(
+    persist_directory="./chroma_db",  # Custom persistence location
+    collection_name="financial_news_embeddings"
+)
+
+# Add embeddings for an article
+chroma_manager.add_embeddings(
+    article_url_hash="unique_article_hash",
+    chunk_embeddings=[{
+        "chunk_id": "unique_article_hash_0",
+        "embedding": [0.1, 0.2, ...],  # 768-dimension vector
+        "text": "Article chunk text content",
+        "metadata": {
+            "article_url_hash": "unique_article_hash",
+            "chunk_index": 0,
+            "published_at_timestamp": 1678886400
+        }
+    }]
+)
+
+# Query for similar embeddings
+results = chroma_manager.query_embeddings(
+    query_embedding=[0.1, 0.2, ...],  # Query vector
+    n_results=5,
+    filter_metadata={"source_query_tag": "TECHNOLOGY"}  # Optional filtering
+)
+
+# Get collection statistics
+status = chroma_manager.get_collection_status()
+```
+
+For a complete end-to-end example of embedding generation and storage in ChromaDB, see [`examples/generate_and_store_embeddings_example.py`](../examples/generate_and_store_embeddings_example.py).
+
+For comprehensive unit tests, see [`tests/test_chroma_manager.py`](../tests/test_chroma_manager.py).
 
 ## Gemini API Integration
 
