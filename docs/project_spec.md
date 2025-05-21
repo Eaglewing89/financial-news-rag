@@ -492,3 +492,71 @@ flake8
 - [model_details.md](model_details.md): Embedding and LLM model specifications, chunking/tokenization details, example use.
 - [technical_design.md](technical_design.md): System architecture, ChromaDB schema, error handling strategies.
 - [text_processing_pipeline.md](text_processing_pipeline.md): Text cleaning, chunking, and preprocessing pipeline details.
+
+## Current implementation and outlook
+
+## 1. Overview
+
+This project aims to build a Retrieval Augmented Generation (RAG) system focused on financial news. The system will fetch news articles, process them, generate embeddings, store them in a vector database, and use this information to answer user queries about financial topics, potentially with a focus on specific companies or market trends.
+
+## 2. Core Components (Low-Level Classes)
+
+The system will be built upon a set of modular, low-level classes, each responsible for a specific part of the pipeline:
+
+1.  **`EODHDClient`**: Responsible for fetching financial news articles and potentially other financial data from the EODHD API.
+2.  **`ArticleManager`**: Manages the storage and status of articles in a local SQLite database (`financial_news.db`). This includes tracking processing stages (cleaned, chunked, embedded) and logging API calls.
+3.  **`TextProcessor`**: Handles the cleaning of raw article text (e.g., removing HTML, normalizing whitespace) and chunking the cleaned text into manageable pieces suitable for embedding.
+4.  **`EmbeddingsGenerator`**: Generates vector embeddings for the text chunks using a chosen sentence transformer model.
+5.  **`ChromaDBManager`**: Manages the storage and retrieval of text chunks and their corresponding embeddings in a ChromaDB vector database.
+
+## 3. Key Features
+
+*   **Data Ingestion**: Fetch news from EODHD API.
+*   **Data Processing**: Clean and chunk news articles.
+*   **Embedding Generation**: Create embeddings for text chunks.
+*   **Vector Storage**: Store and index embeddings in ChromaDB.
+*   **Information Retrieval**: Retrieve relevant text chunks based on user query embeddings.
+*   **Answer Generation (Future)**: Use a Large Language Model (LLM) to synthesize answers based on retrieved chunks.
+*   **Modular Design**: Clearly separated components for easier development, testing, and maintenance.
+*   **Status Tracking**: `ArticleManager` will maintain the state of each article through the processing pipeline.
+
+## 4. Workflow
+
+1.  **Fetch**: `EODHDClient` fetches news (e.g., for a specific ticker and date range).
+2.  **Store & Pre-process**: 
+    *   `ArticleManager` stores the raw articles.
+    *   `TextProcessor` cleans and chunks the articles. 
+    *   `ArticleManager` updates the status of articles and stores chunks.
+3.  **Embed & Store**: 
+    *   `EmbeddingsGenerator` creates embeddings for the chunks.
+    *   `ChromaDBManager` stores the chunks and their embeddings.
+    *   `ArticleManager` updates the embedding status.
+4.  **Query & Retrieve (RAG)**:
+    *   User provides a query.
+    *   Query is embedded using `EmbeddingsGenerator`.
+    *   `ChromaDBManager` retrieves the most relevant chunks from the vector store.
+    *   (Future) Retrieved chunks are passed to an LLM to generate a concise answer.
+
+## 5. Example Workflow Demonstration
+
+The script `examples/end_to_end_pipeline_example.py` demonstrates the complete flow from fetching news using `EODHDClient`, processing and storing articles via `ArticleManager` and `TextProcessor`, generating embeddings with `EmbeddingsGenerator`, and storing them in ChromaDB using `ChromaDBManager`.
+
+## 6. Future Enhancements
+
+*   **Re-ranking Class**: A component to re-rank the retrieved chunks for relevance before passing them to the LLM.
+*   **High-Level Orchestrator Class**: A class to manage the end-to-end RAG pipeline, simplifying its execution.
+*   **LLM Integration**: Incorporate a language model for answer synthesis.
+*   **Advanced Querying**: Support for more complex query types and filtering.
+*   **User Interface**: A simple UI for interacting with the system.
+*   **Scalability**: Improvements for handling larger volumes of data and user traffic.
+
+## 7. Technology Stack (Initial)
+
+*   Python
+*   SQLite (for `ArticleManager`)
+*   Sentence Transformers (for `EmbeddingsGenerator`)
+*   ChromaDB (for `ChromaDBManager`)
+*   EODHD API (for data acquisition)
+*   NLTK (for text processing tasks like sentence tokenization within `TextProcessor`)
+
+This specification provides a foundational outline. Details may evolve as the project progresses.
