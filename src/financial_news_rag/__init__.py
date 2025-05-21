@@ -5,6 +5,7 @@ This package implements a Retrieval Augmented Generation (RAG) system for financ
 providing functions to fetch, process, and search news articles with semantic understanding.
 """
 
+from financial_news_rag.article_manager import ArticleManager
 from financial_news_rag.chroma_manager import ChromaDBManager
 from financial_news_rag.config import get_config
 from financial_news_rag.data import (
@@ -18,7 +19,7 @@ from financial_news_rag.data import (
 from financial_news_rag.embeddings import EmbeddingsGenerator
 from financial_news_rag.eodhd import EODHDClient, EODHDApiError
 from financial_news_rag.marketaux import MarketauxNewsFetcher, MarketauxRateLimiter, fetch_marketaux_with_retry
-from financial_news_rag.text_processor import TextProcessingPipeline, clean_text, split_text
+from financial_news_rag.text_processor import TextProcessor, clean_text, split_text
 
 __all__ = [
     # EODHD API
@@ -42,7 +43,8 @@ __all__ = [
     "get_marketaux_news_sources",
     
     # Text processing
-    "TextProcessingPipeline",
+    "TextProcessor",
+    "ArticleManager",
     "clean_text",
     "split_text",
     
