@@ -295,31 +295,37 @@ class FinancialNewsRAG:
         
         return results
     
-    def embed_processed_articles(self, limit: int = 100) -> Dict[str, Any]:
+    def embed_processed_articles(self, status: str = 'PENDING', limit: int = 100) -> Dict[str, Any]:
         """
         Generate embeddings for processed articles and store them in ChromaDB.
+        Can process articles with a 'PENDING' embedding status (initial attempt)
+        or 'FAILED' embedding status (re-attempt).
         
         Args:
-            limit: Maximum number of processed articles to embed
+            status: The embedding status of articles to process ('PENDING' or 'FAILED').
+                    Defaults to 'PENDING'.
+            limit: Maximum number of articles to embed.
         
         Returns:
-            Dict containing operation summary with counts and status
+            Dict containing operation summary with counts and status.
         """
         # Initialize results dictionary
         results = {
-            "articles_embedded": 0,
+            "articles_embedding_succeeded": 0,
             "articles_failed": 0,
             "status": "SUCCESS",
             "errors": [],
         }
         
         try:
-            # Get processed articles ready for embedding
-            articles_for_embedding = self.article_manager.get_processed_articles_for_embedding(limit=limit)
-            logger.info(f"Found {len(articles_for_embedding)} processed articles ready for embedding")
+            # Get articles based on the specified embedding status
+            articles_for_embedding = self.article_manager.get_processed_articles_for_embedding(
+                status=status, limit=limit
+            )
+            logger.info(f"Found {len(articles_for_embedding)} articles with embedding status '{status}' for processing")
             
             if not articles_for_embedding:
-                logger.info("No processed articles found for embedding")
+                logger.info(f"No articles with embedding status '{status}' found for processing")
                 return results
             
             # Generate embeddings for each article
@@ -410,6 +416,11 @@ class FinancialNewsRAG:
                             "metadata": metadata
                         })
                     
+                    # If re-embedding (status was 'FAILED'), delete existing embeddings first
+                    if status == 'FAILED':
+                        logger.info(f"Deleting existing embeddings for article {url_hash} before re-embedding.")
+                        self.chroma_manager.delete_embeddings_by_article(url_hash)
+                        
                     # Store embeddings in ChromaDB
                     storage_success = self.chroma_manager.add_embeddings(
                         url_hash,
@@ -424,8 +435,9 @@ class FinancialNewsRAG:
                             embedding_model=self.embeddings_generator.model_name,
                             vector_db_id=url_hash  # Using url_hash as the vector_db_id
                         )
-                        logger.info(f"Successfully stored embeddings for article {url_hash} in ChromaDB")
-                        results["articles_embedded"] += 1
+                        action = "re-embedded" if status == 'FAILED' else "embedded"
+                        logger.info(f"Successfully {action} article {url_hash} in ChromaDB")
+                        results["articles_embedding_succeeded"] += 1
                     else:
                         self.article_manager.update_article_embedding_status(
                             url_hash=url_hash,
@@ -433,214 +445,29 @@ class FinancialNewsRAG:
                             embedding_model=self.embeddings_generator.model_name,
                             error_message='Failed to store embeddings in ChromaDB'
                         )
-                        logger.error(f"Failed to store embeddings for article {url_hash} in ChromaDB")
+                        action = "re-embed" if status == 'FAILED' else "embed"
+                        logger.error(f"Failed to {action} article {url_hash} in ChromaDB")
                         results["articles_failed"] += 1
                     
                 except Exception as e:
-                    logger.error(f"Error embedding article {url_hash}: {str(e)}")
+                    action = "re-embedding" if status == 'FAILED' else "embedding"
+                    logger.error(f"Error {action} article {url_hash}: {str(e)}")
                     self.article_manager.update_article_embedding_status(
                         url_hash=url_hash,
                         status='FAILED',
                         error_message=str(e)
                     )
                     results["articles_failed"] += 1
-                    results["errors"].append(f"Error embedding article {url_hash}: {str(e)}")
+                    results["errors"].append(f"Error {action} article {url_hash}: {str(e)}")
             
-            logger.info(f"Embedded {results['articles_embedded']} articles, {results['articles_failed']} failed")
-            
-        except Exception as e:
-            logger.error(f"Error in embed_processed_articles: {str(e)}")
-            results["status"] = "FAILED"
-            results["errors"].append(str(e))
-        
-        return results
-    
-    def get_failed_embedding_articles(self, limit: int = 100) -> List[Dict]:
-        """
-        Get articles with failed embedding generation.
-        
-        Args:
-            limit: Maximum number of failed articles to retrieve
-        
-        Returns:
-            List of article dictionaries with failed embedding generation
-        """
-        try:
-            cursor = self.article_manager.conn.cursor()
-            cursor.execute(
-                """
-                SELECT * FROM articles
-                WHERE status_embedding = 'FAILED'
-                LIMIT ?
-                """,
-                (limit,)
+            logger.info(
+                f"For embedding status '{status}': "
+                f"Successfully processed {results['articles_embedding_succeeded']} articles, "
+                f"{results['articles_failed']} failed"
             )
-            columns = [col[0] for col in cursor.description]
-            failed_articles = [dict(zip(columns, row)) for row in cursor.fetchall()]
-            logger.info(f"Found {len(failed_articles)} articles with failed embedding generation")
-            return failed_articles
-        except Exception as e:
-            logger.error(f"Error getting failed embedding articles: {str(e)}")
-            return []
-    
-    def re_embed_failed_articles(self, limit: int = 100) -> Dict[str, Any]:
-        """
-        Re-generate embeddings for articles with failed embedding status.
-        
-        Args:
-            limit: Maximum number of failed articles to re-embed
-        
-        Returns:
-            Dict containing operation summary with counts and status
-        """
-        # Initialize results dictionary
-        results = {
-            "articles_reembedded": 0,
-            "articles_failed": 0,
-            "status": "SUCCESS",
-            "errors": [],
-        }
-        
-        try:
-            # Get failed embedding articles
-            failed_articles = self.get_failed_embedding_articles(limit=limit)
-            logger.info(f"Found {len(failed_articles)} articles with failed embedding generation")
-            
-            if not failed_articles:
-                logger.info("No failed embedding articles found for re-embedding")
-                return results
-            
-            # Re-embed each article
-            for article in failed_articles:
-                url_hash = article['url_hash']
-                try:
-                    processed_content = article.get('processed_content')
-                    
-                    if not processed_content:
-                        logger.warning(f"Missing processed content for article {url_hash}")
-                        self.article_manager.update_article_embedding_status(
-                            url_hash=url_hash,
-                            status='FAILED',
-                            error_message='Missing processed content'
-                        )
-                        results["articles_failed"] += 1
-                        continue
-                    
-                    # Split processed content into chunks
-                    chunks = self.text_processor.split_into_chunks(processed_content)
-                    
-                    if not chunks:
-                        logger.warning(f"No chunks generated for article {url_hash}")
-                        self.article_manager.update_article_embedding_status(
-                            url_hash=url_hash,
-                            status='FAILED',
-                            error_message='No chunks generated'
-                        )
-                        results["articles_failed"] += 1
-                        continue
-                    
-                    logger.info(f"Generated {len(chunks)} chunks for article {url_hash}")
-                    
-                    # Generate and verify embeddings for these chunks
-                    embedding_result = self.embeddings_generator.generate_and_verify_embeddings(chunks)
-                    chunk_embeddings = embedding_result["embeddings"]
-                    all_embeddings_valid = embedding_result["all_valid"]
-                    
-                    if not all_embeddings_valid:
-                        logger.warning(f"One or more chunk embeddings failed for article {url_hash}")
-                        self.article_manager.update_article_embedding_status(
-                            url_hash=url_hash,
-                            status='FAILED',
-                            embedding_model=self.embeddings_generator.model_name,
-                            error_message='One or more chunk embeddings failed (zero vector)'
-                        )
-                        results["articles_failed"] += 1
-                        continue
-                    
-                    # Prepare chunks with embeddings for ChromaDB storage
-                    formatted_chunk_embeddings = []
-                    
-                    # Get article published_at and convert to timestamp if available
-                    published_at = article.get('published_at')
-                    try:
-                        # Try to convert ISO format date to UNIX timestamp
-                        dt = datetime.fromisoformat(published_at.replace('Z', '+00:00'))
-                        published_at_timestamp = int(dt.timestamp())
-                    except (ValueError, AttributeError, TypeError):
-                        published_at_timestamp = None
-                    
-                    # Get source query tag and symbol if available
-                    source_query_tag = article.get('source_query_tag')
-                    source_query_symbol = article.get('source_query_symbol')
-                    
-                    # Format each chunk with its embedding for ChromaDB
-                    for i, (chunk_text, embedding_vector) in enumerate(zip(chunks, chunk_embeddings)):
-                        chunk_id = f"{url_hash}_{i}"
-                        
-                        # Prepare metadata
-                        metadata = {
-                            "article_url_hash": url_hash,
-                            "chunk_index": i
-                        }
-                        
-                        # Add optional metadata if available
-                        if published_at_timestamp:
-                            metadata["published_at_timestamp"] = published_at_timestamp
-                        if source_query_tag:
-                            metadata["source_query_tag"] = source_query_tag
-                        if source_query_symbol:
-                            metadata["source_query_symbol"] = source_query_symbol
-                        
-                        formatted_chunk_embeddings.append({
-                            "chunk_id": chunk_id,
-                            "embedding": embedding_vector,
-                            "text": chunk_text,
-                            "metadata": metadata
-                        })
-                    
-                    # Delete any existing embeddings for this article
-                    self.chroma_manager.delete_embeddings_by_article(url_hash)
-                    
-                    # Store embeddings in ChromaDB
-                    storage_success = self.chroma_manager.add_embeddings(
-                        url_hash,
-                        formatted_chunk_embeddings
-                    )
-                    
-                    if storage_success:
-                        # Update article status in SQLite
-                        self.article_manager.update_article_embedding_status(
-                            url_hash=url_hash,
-                            status='SUCCESS',
-                            embedding_model=self.embeddings_generator.model_name,
-                            vector_db_id=url_hash  # Using url_hash as the vector_db_id
-                        )
-                        logger.info(f"Successfully re-embedded article {url_hash} in ChromaDB")
-                        results["articles_reembedded"] += 1
-                    else:
-                        self.article_manager.update_article_embedding_status(
-                            url_hash=url_hash,
-                            status='FAILED',
-                            embedding_model=self.embeddings_generator.model_name,
-                            error_message='Failed to store embeddings in ChromaDB'
-                        )
-                        logger.error(f"Failed to re-embed article {url_hash} in ChromaDB")
-                        results["articles_failed"] += 1
-                    
-                except Exception as e:
-                    logger.error(f"Error re-embedding article {url_hash}: {str(e)}")
-                    self.article_manager.update_article_embedding_status(
-                        url_hash=url_hash,
-                        status='FAILED',
-                        error_message=str(e)
-                    )
-                    results["articles_failed"] += 1
-                    results["errors"].append(f"Error re-embedding article {url_hash}: {str(e)}")
-            
-            logger.info(f"Re-embedded {results['articles_reembedded']} articles, {results['articles_failed']} failed")
             
         except Exception as e:
-            logger.error(f"Error in re_embed_failed_articles: {str(e)}")
+            logger.error(f"Error in embed_processed_articles (status: {status}): {str(e)}")
             results["status"] = "FAILED"
             results["errors"].append(str(e))
         

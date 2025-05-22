@@ -307,113 +307,139 @@ class TestFinancialNewsRAG:
         assert result["articles_failed"] == 1
     
     def test_embed_processed_articles(self):
-        """Test embedding processed articles."""
+        """Test embedding processed articles for both PENDING and FAILED statuses."""
         # Create mock processed articles
-        mock_articles = [
+        mock_articles_pending = [
             {
-                "url_hash": "hash1", 
-                "processed_content": "Processed content 1",
+                "url_hash": "hash_pending_1", 
+                "processed_content": "Processed content pending 1",
                 "published_at": "2023-01-01T12:00:00Z",
                 "source_query_tag": "TECHNOLOGY"
             },
             {
-                "url_hash": "hash2", 
-                "processed_content": "Processed content 2",
+                "url_hash": "hash_pending_2", 
+                "processed_content": "Processed content pending 2",
                 "published_at": "2023-01-02T12:00:00Z",
                 "source_query_symbol": "AAPL"
             }
         ]
-        
-        # Mock chunks
-        mock_chunks1 = ["Chunk 1.1", "Chunk 1.2"]
-        mock_chunks2 = ["Chunk 2.1", "Chunk 2.2"]
-        
-        # Mock embeddings
-        mock_embeddings1 = [[0.1, 0.2], [0.3, 0.4]]
-        mock_embeddings2 = [[0.5, 0.6], [0.7, 0.8]]
-        
-        # Configure mocks
-        self.orchestrator.article_manager.get_processed_articles_for_embedding.return_value = mock_articles
-        self.orchestrator.text_processor.split_into_chunks.side_effect = [mock_chunks1, mock_chunks2]
-        # Use the new generate_and_verify_embeddings method
-        self.orchestrator.embeddings_generator.generate_and_verify_embeddings.side_effect = [
-            {"embeddings": mock_embeddings1, "all_valid": True},
-            {"embeddings": mock_embeddings2, "all_valid": True}
-        ]
-        self.orchestrator.chroma_manager.add_embeddings.return_value = True
-        self.mock_embeddings_instance.embedding_dim = 2  # For simplicity
-        
-        # Call the method
-        result = self.orchestrator.embed_processed_articles()
-        
-        # Assertions
-        self.orchestrator.article_manager.get_processed_articles_for_embedding.assert_called_once()
-        assert self.orchestrator.text_processor.split_into_chunks.call_count == 2
-        assert self.orchestrator.embeddings_generator.generate_and_verify_embeddings.call_count == 2
-        assert self.orchestrator.chroma_manager.add_embeddings.call_count == 2
-        
-        # Check that embedding status was updated
-        update_calls = self.orchestrator.article_manager.update_article_embedding_status.call_args_list
-        
-        # First article
-        assert update_calls[0][1]["url_hash"] == "hash1"
-        assert update_calls[0][1]["status"] == "SUCCESS"
-        assert update_calls[0][1]["embedding_model"] == self.mock_embeddings_instance.model_name
-        
-        # Second article
-        assert update_calls[1][1]["url_hash"] == "hash2"
-        assert update_calls[1][1]["status"] == "SUCCESS"
-        
-        # Check result
-        assert result["status"] == "SUCCESS"
-        assert result["articles_embedded"] == 2
-        assert result["articles_failed"] == 0
-    
-    def test_re_embed_failed_articles(self):
-        """Test re-embedding articles with failed embedding status."""
-        # Create mock failed articles
-        mock_articles = [
+        mock_articles_failed = [
             {
-                "url_hash": "hash1", 
-                "processed_content": "Processed content 1",
-                "published_at": "2023-01-01T12:00:00Z"
+                "url_hash": "hash_failed_1", 
+                "processed_content": "Processed content failed 1",
+                "published_at": "2023-01-03T12:00:00Z"
             }
         ]
         
-        # Mock chunks and embeddings
-        mock_chunks = ["Chunk 1.1", "Chunk 1.2"]
-        mock_embeddings = [[0.1, 0.2], [0.3, 0.4]]
+        # Mock chunks
+        mock_chunks_pending_1 = ["Chunk P1.1", "Chunk P1.2"]
+        mock_chunks_pending_2 = ["Chunk P2.1", "Chunk P2.2"]
+        mock_chunks_failed_1 = ["Chunk F1.1", "Chunk F1.2"]
         
-        # Configure mocks
-        self.orchestrator.get_failed_embedding_articles = MagicMock(return_value=mock_articles)
-        self.orchestrator.text_processor.split_into_chunks.return_value = mock_chunks
-        self.orchestrator.embeddings_generator.generate_and_verify_embeddings.return_value = {
-            "embeddings": mock_embeddings,
-            "all_valid": True
+        # Mock embeddings
+        mock_embeddings_pending_1 = [[0.1, 0.2], [0.3, 0.4]]
+        mock_embeddings_pending_2 = [[0.5, 0.6], [0.7, 0.8]]
+        mock_embeddings_failed_1 = [[0.9, 1.0], [1.1, 1.2]]
+        
+        self.mock_embeddings_instance.embedding_dim = 2  # For simplicity
+
+        # --- Test for PENDING status ---
+        self.orchestrator.article_manager.reset_mock()
+        self.orchestrator.text_processor.reset_mock()
+        self.orchestrator.embeddings_generator.reset_mock() # Reset the main mock for the class
+        self.mock_embeddings_instance.reset_mock() # Reset the instance mock too, for good measure
+        self.orchestrator.chroma_manager.reset_mock()
+        self.orchestrator.article_manager.update_article_embedding_status.reset_mock()
+
+        # Configure mocks for PENDING
+        self.orchestrator.article_manager.get_processed_articles_for_embedding.return_value = mock_articles_pending
+        self.orchestrator.text_processor.split_into_chunks.side_effect = [mock_chunks_pending_1, mock_chunks_pending_2]
+        # Mock generate_and_verify_embeddings on the actual EmbeddingsGenerator instance used by the orchestrator
+        self.mock_embeddings_instance.generate_and_verify_embeddings.side_effect = [
+            {"embeddings": mock_embeddings_pending_1, "all_valid": True},
+            {"embeddings": mock_embeddings_pending_2, "all_valid": True}
+        ]
+        self.orchestrator.chroma_manager.add_embeddings.return_value = True
+        
+        # Call the method for PENDING status
+        result_pending = self.orchestrator.embed_processed_articles(status='PENDING')
+        
+        # Assertions for PENDING
+        self.orchestrator.article_manager.get_processed_articles_for_embedding.assert_called_once_with(status='PENDING', limit=100)
+        assert self.orchestrator.text_processor.split_into_chunks.call_count == 2
+        assert self.mock_embeddings_instance.generate_and_verify_embeddings.call_count == 2
+        assert self.orchestrator.chroma_manager.add_embeddings.call_count == 2
+        self.orchestrator.chroma_manager.delete_embeddings_by_article.assert_not_called() # Should not be called for PENDING
+        
+        # Check that embedding status was updated for PENDING
+        update_calls_pending = self.orchestrator.article_manager.update_article_embedding_status.call_args_list
+        assert len(update_calls_pending) == 2
+        assert update_calls_pending[0][1]["url_hash"] == "hash_pending_1"
+        assert update_calls_pending[0][1]["status"] == "SUCCESS"
+        assert update_calls_pending[0][1]["embedding_model"] == self.mock_embeddings_instance.model_name
+        assert update_calls_pending[1][1]["url_hash"] == "hash_pending_2"
+        assert update_calls_pending[1][1]["status"] == "SUCCESS"
+        
+        # Check result for PENDING
+        assert result_pending["status"] == "SUCCESS"
+        assert result_pending["articles_embedding_succeeded"] == 2
+        assert result_pending["articles_failed"] == 0
+    
+        # --- Test for FAILED status ---
+        # Reset all top-level mocks and the instance mock.
+        # This resets their direct call counts and their children's call counts.
+        self.orchestrator.article_manager.reset_mock()
+        self.orchestrator.text_processor.reset_mock()
+        self.orchestrator.embeddings_generator.reset_mock() # Class mock
+        self.mock_embeddings_instance.reset_mock()         # Instance mock (which is orchestrator.embeddings_generator)
+        self.orchestrator.chroma_manager.reset_mock()
+        # Explicitly reset call count for update_article_embedding_status for focused assertions
+        self.orchestrator.article_manager.update_article_embedding_status.reset_mock()
+
+        # Explicitly clear side_effect and return_value from methods that used them,
+        # then reconfigure them for the FAILED test phase.
+
+        # For text_processor.split_into_chunks
+        split_chunks_mock = self.orchestrator.text_processor.split_into_chunks
+        split_chunks_mock.reset_mock(return_value=True, side_effect=True) # Clear prior side_effect
+        
+        # For embeddings_generator.generate_and_verify_embeddings
+        gve_mock = self.mock_embeddings_instance.generate_and_verify_embeddings
+        gve_mock.reset_mock(return_value=True, side_effect=True)          # Clear prior side_effect
+    
+        # Configure mocks for FAILED
+        self.orchestrator.article_manager.get_processed_articles_for_embedding.return_value = mock_articles_failed
+        
+        split_chunks_mock.return_value = mock_chunks_failed_1             # Set new return_value for split_chunks
+        
+        gve_mock.return_value = {                                         # Set new return_value for gve_mock
+            "embeddings": mock_embeddings_failed_1, "all_valid": True
         }
         self.orchestrator.chroma_manager.delete_embeddings_by_article.return_value = True
         self.orchestrator.chroma_manager.add_embeddings.return_value = True
-        self.mock_embeddings_instance.embedding_dim = 2  # For simplicity
-        
-        # Call the method
-        result = self.orchestrator.re_embed_failed_articles()
-        
-        # Assertions
-        self.orchestrator.get_failed_embedding_articles.assert_called_once()
-        self.orchestrator.text_processor.split_into_chunks.assert_called_once_with("Processed content 1")
-        self.orchestrator.embeddings_generator.generate_and_verify_embeddings.assert_called_once_with(mock_chunks)
-        self.orchestrator.chroma_manager.delete_embeddings_by_article.assert_called_once_with("hash1")
-        self.orchestrator.chroma_manager.add_embeddings.assert_called_once()
-        
-        # Check that embedding status was updated
-        update_call = self.orchestrator.article_manager.update_article_embedding_status.call_args[1]
-        assert update_call["url_hash"] == "hash1"
-        assert update_call["status"] == "SUCCESS"
-        
-        # Check result
-        assert result["status"] == "SUCCESS"
-        assert result["articles_reembedded"] == 1
-        assert result["articles_failed"] == 0
+    
+        # Call the method for FAILED status
+        result_failed = self.orchestrator.embed_processed_articles(status='FAILED')
+    
+        # Assertions for FAILED
+        self.orchestrator.article_manager.get_processed_articles_for_embedding.assert_called_once_with(status='FAILED', limit=100)
+        split_chunks_mock.assert_called_once_with("Processed content failed 1")
+        gve_mock.assert_called_once_with(mock_chunks_failed_1)
+    
+        self.orchestrator.chroma_manager.delete_embeddings_by_article.assert_called_once_with("hash_failed_1")
+        self.orchestrator.chroma_manager.add_embeddings.assert_called_once() # Check it was called
+
+        # Check that embedding status was updated for FAILED
+        update_calls_failed = self.orchestrator.article_manager.update_article_embedding_status.call_args_list
+        assert len(update_calls_failed) == 1
+        assert update_calls_failed[0][1]["url_hash"] == "hash_failed_1"
+        assert update_calls_failed[0][1]["status"] == "SUCCESS"
+        assert update_calls_failed[0][1]["embedding_model"] == self.mock_embeddings_instance.model_name
+
+        # Check result for FAILED
+        assert result_failed["status"] == "SUCCESS"
+        assert result_failed["articles_embedding_succeeded"] == 1
+        assert result_failed["articles_failed"] == 0
     
     def test_get_article_database_status(self):
         """Test getting article database statistics."""
