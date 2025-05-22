@@ -230,65 +230,14 @@ class FinancialNewsRAG:
         Returns:
             Dict containing operation summary with counts and status
         """
-        # Initialize results dictionary
-        results = {
-            "articles_processed": 0,
-            "articles_failed": 0,
-            "status": "SUCCESS",
-            "errors": [],
+        helper_results = self._process_articles_by_status(status_filter='PENDING', limit=limit)
+        
+        return {
+            "articles_processed": helper_results["items_processed_successfully"],
+            "articles_failed": helper_results["items_processing_failed"],
+            "status": helper_results["status"],
+            "errors": helper_results["errors"],
         }
-        
-        try:
-            # Get pending articles
-            pending_articles = self.article_manager.get_articles_by_processing_status(status='PENDING', limit=limit)
-            logger.info(f"Found {len(pending_articles)} pending articles for processing")
-            
-            if not pending_articles:
-                logger.info("No pending articles found for processing")
-                return results
-            
-            # Process each article
-            for article in pending_articles:
-                url_hash = article['url_hash']
-                try:
-                    # Process and validate the content using TextProcessor
-                    validation_result = self.text_processor.process_and_validate_content(article.get('raw_content'))
-                    
-                    if validation_result["status"] == "SUCCESS":
-                        # Update article with processed content
-                        self.article_manager.update_article_processing_status(
-                            url_hash,
-                            processed_content=validation_result["content"],
-                            status='SUCCESS'
-                        )
-                        results["articles_processed"] += 1
-                    else:
-                        # Content validation failed
-                        self.article_manager.update_article_processing_status(
-                            url_hash, 
-                            status='FAILED', 
-                            error_message=validation_result["reason"]
-                        )
-                        results["articles_failed"] += 1
-                    
-                except Exception as e:
-                    logger.error(f"Error processing article {url_hash}: {str(e)}")
-                    self.article_manager.update_article_processing_status(
-                        url_hash,
-                        status='FAILED',
-                        error_message=str(e)
-                    )
-                    results["articles_failed"] += 1
-                    results["errors"].append(f"Error processing article {url_hash}: {str(e)}")
-            
-            logger.info(f"Processed {results['articles_processed']} articles, {results['articles_failed']} failed")
-            
-        except Exception as e:
-            logger.error(f"Error in process_pending_articles: {str(e)}")
-            results["status"] = "FAILED"
-            results["errors"].append(str(e))
-        
-        return results
     
     def get_failed_text_processing_articles(self, limit: int = 100) -> List[Dict]:
         """
@@ -308,35 +257,39 @@ class FinancialNewsRAG:
             logger.error(f"Error getting failed text processing articles: {str(e)}")
             return []
     
-    def reprocess_failed_articles(self, limit: int = 100) -> Dict[str, Any]:
+    def _process_articles_by_status(self, status_filter: str, limit: int = 100) -> Dict[str, Any]:
         """
-        Reprocess articles with failed text processing.
+        Process articles filtered by their processing status.
+        
+        This is a private helper method that consolidates the common logic between
+        process_pending_articles and reprocess_failed_articles.
         
         Args:
-            limit: Maximum number of failed articles to reprocess
+            status_filter: The status to filter articles by ('PENDING' or 'FAILED')
+            limit: Maximum number of articles to process
         
         Returns:
             Dict containing operation summary with counts and status
         """
         # Initialize results dictionary
         results = {
-            "articles_reprocessed": 0,
-            "articles_failed": 0,
+            "items_processed_successfully": 0,
+            "items_processing_failed": 0,
             "status": "SUCCESS",
             "errors": [],
         }
         
         try:
-            # Get failed articles
-            failed_articles = self.get_failed_text_processing_articles(limit=limit)
-            logger.info(f"Found {len(failed_articles)} articles with failed text processing")
+            # Get articles by status
+            articles = self.article_manager.get_articles_by_processing_status(status=status_filter, limit=limit)
+            logger.info(f"Found {len(articles)} articles with {status_filter} status for processing")
             
-            if not failed_articles:
-                logger.info("No failed articles found for reprocessing")
+            if not articles:
+                logger.info(f"No articles with {status_filter} status found for processing")
                 return results
             
-            # Reprocess each article
-            for article in failed_articles:
+            # Process each article
+            for article in articles:
                 url_hash = article['url_hash']
                 try:
                     # Process and validate the content using TextProcessor
@@ -349,7 +302,7 @@ class FinancialNewsRAG:
                             processed_content=validation_result["content"],
                             status='SUCCESS'
                         )
-                        results["articles_reprocessed"] += 1
+                        results["items_processed_successfully"] += 1
                     else:
                         # Content validation failed
                         self.article_manager.update_article_processing_status(
@@ -357,26 +310,45 @@ class FinancialNewsRAG:
                             status='FAILED', 
                             error_message=validation_result["reason"]
                         )
-                        results["articles_failed"] += 1
+                        results["items_processing_failed"] += 1
                     
-                except Exception as e:
-                    logger.error(f"Error reprocessing article {url_hash}: {str(e)}")
+                except Exception as e_article:
+                    logger.error(f"Error processing article {url_hash} for status_filter {status_filter}: {str(e_article)}")
                     self.article_manager.update_article_processing_status(
                         url_hash,
                         status='FAILED',
-                        error_message=str(e)
+                        error_message=str(e_article)
                     )
-                    results["articles_failed"] += 1
-                    results["errors"].append(f"Error reprocessing article {url_hash}: {str(e)}")
+                    results["items_processing_failed"] += 1
+                    results["errors"].append(f"Error processing article {url_hash}: {str(e_article)}")
             
-            logger.info(f"Reprocessed {results['articles_reprocessed']} articles, {results['articles_failed']} failed")
+            logger.info(f"For status_filter '{status_filter}': Processed {results['items_processed_successfully']} articles, {results['items_processing_failed']} failed")
             
-        except Exception as e:
-            logger.error(f"Error in reprocess_failed_articles: {str(e)}")
+        except Exception as e_main:
+            logger.error(f"Error in _process_articles_by_status for {status_filter}: {str(e_main)}")
             results["status"] = "FAILED"
-            results["errors"].append(str(e))
+            results["errors"].append(str(e_main))
         
         return results
+    
+    def reprocess_failed_articles(self, limit: int = 100) -> Dict[str, Any]:
+        """
+        Reprocess articles with failed text processing.
+        
+        Args:
+            limit: Maximum number of failed articles to reprocess
+        
+        Returns:
+            Dict containing operation summary with counts and status
+        """
+        helper_results = self._process_articles_by_status(status_filter='FAILED', limit=limit)
+        
+        return {
+            "articles_reprocessed": helper_results["items_processed_successfully"],
+            "articles_failed": helper_results["items_processing_failed"],
+            "status": helper_results["status"],
+            "errors": helper_results["errors"],
+        }
     
     def embed_processed_articles(self, limit: int = 100) -> Dict[str, Any]:
         """
