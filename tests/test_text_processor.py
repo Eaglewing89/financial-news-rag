@@ -150,6 +150,64 @@ class TestTextProcessor(unittest.TestCase):
             self.assertIn("This is a test", combined)
             self.assertIn("With multiple sentences", combined)
             self.assertIn("For testing fallback", combined)
+    
+    def test_process_and_validate_content_none_input(self):
+        """Test process_and_validate_content with None input."""
+        result = self.processor.process_and_validate_content(None)
+        
+        # Check the key fields
+        self.assertEqual(result["status"], "FAILED")
+        self.assertEqual(result["reason"], "Empty raw content")
+        self.assertEqual(result["content"], "")
+    
+    def test_process_and_validate_content_empty_string(self):
+        """Test process_and_validate_content with empty string input."""
+        result = self.processor.process_and_validate_content("")
+        
+        # Check the key fields
+        self.assertEqual(result["status"], "FAILED")
+        self.assertEqual(result["reason"], "Empty raw content")
+        self.assertEqual(result["content"], "")
+    
+    def test_process_and_validate_content_only_whitespace(self):
+        """Test process_and_validate_content with input containing only whitespace."""
+        result = self.processor.process_and_validate_content("   \n\t  ")
+        
+        # Check the key fields
+        self.assertEqual(result["status"], "FAILED")
+        self.assertEqual(result["reason"], "Empty raw content")
+        self.assertEqual(result["content"], "")
+    
+    def test_process_and_validate_content_cleaned_to_empty(self):
+        """Test process_and_validate_content with input that is cleaned to empty."""
+        # Create a mock that will return empty string after cleaning
+        with patch.object(self.processor, 'clean_article_text', return_value=""):
+            result = self.processor.process_and_validate_content("Click here to read more.")
+            
+            # Check the key fields
+            self.assertEqual(result["status"], "FAILED")
+            self.assertEqual(result["reason"], "No content after cleaning")
+            self.assertEqual(result["content"], "")
+    
+    def test_process_and_validate_content_success(self):
+        """Test process_and_validate_content with valid input."""
+        with patch.object(self.processor, 'clean_article_text', return_value="Cleaned content"):
+            result = self.processor.process_and_validate_content("Raw content")
+            
+            # Check the key fields
+            self.assertEqual(result["status"], "SUCCESS")
+            self.assertEqual(result["reason"], "")
+            self.assertEqual(result["content"], "Cleaned content")
+    
+    def test_process_and_validate_content_real_cleaning(self):
+        """Test process_and_validate_content with real cleaning."""
+        raw_text = "<p>This is a <b>test</b> article</p>"
+        result = self.processor.process_and_validate_content(raw_text)
+        
+        # Check the key fields
+        self.assertEqual(result["status"], "SUCCESS")
+        self.assertEqual(result["reason"], "")
+        self.assertEqual(result["content"], "This is a test article")
 
 
 if __name__ == '__main__':

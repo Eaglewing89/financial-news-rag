@@ -224,14 +224,20 @@ class TestFinancialNewsRAG:
         
         # Configure mocks
         self.orchestrator.article_manager.get_articles_by_processing_status.return_value = mock_articles
-        self.orchestrator.text_processor.clean_article_text.side_effect = ["Processed content 1", "Processed content 2"]
+        
+        # Mock the new process_and_validate_content method
+        self.orchestrator.text_processor.process_and_validate_content.side_effect = [
+            {"status": "SUCCESS", "reason": "", "content": "Processed content 1"},
+            {"status": "SUCCESS", "reason": "", "content": "Processed content 2"},
+            {"status": "FAILED", "reason": "Empty raw content", "content": ""}
+        ]
         
         # Call the method
         result = self.orchestrator.process_pending_articles()
         
         # Assertions
         self.orchestrator.article_manager.get_articles_by_processing_status.assert_called_once_with(status='PENDING', limit=100)
-        assert self.orchestrator.text_processor.clean_article_text.call_count == 2
+        assert self.orchestrator.text_processor.process_and_validate_content.call_count == 3
         
         # Check updates on articles
         update_calls = self.orchestrator.article_manager.update_article_processing_status.call_args_list
@@ -239,15 +245,17 @@ class TestFinancialNewsRAG:
         # First article should be successful
         assert update_calls[0][0][0] == "hash1"  # First positional arg is url_hash
         assert update_calls[0][1]["status"] == "SUCCESS"
-        assert "processed_content" in update_calls[0][1]
+        assert update_calls[0][1]["processed_content"] == "Processed content 1"
         
         # Second article should be successful
         assert update_calls[1][0][0] == "hash2"  # First positional arg is url_hash
         assert update_calls[1][1]["status"] == "SUCCESS"
+        assert update_calls[1][1]["processed_content"] == "Processed content 2"
         
         # Third article should fail due to empty content
         assert update_calls[2][0][0] == "hash3"  # First positional arg is url_hash
         assert update_calls[2][1]["status"] == "FAILED"
+        assert update_calls[2][1]["error_message"] == "Empty raw content"
         
         # Check result
         assert result["status"] == "SUCCESS"
@@ -264,7 +272,12 @@ class TestFinancialNewsRAG:
         
         # Configure mocks
         self.orchestrator.article_manager.get_articles_by_processing_status.return_value = mock_articles
-        self.orchestrator.text_processor.clean_article_text.return_value = "Processed content 1"
+        
+        # Mock the new process_and_validate_content method
+        self.orchestrator.text_processor.process_and_validate_content.side_effect = [
+            {"status": "SUCCESS", "reason": "", "content": "Processed content 1"},
+            {"status": "FAILED", "reason": "Empty raw content", "content": ""}
+        ]
         
         # Call the method
         result = self.orchestrator.reprocess_failed_articles()
@@ -273,7 +286,7 @@ class TestFinancialNewsRAG:
         self.orchestrator.article_manager.get_articles_by_processing_status.assert_called_once_with(
             status='FAILED', limit=100
         )
-        self.orchestrator.text_processor.clean_article_text.assert_called_once_with("Test content 1")
+        assert self.orchestrator.text_processor.process_and_validate_content.call_count == 2
         
         # Check updates on articles
         update_calls = self.orchestrator.article_manager.update_article_processing_status.call_args_list
@@ -281,10 +294,12 @@ class TestFinancialNewsRAG:
         # First article should be successful
         assert update_calls[0][0][0] == "hash1"  # First positional arg is url_hash
         assert update_calls[0][1]["status"] == "SUCCESS"
+        assert update_calls[0][1]["processed_content"] == "Processed content 1"
         
         # Second article should fail due to empty content
         assert update_calls[1][0][0] == "hash2"  # First positional arg is url_hash
         assert update_calls[1][1]["status"] == "FAILED"
+        assert update_calls[1][1]["error_message"] == "Empty raw content"
         
         # Check result
         assert result["status"] == "SUCCESS"

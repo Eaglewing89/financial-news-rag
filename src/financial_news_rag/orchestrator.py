@@ -251,36 +251,25 @@ class FinancialNewsRAG:
             for article in pending_articles:
                 url_hash = article['url_hash']
                 try:
-                    if not article.get('raw_content'):
-                        logger.warning(f"Empty raw content for article {url_hash}")
+                    # Process and validate the content using TextProcessor
+                    validation_result = self.text_processor.process_and_validate_content(article.get('raw_content'))
+                    
+                    if validation_result["status"] == "SUCCESS":
+                        # Update article with processed content
+                        self.article_manager.update_article_processing_status(
+                            url_hash,
+                            processed_content=validation_result["content"],
+                            status='SUCCESS'
+                        )
+                        results["articles_processed"] += 1
+                    else:
+                        # Content validation failed
                         self.article_manager.update_article_processing_status(
                             url_hash, 
                             status='FAILED', 
-                            error_message='Empty raw content'
+                            error_message=validation_result["reason"]
                         )
                         results["articles_failed"] += 1
-                        continue
-                    
-                    # Process the raw content with TextProcessor
-                    processed_content = self.text_processor.clean_article_text(article['raw_content'])
-                    
-                    if not processed_content:
-                        logger.warning(f"No content after cleaning for article {url_hash}")
-                        self.article_manager.update_article_processing_status(
-                            url_hash, 
-                            status='FAILED', 
-                            error_message='No content after cleaning'
-                        )
-                        results["articles_failed"] += 1
-                        continue
-                    
-                    # Update article with processed content
-                    self.article_manager.update_article_processing_status(
-                        url_hash,
-                        processed_content=processed_content,
-                        status='SUCCESS'
-                    )
-                    results["articles_processed"] += 1
                     
                 except Exception as e:
                     logger.error(f"Error processing article {url_hash}: {str(e)}")
@@ -350,36 +339,25 @@ class FinancialNewsRAG:
             for article in failed_articles:
                 url_hash = article['url_hash']
                 try:
-                    if not article.get('raw_content'):
-                        logger.warning(f"Empty raw content for article {url_hash}")
+                    # Process and validate the content using TextProcessor
+                    validation_result = self.text_processor.process_and_validate_content(article.get('raw_content'))
+                    
+                    if validation_result["status"] == "SUCCESS":
+                        # Update article with processed content
+                        self.article_manager.update_article_processing_status(
+                            url_hash,
+                            processed_content=validation_result["content"],
+                            status='SUCCESS'
+                        )
+                        results["articles_reprocessed"] += 1
+                    else:
+                        # Content validation failed
                         self.article_manager.update_article_processing_status(
                             url_hash, 
                             status='FAILED', 
-                            error_message='Empty raw content'
+                            error_message=validation_result["reason"]
                         )
                         results["articles_failed"] += 1
-                        continue
-                    
-                    # Process the raw content with TextProcessor
-                    processed_content = self.text_processor.clean_article_text(article['raw_content'])
-                    
-                    if not processed_content:
-                        logger.warning(f"No content after cleaning for article {url_hash}")
-                        self.article_manager.update_article_processing_status(
-                            url_hash, 
-                            status='FAILED', 
-                            error_message='No content after cleaning'
-                        )
-                        results["articles_failed"] += 1
-                        continue
-                    
-                    # Update article with processed content
-                    self.article_manager.update_article_processing_status(
-                        url_hash,
-                        processed_content=processed_content,
-                        status='SUCCESS'
-                    )
-                    results["articles_reprocessed"] += 1
                     
                 except Exception as e:
                     logger.error(f"Error reprocessing article {url_hash}: {str(e)}")
@@ -932,7 +910,7 @@ class FinancialNewsRAG:
             cursor = self.article_manager.conn.cursor()
             cursor.execute("DELETE FROM articles WHERE url_hash = ?", (article_url_hash,))
             deleted_count = cursor.rowcount
-            self.article_manager.conn.commit()
+            self.article_manager.conn.commit();
             
             results["article_deleted"] = deleted_count > 0
             

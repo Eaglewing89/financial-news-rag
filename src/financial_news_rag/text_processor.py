@@ -9,7 +9,7 @@ This module provides a class for processing raw article content:
 import logging
 import re
 import unicodedata
-from typing import List
+from typing import List, Dict, Optional
 
 import nltk
 from nltk.tokenize import sent_tokenize
@@ -47,6 +47,7 @@ class TextProcessor:
     This class handles:
     - Text cleaning and normalization
     - Content chunking for embedding
+    - Content validation
     """
     
     def __init__(self, max_tokens_per_chunk: int = 2048):
@@ -57,6 +58,45 @@ class TextProcessor:
             max_tokens_per_chunk: Maximum token count per chunk for embedding
         """
         self.max_tokens_per_chunk = max_tokens_per_chunk
+        
+    def process_and_validate_content(self, raw_text: Optional[str]) -> Dict[str, str]:
+        """
+        Process and validate article content.
+        
+        Args:
+            raw_text: Raw article content to process and validate
+            
+        Returns:
+            Dict containing:
+                status: 'SUCCESS' or 'FAILED'
+                reason: Reason for failure (empty string if successful)
+                content: Cleaned content (empty string if validation failed)
+        """
+        # Check if raw_text is None or empty
+        if not raw_text or raw_text.strip() == "":
+            return {
+                "status": "FAILED", 
+                "reason": "Empty raw content",
+                "content": ""
+            }
+        
+        # Clean the content
+        cleaned_content = self.clean_article_text(raw_text)
+        
+        # Check if cleaning resulted in empty content
+        if not cleaned_content:
+            return {
+                "status": "FAILED", 
+                "reason": "No content after cleaning",
+                "content": ""
+            }
+        
+        # Content passed validation
+        return {
+            "status": "SUCCESS",
+            "reason": "",
+            "content": cleaned_content
+        }
         
     def clean_article_text(self, raw_text: str) -> str:
         """
