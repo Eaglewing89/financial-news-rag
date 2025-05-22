@@ -213,8 +213,8 @@ class TestFinancialNewsRAG:
         assert result["articles_fetched"] == 2
         assert result["articles_stored"] == 2
     
-    def test_process_pending_articles(self):
-        """Test processing pending articles."""
+    def test_process_articles_by_status_pending(self):
+        """Test processing articles with pending status."""
         # Mock pending articles
         mock_articles = [
             {"url_hash": "hash1", "raw_content": "Test content 1"},
@@ -225,15 +225,15 @@ class TestFinancialNewsRAG:
         # Configure mocks
         self.orchestrator.article_manager.get_articles_by_processing_status.return_value = mock_articles
         
-        # Mock the new process_and_validate_content method
+        # Mock the process_and_validate_content method
         self.orchestrator.text_processor.process_and_validate_content.side_effect = [
             {"status": "SUCCESS", "reason": "", "content": "Processed content 1"},
             {"status": "SUCCESS", "reason": "", "content": "Processed content 2"},
             {"status": "FAILED", "reason": "Empty raw content", "content": ""}
         ]
         
-        # Call the method
-        result = self.orchestrator.process_pending_articles()
+        # Call the method with default status='PENDING'
+        result = self.orchestrator.process_articles_by_status()
         
         # Assertions
         self.orchestrator.article_manager.get_articles_by_processing_status.assert_called_once_with(status='PENDING', limit=100)
@@ -262,8 +262,8 @@ class TestFinancialNewsRAG:
         assert result["articles_processed"] == 2
         assert result["articles_failed"] == 1
     
-    def test_reprocess_failed_articles(self):
-        """Test reprocessing articles with failed text processing."""
+    def test_process_articles_by_status_failed(self):
+        """Test processing articles with failed status."""
         # Mock failed articles
         mock_articles = [
             {"url_hash": "hash1", "raw_content": "Test content 1"},
@@ -273,14 +273,14 @@ class TestFinancialNewsRAG:
         # Configure mocks
         self.orchestrator.article_manager.get_articles_by_processing_status.return_value = mock_articles
         
-        # Mock the new process_and_validate_content method
+        # Mock the process_and_validate_content method
         self.orchestrator.text_processor.process_and_validate_content.side_effect = [
             {"status": "SUCCESS", "reason": "", "content": "Processed content 1"},
             {"status": "FAILED", "reason": "Empty raw content", "content": ""}
         ]
         
-        # Call the method
-        result = self.orchestrator.reprocess_failed_articles()
+        # Call the method with status='FAILED'
+        result = self.orchestrator.process_articles_by_status(status='FAILED')
         
         # Assertions
         self.orchestrator.article_manager.get_articles_by_processing_status.assert_called_once_with(
@@ -303,7 +303,7 @@ class TestFinancialNewsRAG:
         
         # Check result
         assert result["status"] == "SUCCESS"
-        assert result["articles_reprocessed"] == 1
+        assert result["articles_processed"] == 1
         assert result["articles_failed"] == 1
     
     def test_embed_processed_articles(self):
