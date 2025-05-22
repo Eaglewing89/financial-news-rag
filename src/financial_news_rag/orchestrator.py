@@ -969,19 +969,26 @@ class FinancialNewsRAG:
                     unique_article_hashes.add(article_hash)
             
             # Fetch full article content for the retrieved articles
+            article_scores = {}  # Track best score for each article
+            
+            # Calculate similarity scores for each article based on its best chunk
+            for result in chroma_results:
+                url_hash = result['metadata'].get('article_url_hash')
+                if url_hash:
+                    # ChromaDB returns distance, convert to similarity (lower distance = higher similarity)
+                    distance = result.get('distance', 0)
+                    similarity = 1.0 - (distance / 2.0)  # Normalize to 0-1
+                    
+                    # Update best score for this article
+                    if url_hash not in article_scores or similarity > article_scores[url_hash]:
+                        article_scores[url_hash] = similarity
+            
+            # Get article content and assign scores
             articles = []
-            for url_hash in unique_article_hashes:
+            for url_hash in article_scores:
                 article = self.article_manager.get_article_by_hash(url_hash)
                 if article and article.get('processed_content'):
-                    # Add a similarity score based on the best chunk match
-                    best_score = 0
-                    for result in chroma_results:
-                        if result['metadata'].get('article_url_hash') == url_hash:
-                            # ChromaDB may return distance, convert to similarity
-                            similarity = 1.0 - (result.get('distance', 0) / 2.0)  # Normalize to 0-1
-                            best_score = max(best_score, similarity)
-                    
-                    article['similarity_score'] = best_score
+                    article['similarity_score'] = article_scores[url_hash]
                     articles.append(article)
             
             if not articles:
