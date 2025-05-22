@@ -156,15 +156,6 @@ class FinancialNewsRAG:
                     limit=limit
                 )
                 
-                # Add source query tag to each article
-                for article in fetched_articles:
-                    # Create raw_content from content
-                    if 'content' in article:
-                        article['raw_content'] = article.pop('content', '')
-                    else:
-                        article['raw_content'] = ''
-                    article['source_query_tag'] = tag
-                
                 # Log the API call
                 if fetched_articles:
                     oldest_date = min([a.get('published_at', '') for a in fetched_articles]) if fetched_articles else None
@@ -201,15 +192,6 @@ class FinancialNewsRAG:
                         to_date=to_date,
                         limit=limit
                     )
-                    
-                    # Add source query symbol to each article
-                    for article in fetched_articles:
-                        # Create raw_content from content
-                        if 'content' in article:
-                            article['raw_content'] = article.pop('content', '')
-                        else:
-                            article['raw_content'] = ''
-                        article['source_query_symbol'] = sym
                     
                     # Log the API call
                     if fetched_articles:

@@ -247,7 +247,7 @@ class TestEODHDClient:
         assert "url_hash" in normalized
         assert normalized["url_hash"] == expected_url_hash
         assert normalized["title"] == SAMPLE_ARTICLE["title"]
-        assert normalized["content"] == SAMPLE_ARTICLE["content"]
+        assert normalized["raw_content"] == SAMPLE_ARTICLE["content"]
         assert normalized["url"] == SAMPLE_ARTICLE["link"]
         assert normalized["published_at"] == "2025-05-08T13:33:00+00:00"
         assert "fetched_at" in normalized
@@ -255,6 +255,25 @@ class TestEODHDClient:
         assert normalized["symbols"] == SAMPLE_ARTICLE["symbols"]
         assert normalized["tags"] == SAMPLE_ARTICLE["tags"]
         assert normalized["sentiment"] == SAMPLE_ARTICLE["sentiment"]
+        assert "source_query_tag" in normalized
+        assert normalized["source_query_tag"] == "HOSPITALITY"
+        
+    @patch("requests.get")
+    def test_normalize_article_with_symbol(self, mock_get):
+        """Test the normalization of API response articles with symbol query."""
+        # Set up the mock
+        mock_response = MagicMock()
+        mock_response.json.return_value = SAMPLE_RESPONSE
+        mock_get.return_value = mock_response
+        
+        # Call the method
+        articles = self.client.fetch_news(symbols="AAPL")
+        normalized = articles[0]
+        
+        # Check source query symbol
+        assert "source_query_symbol" in normalized
+        assert normalized["source_query_symbol"] == "AAPL"
+        assert "source_query_tag" not in normalized
     
     @patch("requests.get")
     def test_error_handling(self, mock_get):

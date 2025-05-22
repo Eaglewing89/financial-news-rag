@@ -152,7 +152,17 @@ class EODHDClient:
         raw_articles = self._fetch_with_retry(API_URL, params, max_retries, backoff_factor)
         
         # Normalize each article
-        normalized_articles = [self._normalize_article(article) for article in raw_articles]
+        normalized_articles = []
+        for article in raw_articles:
+            # Pass query type and value based on the parameters used
+            if 't' in params:
+                normalized_article = self._normalize_article(article, query_type='tag', query_value=params['t'])
+            elif 's' in params:
+                normalized_article = self._normalize_article(article, query_type='symbol', query_value=params['s'])
+            else:
+                normalized_article = self._normalize_article(article)
+            
+            normalized_articles.append(normalized_article)
         
         return normalized_articles
     
@@ -225,12 +235,14 @@ class EODHDClient:
         # This should not be reached if max_retries > 0
         raise EODHDApiError("Failed to fetch data from EODHD API.")
     
-    def _normalize_article(self, article: Dict) -> Dict:
+    def _normalize_article(self, article: Dict, query_type: Optional[str] = None, query_value: Optional[str] = None) -> Dict:
         """
         Normalize an article from the EODHD API response.
         
         Args:
             article: Raw article dictionary from the API response.
+            query_type: Type of query used to fetch the article ('tag' or 'symbol').
+            query_value: Value of the query used to fetch the article.
             
         Returns:
             Normalized article dictionary with consistent field names.
@@ -253,7 +265,7 @@ class EODHDClient:
         normalized = {
             'url_hash': url_hash,
             'title': article.get('title', ''),
-            'content': article.get('content', ''),
+            'raw_content': article.get('content', ''),
             'url': article.get('link', ''),
             'published_at': published_at_iso,
             'fetched_at': datetime.now(timezone.utc).isoformat(),
@@ -262,5 +274,11 @@ class EODHDClient:
             'tags': article.get('tags', []),
             'sentiment': article.get('sentiment', {})
         }
+        
+        # Add source query information based on query type
+        if query_type == 'tag' and query_value:
+            normalized['source_query_tag'] = query_value
+        elif query_type == 'symbol' and query_value:
+            normalized['source_query_symbol'] = query_value
         
         return normalized

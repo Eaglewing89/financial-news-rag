@@ -72,10 +72,20 @@ class TestFinancialNewsRAG:
     
     def test_fetch_and_store_articles_with_tag(self):
         """Test fetching and storing articles by tag."""
-        # Mock articles return value
+        # Mock articles return value with the source_query_tag and raw_content already included
         mock_articles = [
-            {"title": "Test Article 1", "published_at": "2023-01-01T12:00:00Z"},
-            {"title": "Test Article 2", "published_at": "2023-01-02T12:00:00Z"}
+            {
+                "title": "Test Article 1", 
+                "published_at": "2023-01-01T12:00:00Z",
+                "raw_content": "Test content 1",
+                "source_query_tag": "TECHNOLOGY"
+            },
+            {
+                "title": "Test Article 2", 
+                "published_at": "2023-01-02T12:00:00Z",
+                "raw_content": "Test content 2",
+                "source_query_tag": "TECHNOLOGY"
+            }
         ]
         
         # Configure mocks
@@ -93,11 +103,11 @@ class TestFinancialNewsRAG:
             limit=50
         )
         
-        # Check that articles were properly processed before storing
+        # Check that articles were properly passed to store_articles
         self.orchestrator.article_manager.store_articles.assert_called_once()
         stored_articles = self.orchestrator.article_manager.store_articles.call_args[0][0]
         
-        # Verify source_query_tag and raw_content were added
+        # Verify source_query_tag and raw_content came from EODHDClient
         assert len(stored_articles) == 2
         assert stored_articles[0].get("source_query_tag") == "TECHNOLOGY"
         assert "raw_content" in stored_articles[0]
@@ -115,10 +125,20 @@ class TestFinancialNewsRAG:
     
     def test_fetch_and_store_articles_with_symbol(self):
         """Test fetching and storing articles by symbol."""
-        # Mock articles return value
+        # Mock articles return value with the source_query_symbol and raw_content already included
         mock_articles = [
-            {"title": "Test Article 1", "published_at": "2023-01-01T12:00:00Z"},
-            {"title": "Test Article 2", "published_at": "2023-01-02T12:00:00Z"}
+            {
+                "title": "Test Article 1", 
+                "published_at": "2023-01-01T12:00:00Z",
+                "raw_content": "Test content 1",
+                "source_query_symbol": "AAPL"
+            },
+            {
+                "title": "Test Article 2", 
+                "published_at": "2023-01-02T12:00:00Z",
+                "raw_content": "Test content 2",
+                "source_query_symbol": "AAPL"
+            }
         ]
         
         # Configure mocks
@@ -136,11 +156,11 @@ class TestFinancialNewsRAG:
             limit=50
         )
         
-        # Check that articles were properly processed before storing
+        # Check that articles were properly passed to store_articles
         self.orchestrator.article_manager.store_articles.assert_called_once()
         stored_articles = self.orchestrator.article_manager.store_articles.call_args[0][0]
         
-        # Verify source_query_symbol and raw_content were added
+        # Verify source_query_symbol and raw_content came from EODHDClient
         assert len(stored_articles) == 2
         assert stored_articles[0].get("source_query_symbol") == "AAPL"
         assert "raw_content" in stored_articles[0]
@@ -153,8 +173,22 @@ class TestFinancialNewsRAG:
     def test_fetch_and_store_articles_with_multiple_symbols(self):
         """Test fetching and storing articles with multiple symbols."""
         # Mock articles return value for each symbol
-        mock_articles_aapl = [{"title": "AAPL Article", "published_at": "2023-01-01T12:00:00Z"}]
-        mock_articles_msft = [{"title": "MSFT Article", "published_at": "2023-01-02T12:00:00Z"}]
+        mock_articles_aapl = [
+            {
+                "title": "AAPL Article", 
+                "published_at": "2023-01-01T12:00:00Z",
+                "raw_content": "AAPL content",
+                "source_query_symbol": "AAPL"
+            }
+        ]
+        mock_articles_msft = [
+            {
+                "title": "MSFT Article", 
+                "published_at": "2023-01-02T12:00:00Z",
+                "raw_content": "MSFT content",
+                "source_query_symbol": "MSFT"
+            }
+        ]
         
         # Configure mock to return different values on each call
         self.orchestrator.eodhd_client.fetch_news.side_effect = [mock_articles_aapl, mock_articles_msft]
