@@ -335,7 +335,11 @@ class TestFinancialNewsRAG:
         # Configure mocks
         self.orchestrator.article_manager.get_processed_articles_for_embedding.return_value = mock_articles
         self.orchestrator.text_processor.split_into_chunks.side_effect = [mock_chunks1, mock_chunks2]
-        self.orchestrator.embeddings_generator.generate_embeddings.side_effect = [mock_embeddings1, mock_embeddings2]
+        # Use the new generate_and_verify_embeddings method
+        self.orchestrator.embeddings_generator.generate_and_verify_embeddings.side_effect = [
+            {"embeddings": mock_embeddings1, "all_valid": True},
+            {"embeddings": mock_embeddings2, "all_valid": True}
+        ]
         self.orchestrator.chroma_manager.add_embeddings.return_value = True
         self.mock_embeddings_instance.embedding_dim = 2  # For simplicity
         
@@ -345,7 +349,7 @@ class TestFinancialNewsRAG:
         # Assertions
         self.orchestrator.article_manager.get_processed_articles_for_embedding.assert_called_once()
         assert self.orchestrator.text_processor.split_into_chunks.call_count == 2
-        assert self.orchestrator.embeddings_generator.generate_embeddings.call_count == 2
+        assert self.orchestrator.embeddings_generator.generate_and_verify_embeddings.call_count == 2
         assert self.orchestrator.chroma_manager.add_embeddings.call_count == 2
         
         # Check that embedding status was updated
@@ -383,7 +387,10 @@ class TestFinancialNewsRAG:
         # Configure mocks
         self.orchestrator.get_failed_embedding_articles = MagicMock(return_value=mock_articles)
         self.orchestrator.text_processor.split_into_chunks.return_value = mock_chunks
-        self.orchestrator.embeddings_generator.generate_embeddings.return_value = mock_embeddings
+        self.orchestrator.embeddings_generator.generate_and_verify_embeddings.return_value = {
+            "embeddings": mock_embeddings,
+            "all_valid": True
+        }
         self.orchestrator.chroma_manager.delete_embeddings_by_article.return_value = True
         self.orchestrator.chroma_manager.add_embeddings.return_value = True
         self.mock_embeddings_instance.embedding_dim = 2  # For simplicity
@@ -394,7 +401,7 @@ class TestFinancialNewsRAG:
         # Assertions
         self.orchestrator.get_failed_embedding_articles.assert_called_once()
         self.orchestrator.text_processor.split_into_chunks.assert_called_once_with("Processed content 1")
-        self.orchestrator.embeddings_generator.generate_embeddings.assert_called_once_with(mock_chunks)
+        self.orchestrator.embeddings_generator.generate_and_verify_embeddings.assert_called_once_with(mock_chunks)
         self.orchestrator.chroma_manager.delete_embeddings_by_article.assert_called_once_with("hash1")
         self.orchestrator.chroma_manager.add_embeddings.assert_called_once()
         

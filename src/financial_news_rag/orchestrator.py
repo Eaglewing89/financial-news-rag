@@ -436,14 +436,12 @@ class FinancialNewsRAG:
                     
                     logger.info(f"Generated {len(chunks)} chunks for article {url_hash}")
                     
-                    # Generate embeddings for these chunks
-                    chunk_embeddings = self.embeddings_generator.generate_embeddings(chunks)
+                    # Generate and verify embeddings for these chunks
+                    embedding_result = self.embeddings_generator.generate_and_verify_embeddings(chunks)
+                    chunk_embeddings = embedding_result["embeddings"]
+                    all_embeddings_valid = embedding_result["all_valid"]
                     
-                    # Check for zero vectors in the embeddings
-                    zero_vec = [0.0] * self.embeddings_generator.embedding_dim
-                    has_zero_vector = any(emb == zero_vec for emb in chunk_embeddings)
-                    
-                    if has_zero_vector:
+                    if not all_embeddings_valid:
                         logger.warning(f"One or more chunk embeddings failed for article {url_hash}")
                         self.article_manager.update_article_embedding_status(
                             url_hash=url_hash,
@@ -626,14 +624,12 @@ class FinancialNewsRAG:
                     
                     logger.info(f"Generated {len(chunks)} chunks for article {url_hash}")
                     
-                    # Generate embeddings for these chunks
-                    chunk_embeddings = self.embeddings_generator.generate_embeddings(chunks)
+                    # Generate and verify embeddings for these chunks
+                    embedding_result = self.embeddings_generator.generate_and_verify_embeddings(chunks)
+                    chunk_embeddings = embedding_result["embeddings"]
+                    all_embeddings_valid = embedding_result["all_valid"]
                     
-                    # Check for zero vectors in the embeddings
-                    zero_vec = [0.0] * self.embeddings_generator.embedding_dim
-                    has_zero_vector = any(emb == zero_vec for emb in chunk_embeddings)
-                    
-                    if has_zero_vector:
+                    if not all_embeddings_valid:
                         logger.warning(f"One or more chunk embeddings failed for article {url_hash}")
                         self.article_manager.update_article_embedding_status(
                             url_hash=url_hash,
