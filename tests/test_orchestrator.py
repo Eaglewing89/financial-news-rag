@@ -202,16 +202,16 @@ class TestFinancialNewsRAG:
         update_calls = self.orchestrator.article_manager.update_article_processing_status.call_args_list
         
         # First article should be successful
-        assert update_calls[0][1]["url_hash"] == "hash1"
+        assert update_calls[0][0][0] == "hash1"  # First positional arg is url_hash
         assert update_calls[0][1]["status"] == "SUCCESS"
         assert "processed_content" in update_calls[0][1]
         
         # Second article should be successful
-        assert update_calls[1][1]["url_hash"] == "hash2"
+        assert update_calls[1][0][0] == "hash2"  # First positional arg is url_hash
         assert update_calls[1][1]["status"] == "SUCCESS"
         
         # Third article should fail due to empty content
-        assert update_calls[2][1]["url_hash"] == "hash3"
+        assert update_calls[2][0][0] == "hash3"  # First positional arg is url_hash
         assert update_calls[2][1]["status"] == "FAILED"
         
         # Check result
@@ -242,11 +242,11 @@ class TestFinancialNewsRAG:
         update_calls = self.orchestrator.article_manager.update_article_processing_status.call_args_list
         
         # First article should be successful
-        assert update_calls[0][1]["url_hash"] == "hash1"
+        assert update_calls[0][0][0] == "hash1"  # First positional arg is url_hash
         assert update_calls[0][1]["status"] == "SUCCESS"
         
         # Second article should fail due to empty content
-        assert update_calls[1][1]["url_hash"] == "hash2"
+        assert update_calls[1][0][0] == "hash2"  # First positional arg is url_hash
         assert update_calls[1][1]["status"] == "FAILED"
         
         # Check result
@@ -365,14 +365,15 @@ class TestFinancialNewsRAG:
         # Set up mock query results
         mock_cursor.fetchone.side_effect = [
             (100,),  # Total articles
-            ("2023-01-01", "2023-01-31")  # Date range
+            ("2023-01-01", "2023-01-31"),  # Date range
+            (5,),  # Total API calls
+            (60,)  # Total articles retrieved
         ]
         mock_cursor.fetchall.side_effect = [
             [("PENDING", 50), ("SUCCESS", 40), ("FAILED", 10)],  # Text processing status
             [("PENDING", 60), ("SUCCESS", 30), ("FAILED", 10)],  # Embedding status
             [("TECHNOLOGY", 30), ("FINANCE", 20)],  # Tags
-            [("AAPL", 25), ("MSFT", 15)],  # Symbols
-            [(60,)]  # Total retrieved articles
+            [("AAPL", 25), ("MSFT", 15)]  # Symbols
         ]
         
         # Call the method
@@ -380,7 +381,7 @@ class TestFinancialNewsRAG:
         
         # Assertions
         assert self.orchestrator.article_manager.conn.cursor.call_count == 1
-        assert mock_cursor.execute.call_count == 7
+        assert mock_cursor.execute.call_count == 8
         
         # Check result structure
         assert result["total_articles"] == 100
@@ -472,7 +473,7 @@ class TestFinancialNewsRAG:
         
         # Check result (should be ordered by similarity)
         assert len(result) == 2
-        assert result[0]["url_hash"] == "hash1"  # First result has smaller distance (higher similarity)
+        assert result[0]["url_hash"] == "hash1"  # hash1 has better similarity (lower distance)
         assert result[1]["url_hash"] == "hash2"
         assert "similarity_score" in result[0]
         assert "similarity_score" in result[1]
