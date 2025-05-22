@@ -196,7 +196,7 @@ class FinancialNewsRAG:
                 for sym in symbols:
                     logger.info(f"Fetching articles for symbol: {sym}")
                     fetched_articles = self.eodhd_client.fetch_news(
-                        symbol=sym,
+                        symbols=sym,
                         from_date=from_date,
                         to_date=to_date,
                         limit=limit

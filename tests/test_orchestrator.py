@@ -130,7 +130,7 @@ class TestFinancialNewsRAG:
         
         # Assertions
         self.orchestrator.eodhd_client.fetch_news.assert_called_once_with(
-            symbol="AAPL", 
+            symbols="AAPL", 
             from_date=None, 
             to_date=None, 
             limit=50
@@ -166,9 +166,9 @@ class TestFinancialNewsRAG:
         # Assertions
         assert self.orchestrator.eodhd_client.fetch_news.call_count == 2
         # First call with AAPL
-        assert self.orchestrator.eodhd_client.fetch_news.call_args_list[0][1]["symbol"] == "AAPL"
+        assert self.orchestrator.eodhd_client.fetch_news.call_args_list[0][1]["symbols"] == "AAPL"
         # Second call with MSFT
-        assert self.orchestrator.eodhd_client.fetch_news.call_args_list[1][1]["symbol"] == "MSFT"
+        assert self.orchestrator.eodhd_client.fetch_news.call_args_list[1][1]["symbols"] == "MSFT"
         
         # Check that store_articles was called twice
         assert self.orchestrator.article_manager.store_articles.call_count == 2
