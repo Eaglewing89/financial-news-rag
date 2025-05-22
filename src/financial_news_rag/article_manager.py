@@ -239,41 +239,6 @@ class ArticleManager:
             'status_embedding': row[10]
         }
     
-    def get_pending_articles(self, limit: int = 100) -> List[Dict]:
-        """
-        Get articles pending text processing.
-        
-        Args:
-            limit: Maximum number of articles to retrieve
-            
-        Returns:
-            List of article dictionaries with raw content
-        """
-        query = """
-        SELECT url_hash, raw_content, title, url, published_at, 
-               symbols, tags, sentiment
-        FROM articles
-        WHERE status_text_processing = 'PENDING'
-        LIMIT ?
-        """
-        cursor = self._execute_query(query, (limit,))
-        articles = []
-        
-        for row in cursor.fetchall():
-            article = {
-                'url_hash': row[0],
-                'raw_content': row[1],
-                'title': row[2],
-                'url': row[3],
-                'published_at': row[4],
-                'symbols': json.loads(row[5]) if row[5] else [],
-                'tags': json.loads(row[6]) if row[6] else [],
-                'sentiment': json.loads(row[7]) if row[7] else {}
-            }
-            articles.append(article)
-            
-        return articles
-    
     def get_processed_articles_for_embedding(self, limit: int = 100) -> List[Dict]:
         """
         Get articles that have been processed but not yet embedded.
@@ -550,3 +515,45 @@ class ArticleManager:
         except sqlite3.Error as e:
             logger.error(f"Error logging API call: {e}")
             return -1
+    
+    def get_articles_by_processing_status(self, status: str, limit: int = 100) -> List[Dict]:
+        """
+        Get articles by their text processing status.
+        
+        Args:
+            status: The status to filter articles by (e.g., 'FAILED', 'SUCCESS', 'PENDING')
+            limit: Maximum number of articles to retrieve
+            
+        Returns:
+            List of article dictionaries matching the specified status
+        """
+        query = """
+        SELECT url_hash, raw_content, title, url, published_at, 
+               symbols, tags, sentiment, processed_content, status_text_processing, 
+               status_embedding, embedding_model, vector_db_id
+        FROM articles
+        WHERE status_text_processing = ?
+        LIMIT ?
+        """
+        cursor = self._execute_query(query, (status, limit))
+        articles = []
+        
+        for row in cursor.fetchall():
+            article = {
+                'url_hash': row[0],
+                'raw_content': row[1],
+                'title': row[2],
+                'url': row[3],
+                'published_at': row[4],
+                'symbols': json.loads(row[5]) if row[5] else [],
+                'tags': json.loads(row[6]) if row[6] else [],
+                'sentiment': json.loads(row[7]) if row[7] else {},
+                'processed_content': row[8],
+                'status_text_processing': row[9],
+                'status_embedding': row[10],
+                'embedding_model': row[11],
+                'vector_db_id': row[12]
+            }
+            articles.append(article)
+            
+        return articles

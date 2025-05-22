@@ -248,7 +248,7 @@ class FinancialNewsRAG:
         
         try:
             # Get pending articles
-            pending_articles = self.article_manager.get_pending_articles(limit=limit)
+            pending_articles = self.article_manager.get_articles_by_processing_status(status='PENDING', limit=limit)
             logger.info(f"Found {len(pending_articles)} pending articles for processing")
             
             if not pending_articles:
@@ -320,17 +320,7 @@ class FinancialNewsRAG:
             List of article dictionaries with failed text processing
         """
         try:
-            cursor = self.article_manager.conn.cursor()
-            cursor.execute(
-                """
-                SELECT * FROM articles
-                WHERE status_text_processing = 'FAILED'
-                LIMIT ?
-                """,
-                (limit,)
-            )
-            columns = [col[0] for col in cursor.description]
-            failed_articles = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            failed_articles = self.article_manager.get_articles_by_processing_status(status='FAILED', limit=limit)
             logger.info(f"Found {len(failed_articles)} articles with failed text processing")
             return failed_articles
         except Exception as e:

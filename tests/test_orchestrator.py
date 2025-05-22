@@ -222,14 +222,14 @@ class TestFinancialNewsRAG:
         ]
         
         # Configure mocks
-        self.orchestrator.article_manager.get_pending_articles.return_value = mock_articles
+        self.orchestrator.article_manager.get_articles_by_processing_status.return_value = mock_articles
         self.orchestrator.text_processor.clean_article_text.side_effect = ["Processed content 1", "Processed content 2"]
         
         # Call the method
         result = self.orchestrator.process_pending_articles()
         
         # Assertions
-        self.orchestrator.article_manager.get_pending_articles.assert_called_once()
+        self.orchestrator.article_manager.get_articles_by_processing_status.assert_called_once_with(status='PENDING', limit=100)
         assert self.orchestrator.text_processor.clean_article_text.call_count == 2
         
         # Check updates on articles
@@ -262,14 +262,16 @@ class TestFinancialNewsRAG:
         ]
         
         # Configure mocks
-        self.orchestrator.get_failed_text_processing_articles = MagicMock(return_value=mock_articles)
+        self.orchestrator.article_manager.get_articles_by_processing_status.return_value = mock_articles
         self.orchestrator.text_processor.clean_article_text.return_value = "Processed content 1"
         
         # Call the method
         result = self.orchestrator.reprocess_failed_articles()
         
         # Assertions
-        self.orchestrator.get_failed_text_processing_articles.assert_called_once()
+        self.orchestrator.article_manager.get_articles_by_processing_status.assert_called_once_with(
+            status='FAILED', limit=100
+        )
         self.orchestrator.text_processor.clean_article_text.assert_called_once_with("Test content 1")
         
         # Check updates on articles

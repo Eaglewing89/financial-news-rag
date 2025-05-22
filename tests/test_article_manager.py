@@ -77,7 +77,7 @@ class TestArticleManager(unittest.TestCase):
         self.assertTrue(exists)
         
         # Get pending articles
-        pending_articles = self.article_manager.get_pending_articles()
+        pending_articles = self.article_manager.get_articles_by_processing_status(status='PENDING')
         self.assertEqual(len(pending_articles), 1)
         self.assertEqual(pending_articles[0]['url_hash'], self.test_article['url_hash'])
         
@@ -207,6 +207,80 @@ class TestArticleManager(unittest.TestCase):
         # Verify consistent hash for same URL
         url_hash2 = ArticleManager.generate_url_hash(url)
         self.assertEqual(url_hash, url_hash2)
+    
+    def test_get_articles_by_processing_status(self):
+        """Test getting articles by their processing status."""
+        # Store multiple test articles with different statuses
+        article1 = self.test_article.copy()
+        article1['url_hash'] = 'hash1'
+        article1['url'] = 'https://example.com/article1'
+        
+        article2 = self.test_article.copy()
+        article2['url_hash'] = 'hash2'
+        article2['url'] = 'https://example.com/article2'
+        
+        article3 = self.test_article.copy()
+        article3['url_hash'] = 'hash3'
+        article3['url'] = 'https://example.com/article3'
+        
+        # Store all articles
+        self.article_manager.store_articles([article1, article2, article3])
+        
+        # Update processing status for articles
+        self.article_manager.update_article_processing_status(
+            article1['url_hash'],
+            processed_content='Processed content 1',
+            status='SUCCESS'
+        )
+        
+        self.article_manager.update_article_processing_status(
+            article2['url_hash'],
+            processed_content='',
+            status='FAILED'
+        )
+        
+        # Article3 remains with default 'PENDING' status
+        
+        # Test getting articles with 'SUCCESS' status
+        success_articles = self.article_manager.get_articles_by_processing_status(status='SUCCESS')
+        self.assertEqual(len(success_articles), 1)
+        self.assertEqual(success_articles[0]['url_hash'], 'hash1')
+        self.assertEqual(success_articles[0]['status_text_processing'], 'SUCCESS')
+        
+        # Test getting articles with 'FAILED' status
+        failed_articles = self.article_manager.get_articles_by_processing_status(status='FAILED')
+        self.assertEqual(len(failed_articles), 1)
+        self.assertEqual(failed_articles[0]['url_hash'], 'hash2')
+        self.assertEqual(failed_articles[0]['status_text_processing'], 'FAILED')
+        
+        # Test getting articles with 'PENDING' status
+        pending_articles = self.article_manager.get_articles_by_processing_status(status='PENDING')
+        self.assertEqual(len(pending_articles), 1)
+        self.assertEqual(pending_articles[0]['url_hash'], 'hash3')
+        self.assertEqual(pending_articles[0]['status_text_processing'], 'PENDING')
+        
+        # Test limit parameter
+        all_articles = self.article_manager.get_articles_by_processing_status(status='PENDING', limit=1)
+        self.assertEqual(len(all_articles), 1)
+        
+        # Test structure of returned articles - ensure all fields are present
+        article = success_articles[0]
+        self.assertIn('url_hash', article)
+        self.assertIn('title', article)
+        self.assertIn('raw_content', article)
+        self.assertIn('processed_content', article)
+        self.assertIn('url', article)
+        self.assertIn('published_at', article)
+        self.assertIn('status_text_processing', article)
+        self.assertIn('status_embedding', article)
+        self.assertIn('symbols', article)
+        self.assertIn('tags', article)
+        self.assertIn('sentiment', article)
+        
+        # Test JSON fields are properly parsed
+        self.assertIsInstance(article['symbols'], list)
+        self.assertIsInstance(article['tags'], list)
+        self.assertIsInstance(article['sentiment'], dict)
 
 
 if __name__ == '__main__':
