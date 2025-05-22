@@ -158,9 +158,6 @@ class FinancialNewsRAG:
                 
                 # Log the API call
                 if fetched_articles:
-                    oldest_date = min([a.get('published_at', '') for a in fetched_articles]) if fetched_articles else None
-                    newest_date = max([a.get('published_at', '') for a in fetched_articles]) if fetched_articles else None
-                    
                     self.article_manager.log_api_call(
                         query_type='tag',
                         query_value=tag,
@@ -169,8 +166,7 @@ class FinancialNewsRAG:
                         limit=limit,
                         offset=0,
                         articles_retrieved_count=len(fetched_articles),
-                        oldest_article_date=oldest_date,
-                        newest_article_date=newest_date,
+                        fetched_articles=fetched_articles,
                         api_call_successful=True,
                         http_status_code=200
                     )
@@ -195,9 +191,6 @@ class FinancialNewsRAG:
                     
                     # Log the API call
                     if fetched_articles:
-                        oldest_date = min([a.get('published_at', '') for a in fetched_articles]) if fetched_articles else None
-                        newest_date = max([a.get('published_at', '') for a in fetched_articles]) if fetched_articles else None
-                        
                         self.article_manager.log_api_call(
                             query_type='symbol',
                             query_value=sym,
@@ -206,8 +199,7 @@ class FinancialNewsRAG:
                             limit=limit,
                             offset=0,
                             articles_retrieved_count=len(fetched_articles),
-                            oldest_article_date=oldest_date,
-                            newest_article_date=newest_date,
+                            fetched_articles=fetched_articles,
                             api_call_successful=True,
                             http_status_code=200
                         )

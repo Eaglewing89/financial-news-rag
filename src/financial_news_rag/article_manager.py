@@ -453,8 +453,7 @@ class ArticleManager:
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         articles_retrieved_count: int = 0,
-        oldest_article_date: Optional[str] = None,
-        newest_article_date: Optional[str] = None,
+        fetched_articles: Optional[List[Dict[str, Any]]] = None,
         api_call_successful: bool = True,
         http_status_code: Optional[int] = None,
         error_message: Optional[str] = None
@@ -470,8 +469,7 @@ class ArticleManager:
             limit: The limit parameter used in the API call
             offset: The offset parameter used in the API call
             articles_retrieved_count: Number of articles retrieved
-            oldest_article_date: Oldest publication date among retrieved articles
-            newest_article_date: Newest publication date among retrieved articles
+            fetched_articles: List of articles retrieved from the API
             api_call_successful: Whether the API call was successful
             http_status_code: HTTP status code of the response
             error_message: Error message if the API call failed
@@ -488,6 +486,20 @@ class ArticleManager:
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         
+        # Calculate oldest_article_date and newest_article_date from fetched_articles
+        oldest_article_date_val = None
+        newest_article_date_val = None
+        
+        if fetched_articles:
+            valid_dates = [
+                article['published_at']
+                for article in fetched_articles
+                if article.get('published_at') and isinstance(article.get('published_at'), str) and article.get('published_at').strip()
+            ]
+            if valid_dates:
+                oldest_article_date_val = min(valid_dates)
+                newest_article_date_val = max(valid_dates)
+        
         current_timestamp = datetime.now(timezone.utc).isoformat()
         api_call_successful_int = 1 if api_call_successful else 0
         
@@ -500,8 +512,8 @@ class ArticleManager:
             limit,
             offset,
             articles_retrieved_count,
-            oldest_article_date,
-            newest_article_date,
+            oldest_article_date_val,
+            newest_article_date_val,
             api_call_successful_int,
             http_status_code,
             error_message

@@ -169,16 +169,29 @@ class TestArticleManager(unittest.TestCase):
     
     def test_log_api_call(self):
         """Test logging an API call."""
-        # Log an API call
+        # Create mock fetched articles
+        mock_articles = [
+            {
+                "title": "Test Article 1", 
+                "published_at": "2025-05-10T12:00:00Z",
+                "url": "https://example.com/article1"
+            },
+            {
+                "title": "Test Article 2", 
+                "published_at": "2025-05-18T12:00:00Z",
+                "url": "https://example.com/article2"
+            }
+        ]
+        
+        # Log an API call with mock fetched articles
         log_id = self.article_manager.log_api_call(
             query_type='tag',
             query_value='EARNINGS',
             from_date='2025-05-01',
             to_date='2025-05-19',
             limit=10,
-            articles_retrieved_count=5,
-            oldest_article_date='2025-05-10',
-            newest_article_date='2025-05-18',
+            articles_retrieved_count=2,
+            fetched_articles=mock_articles,
             api_call_successful=True,
             http_status_code=200
         )
@@ -189,13 +202,97 @@ class TestArticleManager(unittest.TestCase):
         # Verify log in database
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT query_type, query_value FROM api_call_log WHERE log_id = ?", (log_id,))
+        cursor.execute("""
+            SELECT query_type, query_value, oldest_article_date_in_batch, newest_article_date_in_batch 
+            FROM api_call_log WHERE log_id = ?
+        """, (log_id,))
         row = cursor.fetchone()
         conn.close()
         
         self.assertIsNotNone(row)
         self.assertEqual(row[0], 'tag')
         self.assertEqual(row[1], 'EARNINGS')
+        self.assertEqual(row[2], '2025-05-10T12:00:00Z')  # oldest date
+        self.assertEqual(row[3], '2025-05-18T12:00:00Z')  # newest date
+    
+    def test_log_api_call_empty_articles(self):
+        """Test logging an API call with empty article list."""
+        # Log an API call with empty fetched articles
+        log_id = self.article_manager.log_api_call(
+            query_type='tag',
+            query_value='EARNINGS',
+            from_date='2025-05-01',
+            to_date='2025-05-19',
+            limit=10,
+            articles_retrieved_count=0,
+            fetched_articles=[],
+            api_call_successful=True,
+            http_status_code=200
+        )
+        
+        # Verify log ID
+        self.assertGreater(log_id, 0)
+        
+        # Verify log in database
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT oldest_article_date_in_batch, newest_article_date_in_batch 
+            FROM api_call_log WHERE log_id = ?
+        """, (log_id,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        self.assertIsNotNone(row)
+        self.assertIsNone(row[0])  # oldest date should be None
+        self.assertIsNone(row[1])  # newest date should be None
+    
+    def test_log_api_call_missing_dates(self):
+        """Test logging an API call with articles missing dates."""
+        # Create mock fetched articles with missing dates
+        mock_articles = [
+            {
+                "title": "Test Article 1",
+                "url": "https://example.com/article1"
+                # missing published_at
+            },
+            {
+                "title": "Test Article 2",
+                "published_at": "",  # empty date
+                "url": "https://example.com/article2"
+            },
+            {
+                "title": "Test Article 3",
+                "published_at": None,  # None date
+                "url": "https://example.com/article3"
+            }
+        ]
+        
+        # Log an API call with mock fetched articles
+        log_id = self.article_manager.log_api_call(
+            query_type='tag',
+            query_value='EARNINGS',
+            articles_retrieved_count=3,
+            fetched_articles=mock_articles,
+            api_call_successful=True
+        )
+        
+        # Verify log ID
+        self.assertGreater(log_id, 0)
+        
+        # Verify log in database
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT oldest_article_date_in_batch, newest_article_date_in_batch 
+            FROM api_call_log WHERE log_id = ?
+        """, (log_id,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        self.assertIsNotNone(row)
+        self.assertIsNone(row[0])  # oldest date should be None
+        self.assertIsNone(row[1])  # newest date should be None
     
     def test_url_hash_generation(self):
         """Test the URL hash generation."""

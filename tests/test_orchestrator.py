@@ -117,6 +117,7 @@ class TestFinancialNewsRAG:
         log_args = self.orchestrator.article_manager.log_api_call.call_args[1]
         assert log_args["query_type"] == "tag"
         assert log_args["query_value"] == "TECHNOLOGY"
+        assert log_args["fetched_articles"] == mock_articles
         
         # Check result
         assert result["status"] == "SUCCESS"
