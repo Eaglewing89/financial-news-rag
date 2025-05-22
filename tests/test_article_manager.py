@@ -11,6 +11,7 @@ import shutil
 import sqlite3
 import tempfile
 import unittest
+from unittest import mock
 
 from financial_news_rag.article_manager import ArticleManager
 
@@ -281,7 +282,133 @@ class TestArticleManager(unittest.TestCase):
         self.assertIsInstance(article['symbols'], list)
         self.assertIsInstance(article['tags'], list)
         self.assertIsInstance(article['sentiment'], dict)
-
-
-if __name__ == '__main__':
-    unittest.main()
+    
+    def test_get_database_statistics(self):
+        """Test the get_database_statistics method."""
+        # Prepare test data with different statuses
+        article1 = self.test_article.copy()
+        article1['url_hash'] = 'hash1'
+        article1['url'] = 'https://example.com/article1'
+        article1['source_query_tag'] = 'EARNINGS'
+        article1['source_query_symbol'] = 'AAPL.US'
+        
+        article2 = self.test_article.copy()
+        article2['url_hash'] = 'hash2'
+        article2['url'] = 'https://example.com/article2'
+        article2['source_query_tag'] = 'TECHNOLOGY'
+        article2['source_query_symbol'] = 'MSFT.US'
+        
+        article3 = self.test_article.copy()
+        article3['url_hash'] = 'hash3'
+        article3['url'] = 'https://example.com/article3'
+        article3['source_query_tag'] = 'EARNINGS'
+        article3['source_query_symbol'] = 'GOOGL.US'
+        
+        # Store all articles
+        self.article_manager.store_articles([article1, article2, article3])
+        
+        # Update processing status for articles
+        self.article_manager.update_article_processing_status(
+            article1['url_hash'],
+            processed_content='Processed content 1',
+            status='SUCCESS'
+        )
+        
+        self.article_manager.update_article_processing_status(
+            article2['url_hash'],
+            processed_content='',
+            status='FAILED'
+        )
+        
+        # Update embedding status for articles
+        self.article_manager.update_article_embedding_status(
+            article1['url_hash'],
+            status='SUCCESS',
+            embedding_model='test-model'
+        )
+        
+        # Log test API calls
+        self.article_manager.log_api_call(
+            query_type='tag',
+            query_value='EARNINGS',
+            articles_retrieved_count=2,
+            api_call_successful=True
+        )
+        
+        self.article_manager.log_api_call(
+            query_type='symbol',
+            query_value='AAPL.US',
+            articles_retrieved_count=1,
+            api_call_successful=True
+        )
+        
+        # Get database statistics
+        stats = self.article_manager.get_database_statistics()
+        
+        # Verify statistics
+        self.assertEqual(stats['total_articles'], 3)
+        
+        # Check text processing status counts
+        self.assertEqual(stats['text_processing_status'].get('SUCCESS', 0), 1)
+        self.assertEqual(stats['text_processing_status'].get('FAILED', 0), 1)
+        self.assertEqual(stats['text_processing_status'].get('PENDING', 0), 1)
+        
+        # Check embedding status counts
+        self.assertEqual(stats['embedding_status'].get('SUCCESS', 0), 1)
+        self.assertEqual(stats['embedding_status'].get('PENDING', 0), 2)
+        
+        # Check tag counts
+        self.assertEqual(stats['articles_by_tag'].get('EARNINGS', 0), 2)
+        self.assertEqual(stats['articles_by_tag'].get('TECHNOLOGY', 0), 1)
+        
+        # Check symbol counts
+        self.assertEqual(stats['articles_by_symbol'].get('AAPL.US', 0), 1)
+        self.assertEqual(stats['articles_by_symbol'].get('MSFT.US', 0), 1)
+        self.assertEqual(stats['articles_by_symbol'].get('GOOGL.US', 0), 1)
+        
+        # Check API call stats
+        self.assertEqual(stats['api_calls']['total_calls'], 2)
+        self.assertEqual(stats['api_calls']['total_articles_retrieved'], 3)
+        
+        # Check date range
+        self.assertIsNotNone(stats['date_range']['oldest_article'])
+        self.assertIsNotNone(stats['date_range']['newest_article'])
+        
+    def test_get_database_statistics_empty_db(self):
+        """Test get_database_statistics on an empty database."""
+        # Get statistics for empty database
+        stats = self.article_manager.get_database_statistics()
+        
+        # Verify statistics
+        self.assertEqual(stats['total_articles'], 0)
+        self.assertEqual(stats['text_processing_status'], {})
+        self.assertEqual(stats['embedding_status'], {})
+        self.assertEqual(stats['articles_by_tag'], {})
+        self.assertEqual(stats['articles_by_symbol'], {})
+        self.assertEqual(stats['api_calls']['total_calls'], 0)
+        self.assertEqual(stats['api_calls']['total_articles_retrieved'], 0)
+    
+    def test_get_database_statistics_handles_error(self):
+        """Test that get_database_statistics handles database errors gracefully."""
+        # Save the original connection
+        original_conn = self.article_manager.conn
+        
+        try:
+            # Create a mock connection that raises an error when cursor is called
+            mock_conn = mock.MagicMock()
+            mock_conn.cursor.side_effect = sqlite3.Error("Simulated database error")
+            
+            # Replace the connection
+            self.article_manager.conn = mock_conn
+            
+            # Call the method that should catch the error
+            result = self.article_manager.get_database_statistics()
+            
+            # Verify error handling
+            self.assertIn('error', result)
+            self.assertEqual(result.get('status'), 'FAILED')
+        finally:
+            # Restore the original connection
+            self.article_manager.conn = original_conn
+            self.assertIn('error', result)
+            self.assertIn('Simulated database error', result['error'])

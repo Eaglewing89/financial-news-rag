@@ -394,30 +394,44 @@ class TestFinancialNewsRAG:
     
     def test_get_article_database_status(self):
         """Test getting article database statistics."""
-        # Mock cursor and connection
-        mock_cursor = MagicMock()
-        self.orchestrator.article_manager.conn.cursor.return_value = mock_cursor
+        # Mock the get_database_statistics method in article_manager
+        mock_stats = {
+            "total_articles": 100,
+            "text_processing_status": {
+                "PENDING": 50,
+                "SUCCESS": 40,
+                "FAILED": 10
+            },
+            "embedding_status": {
+                "PENDING": 60,
+                "SUCCESS": 30,
+                "FAILED": 10
+            },
+            "articles_by_tag": {
+                "TECHNOLOGY": 30,
+                "FINANCE": 20
+            },
+            "articles_by_symbol": {
+                "AAPL": 25,
+                "MSFT": 15
+            },
+            "date_range": {
+                "oldest_article": "2023-01-01",
+                "newest_article": "2023-01-31"
+            },
+            "api_calls": {
+                "total_calls": 5,
+                "total_articles_retrieved": 60
+            }
+        }
         
-        # Set up mock query results
-        mock_cursor.fetchone.side_effect = [
-            (100,),  # Total articles
-            ("2023-01-01", "2023-01-31"),  # Date range
-            (5,),  # Total API calls
-            (60,)  # Total articles retrieved
-        ]
-        mock_cursor.fetchall.side_effect = [
-            [("PENDING", 50), ("SUCCESS", 40), ("FAILED", 10)],  # Text processing status
-            [("PENDING", 60), ("SUCCESS", 30), ("FAILED", 10)],  # Embedding status
-            [("TECHNOLOGY", 30), ("FINANCE", 20)],  # Tags
-            [("AAPL", 25), ("MSFT", 15)]  # Symbols
-        ]
+        self.orchestrator.article_manager.get_database_statistics = MagicMock(return_value=mock_stats)
         
         # Call the method
         result = self.orchestrator.get_article_database_status()
         
         # Assertions
-        assert self.orchestrator.article_manager.conn.cursor.call_count == 1
-        assert mock_cursor.execute.call_count == 8
+        assert self.orchestrator.article_manager.get_database_statistics.call_count == 1
         
         # Check result structure
         assert result["total_articles"] == 100

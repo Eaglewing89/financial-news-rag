@@ -557,3 +557,104 @@ class ArticleManager:
             articles.append(article)
             
         return articles
+    
+    def get_database_statistics(self) -> Dict[str, Any]:
+        """
+        Get statistics about the article database.
+        
+        Returns:
+            Dict containing article database statistics including total counts,
+            processing statuses, embedding statuses, article tags, symbols, 
+            date ranges, and API call data.
+        """
+        try:
+            cursor = self.conn.cursor()
+            
+            # Get total article count
+            cursor.execute("SELECT COUNT(*) FROM articles")
+            total_articles = cursor.fetchone()[0]
+            
+            # Get counts by text processing status
+            cursor.execute(
+                """
+                SELECT status_text_processing, COUNT(*) 
+                FROM articles 
+                GROUP BY status_text_processing
+                """
+            )
+            text_processing_status = {status: count for status, count in cursor.fetchall()}
+            
+            # Get counts by embedding status
+            cursor.execute(
+                """
+                SELECT status_embedding, COUNT(*) 
+                FROM articles 
+                GROUP BY status_embedding
+                """
+            )
+            embedding_status = {status: count for status, count in cursor.fetchall()}
+            
+            # Get counts by source query tag
+            cursor.execute(
+                """
+                SELECT source_query_tag, COUNT(*) 
+                FROM articles 
+                WHERE source_query_tag IS NOT NULL
+                GROUP BY source_query_tag
+                """
+            )
+            tag_counts = {tag: count for tag, count in cursor.fetchall() if tag}
+            
+            # Get counts by source query symbol
+            cursor.execute(
+                """
+                SELECT source_query_symbol, COUNT(*) 
+                FROM articles 
+                WHERE source_query_symbol IS NOT NULL
+                GROUP BY source_query_symbol
+                """
+            )
+            symbol_counts = {symbol: count for symbol, count in cursor.fetchall() if symbol}
+            
+            # Get date range of articles
+            cursor.execute("SELECT MIN(published_at), MAX(published_at) FROM articles")
+            oldest_date, newest_date = cursor.fetchone()
+            
+            # Get API call statistics
+            cursor.execute("SELECT COUNT(*) FROM api_call_log")
+            total_api_calls = cursor.fetchone()[0]
+            
+            cursor.execute(
+                """
+                SELECT SUM(articles_retrieved_count) 
+                FROM api_call_log 
+                WHERE api_call_successful = 1
+                """
+            )
+            total_articles_retrieved = cursor.fetchone()[0] or 0
+            
+            status = {
+                "total_articles": total_articles,
+                "text_processing_status": text_processing_status,
+                "embedding_status": embedding_status,
+                "articles_by_tag": tag_counts,
+                "articles_by_symbol": symbol_counts,
+                "date_range": {
+                    "oldest_article": oldest_date,
+                    "newest_article": newest_date
+                },
+                "api_calls": {
+                    "total_calls": total_api_calls,
+                    "total_articles_retrieved": total_articles_retrieved
+                }
+            }
+            
+            logger.info(f"Article database status: {total_articles} total articles")
+            return status
+            
+        except sqlite3.Error as e:
+            logger.error(f"Error getting article database status: {str(e)}")
+            return {
+                "error": str(e),
+                "status": "FAILED"
+            }
