@@ -239,11 +239,13 @@ class ArticleManager:
             'status_embedding': row[10]
         }
     
-    def get_processed_articles_for_embedding(self, limit: int = 100) -> List[Dict]:
+    def get_processed_articles_for_embedding(self, status: str = 'PENDING', limit: int = 100) -> List[Dict]:
         """
-        Get articles that have been processed but not yet embedded.
+        Get articles that have been processed and are ready for embedding,
+        or have a specific embedding status.
         
         Args:
+            status: The embedding status to filter articles by (e.g., 'PENDING', 'FAILED').
             limit: Maximum number of articles to retrieve
             
         Returns:
@@ -253,10 +255,10 @@ class ArticleManager:
         SELECT url_hash, processed_content, title, url, published_at, 
                symbols, tags, sentiment
         FROM articles
-        WHERE status_text_processing = 'SUCCESS' AND status_embedding = 'PENDING'
+        WHERE status_text_processing = 'SUCCESS' AND status_embedding = ?
         LIMIT ?
         """
-        cursor = self._execute_query(query, (limit,))
+        cursor = self._execute_query(query, (status, limit))
         articles = []
         
         for row in cursor.fetchall():
