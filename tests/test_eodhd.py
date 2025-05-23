@@ -6,7 +6,6 @@ import os
 import pytest
 import requests
 import warnings
-import hashlib
 from unittest.mock import patch, MagicMock
 from datetime import datetime
 
@@ -240,17 +239,13 @@ class TestEODHDClient:
         articles = self.client.fetch_news(tag="HOSPITALITY")
         normalized = articles[0]
         
-        # Calculate expected hash for verification
-        expected_url_hash = hashlib.sha256(SAMPLE_ARTICLE["link"].encode()).hexdigest()
-        
         # Check the normalization
-        assert "url_hash" in normalized
-        assert normalized["url_hash"] == expected_url_hash
+        assert "url_hash" not in normalized
+        assert "fetched_at" not in normalized
         assert normalized["title"] == SAMPLE_ARTICLE["title"]
         assert normalized["raw_content"] == SAMPLE_ARTICLE["content"]
         assert normalized["url"] == SAMPLE_ARTICLE["link"]
         assert normalized["published_at"] == "2025-05-08T13:33:00+00:00"
-        assert "fetched_at" in normalized
         assert normalized["source_api"] == "EODHD"
         assert normalized["symbols"] == SAMPLE_ARTICLE["symbols"]
         assert normalized["tags"] == SAMPLE_ARTICLE["tags"]

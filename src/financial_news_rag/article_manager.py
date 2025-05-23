@@ -44,7 +44,7 @@ class ArticleManager:
         processed_content TEXT,
         url TEXT NOT NULL,
         published_at TEXT NOT NULL,
-        fetched_at TEXT NOT NULL,
+        added_at TEXT NOT NULL,
         source_api TEXT,
         symbols TEXT,
         tags TEXT,
@@ -171,7 +171,7 @@ class ArticleManager:
             dict: Complete article data or None if not found
         """
         query = """
-        SELECT url_hash, title, raw_content, processed_content, url, published_at, 
+        SELECT url_hash, title, raw_content, processed_content, url, published_at, added_at,
                symbols, tags, sentiment, status_text_processing, status_embedding
         FROM articles
         WHERE url_hash = ?
@@ -189,11 +189,12 @@ class ArticleManager:
             'processed_content': row[3],
             'url': row[4],
             'published_at': row[5],
-            'symbols': json.loads(row[6]) if row[6] else [],
-            'tags': json.loads(row[7]) if row[7] else [],
-            'sentiment': json.loads(row[8]) if row[8] else {},
-            'status_text_processing': row[9],
-            'status_embedding': row[10]
+            'added_at': row[6],
+            'symbols': json.loads(row[7]) if row[7] else [],
+            'tags': json.loads(row[8]) if row[8] else [],
+            'sentiment': json.loads(row[9]) if row[9] else {},
+            'status_text_processing': row[10],
+            'status_embedding': row[11]
         }
     
     def get_processed_articles_for_embedding(self, status: str = 'PENDING', limit: int = 100) -> List[Dict]:
@@ -209,7 +210,7 @@ class ArticleManager:
             List of article dictionaries with processed content
         """
         query = """
-        SELECT url_hash, processed_content, title, url, published_at, 
+        SELECT url_hash, processed_content, title, url, published_at, added_at,
                symbols, tags, sentiment
         FROM articles
         WHERE status_text_processing = 'SUCCESS' AND status_embedding = ?
@@ -225,9 +226,10 @@ class ArticleManager:
                 'title': row[2],
                 'url': row[3],
                 'published_at': row[4],
-                'symbols': json.loads(row[5]) if row[5] else [],
-                'tags': json.loads(row[6]) if row[6] else [],
-                'sentiment': json.loads(row[7]) if row[7] else {}
+                'added_at': row[5],
+                'symbols': json.loads(row[6]) if row[6] else [],
+                'tags': json.loads(row[7]) if row[7] else [],
+                'sentiment': json.loads(row[8]) if row[8] else {}
             }
             articles.append(article)
             
@@ -324,7 +326,7 @@ class ArticleManager:
         if replace_existing:
             query = """
             INSERT OR REPLACE INTO articles (
-                url_hash, title, raw_content, url, published_at, fetched_at,
+                url_hash, title, raw_content, url, published_at, added_at,
                 source_api, symbols, tags, sentiment, 
                 source_query_tag, source_query_symbol,
                 status_text_processing, status_embedding
@@ -333,7 +335,7 @@ class ArticleManager:
         else:
             query = """
             INSERT OR IGNORE INTO articles (
-                url_hash, title, raw_content, url, published_at, fetched_at,
+                url_hash, title, raw_content, url, published_at, added_at,
                 source_api, symbols, tags, sentiment,
                 source_query_tag, source_query_symbol,
                 status_text_processing, status_embedding
@@ -344,11 +346,10 @@ class ArticleManager:
         
         try:
             for article in articles:
-                # Check required fields
-                required_fields = ['url_hash', 'url', 'published_at', 'fetched_at']
-                if not all(field in article for field in required_fields):
-                    logger.warning(f"Skipping article with missing required fields: {article.get('url_hash', 'unknown')}")
-                    continue
+                # Generate URL hash and added_at timestamp
+                url = article.get('url', '')
+                url_hash = ArticleManager.generate_url_hash(url)
+                added_at_timestamp = datetime.now(timezone.utc).isoformat()
                 
                 # Handle the case where raw_content is None
                 raw_content = article.get('raw_content', '')
@@ -365,12 +366,12 @@ class ArticleManager:
                 source_query_symbol = article.get('source_query_symbol')
                 
                 params = (
-                    article['url_hash'],
+                    url_hash,
                     article.get('title', ''),
                     raw_content,
-                    article['url'],
-                    article['published_at'],
-                    article['fetched_at'],
+                    url,
+                    article.get('published_at', ''),
+                    added_at_timestamp,
                     article.get('source_api', 'unknown'),
                     symbols_json,
                     tags_json,
@@ -399,8 +400,10 @@ class ArticleManager:
             url: Article URL
             
         Returns:
-            str: SHA-256 hash of the URL
+            str: SHA-256 hash of the URL, or an empty string if URL is empty.
         """
+        if not url:
+            return ''
         return sha256(url.encode('utf-8')).hexdigest()
 
     def log_api_call(
@@ -499,7 +502,7 @@ class ArticleManager:
             List of article dictionaries matching the specified status
         """
         query = """
-        SELECT url_hash, raw_content, title, url, published_at, 
+        SELECT url_hash, raw_content, title, url, published_at, added_at,
                symbols, tags, sentiment, processed_content, status_text_processing, 
                status_embedding, embedding_model, vector_db_id
         FROM articles
@@ -516,14 +519,15 @@ class ArticleManager:
                 'title': row[2],
                 'url': row[3],
                 'published_at': row[4],
-                'symbols': json.loads(row[5]) if row[5] else [],
-                'tags': json.loads(row[6]) if row[6] else [],
-                'sentiment': json.loads(row[7]) if row[7] else {},
-                'processed_content': row[8],
-                'status_text_processing': row[9],
-                'status_embedding': row[10],
-                'embedding_model': row[11],
-                'vector_db_id': row[12]
+                'added_at': row[5],
+                'symbols': json.loads(row[6]) if row[6] else [],
+                'tags': json.loads(row[7]) if row[7] else [],
+                'sentiment': json.loads(row[8]) if row[8] else {},
+                'processed_content': row[9],
+                'status_text_processing': row[10],
+                'status_embedding': row[11],
+                'embedding_model': row[12],
+                'vector_db_id': row[13]
             }
             articles.append(article)
             

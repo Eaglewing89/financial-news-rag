@@ -30,12 +30,10 @@ class TestArticleManager(unittest.TestCase):
         
         # Sample test data
         self.test_article = {
-            'url_hash': '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
             'title': 'Test Article',
             'raw_content': '<p>This is a test article with <b>HTML</b> tags.</p> Click here to read more.',
             'url': 'https://example.com/test-article',
             'published_at': '2025-05-18T12:00:00+00:00',
-            'fetched_at': '2025-05-19T09:00:00+00:00',
             'source_api': 'EODHD',
             'symbols': ['AAPL.US', 'MSFT.US'],
             'tags': ['TECHNOLOGY', 'EARNINGS'],
@@ -76,17 +74,24 @@ class TestArticleManager(unittest.TestCase):
         # Get pending articles
         pending_articles = self.article_manager.get_articles_by_processing_status(status='PENDING')
         self.assertEqual(len(pending_articles), 1)
-        self.assertEqual(pending_articles[0]['url_hash'], self.test_article['url_hash'])
+        
+        # The URL hash should be generated from the URL
+        expected_url_hash = self.article_manager.generate_url_hash(self.test_article['url'])
+        self.assertEqual(pending_articles[0]['url_hash'], expected_url_hash)
         
         # Test get_article_by_hash
-        article = self.article_manager.get_article_by_hash(self.test_article['url_hash'])
+        article = self.article_manager.get_article_by_hash(expected_url_hash)
         self.assertIsNotNone(article)
         self.assertEqual(article['url'], self.test_article['url'])
+        self.assertIn('added_at', article)  # Should have an added_at timestamp
     
     def test_store_article_replace_existing(self):
         """Test storing an article with replace_existing flag."""
         # Store the test article
         self.article_manager.store_articles([self.test_article])
+        
+        # Get the URL hash
+        url_hash = ArticleManager.generate_url_hash(self.test_article['url'])
         
         # Modify the article
         modified_article = self.test_article.copy()
@@ -96,14 +101,14 @@ class TestArticleManager(unittest.TestCase):
         self.article_manager.store_articles([modified_article], replace_existing=False)
         
         # Get the article and verify title wasn't changed
-        article = self.article_manager.get_article_by_hash(self.test_article['url_hash'])
+        article = self.article_manager.get_article_by_hash(url_hash)
         self.assertEqual(article['title'], self.test_article['title'])
         
         # Store again with replace_existing=True (should update)
         self.article_manager.store_articles([modified_article], replace_existing=True)
         
         # Get the article and verify title was changed
-        article = self.article_manager.get_article_by_hash(self.test_article['url_hash'])
+        article = self.article_manager.get_article_by_hash(url_hash)
         self.assertEqual(article['title'], 'Modified Title')
     
     def test_update_article_processing_status(self):
@@ -111,15 +116,18 @@ class TestArticleManager(unittest.TestCase):
         # Store the test article
         self.article_manager.store_articles([self.test_article])
         
+        # Get the URL hash
+        url_hash = ArticleManager.generate_url_hash(self.test_article['url'])
+        
         # Update processing status
         self.article_manager.update_article_processing_status(
-            self.test_article['url_hash'],
+            url_hash,
             processed_content='Processed content',
             status='SUCCESS'
         )
         
         # Get the article and verify processed content
-        article = self.article_manager.get_article_by_hash(self.test_article['url_hash'])
+        article = self.article_manager.get_article_by_hash(url_hash)
         self.assertEqual(article['status_text_processing'], 'SUCCESS')
         self.assertEqual(article['processed_content'], 'Processed content')
     
@@ -128,16 +136,19 @@ class TestArticleManager(unittest.TestCase):
         # Store the test article
         self.article_manager.store_articles([self.test_article])
         
+        # Get the URL hash
+        url_hash = ArticleManager.generate_url_hash(self.test_article['url'])
+        
         # Update embedding status
         self.article_manager.update_article_embedding_status(
-            self.test_article['url_hash'],
+            url_hash,
             status='SUCCESS',
             embedding_model='test-model',
             vector_db_id='test-id-123'
         )
         
         # Get the article and verify embedding status
-        article = self.article_manager.get_article_by_hash(self.test_article['url_hash'])
+        article = self.article_manager.get_article_by_hash(url_hash)
         self.assertEqual(article['status_embedding'], 'SUCCESS')
     
     def test_get_processed_articles_for_embedding(self):
@@ -145,9 +156,12 @@ class TestArticleManager(unittest.TestCase):
         # Store the test article
         self.article_manager.store_articles([self.test_article])
         
+        # Get the URL hash
+        url_hash = ArticleManager.generate_url_hash(self.test_article['url'])
+        
         # Update processing status to SUCCESS
         self.article_manager.update_article_processing_status(
-            self.test_article['url_hash'],
+            url_hash,
             processed_content='Processed content',
             status='SUCCESS'
         )
@@ -155,7 +169,7 @@ class TestArticleManager(unittest.TestCase):
         # Get articles for embedding
         articles = self.article_manager.get_processed_articles_for_embedding()
         self.assertEqual(len(articles), 1)
-        self.assertEqual(articles[0]['url_hash'], self.test_article['url_hash'])
+        self.assertEqual(articles[0]['url_hash'], url_hash)
         self.assertEqual(articles[0]['processed_content'], 'Processed content')
     
     def test_log_api_call(self):
@@ -287,6 +301,7 @@ class TestArticleManager(unittest.TestCase):
     
     def test_url_hash_generation(self):
         """Test the URL hash generation."""
+        # Test with a normal URL
         url = 'https://example.com/test-article'
         url_hash = ArticleManager.generate_url_hash(url)
         
@@ -296,34 +311,44 @@ class TestArticleManager(unittest.TestCase):
         # Verify consistent hash for same URL
         url_hash2 = ArticleManager.generate_url_hash(url)
         self.assertEqual(url_hash, url_hash2)
+        
+        # Test with empty URL
+        empty_url_hash = ArticleManager.generate_url_hash('')
+        self.assertEqual(empty_url_hash, '')
+        
+        # Test with None URL
+        none_url_hash = ArticleManager.generate_url_hash(None)
+        self.assertEqual(none_url_hash, '')
     
     def test_get_articles_by_processing_status(self):
         """Test getting articles by their processing status."""
         # Store multiple test articles with different statuses
         article1 = self.test_article.copy()
-        article1['url_hash'] = 'hash1'
         article1['url'] = 'https://example.com/article1'
         
         article2 = self.test_article.copy()
-        article2['url_hash'] = 'hash2'
         article2['url'] = 'https://example.com/article2'
         
         article3 = self.test_article.copy()
-        article3['url_hash'] = 'hash3'
         article3['url'] = 'https://example.com/article3'
         
         # Store all articles
         self.article_manager.store_articles([article1, article2, article3])
         
+        # Get URL hashes
+        hash1 = ArticleManager.generate_url_hash(article1['url'])
+        hash2 = ArticleManager.generate_url_hash(article2['url'])
+        hash3 = ArticleManager.generate_url_hash(article3['url'])
+        
         # Update processing status for articles
         self.article_manager.update_article_processing_status(
-            article1['url_hash'],
+            hash1,
             processed_content='Processed content 1',
             status='SUCCESS'
         )
         
         self.article_manager.update_article_processing_status(
-            article2['url_hash'],
+            hash2,
             processed_content='',
             status='FAILED'
         )
@@ -333,19 +358,19 @@ class TestArticleManager(unittest.TestCase):
         # Test getting articles with 'SUCCESS' status
         success_articles = self.article_manager.get_articles_by_processing_status(status='SUCCESS')
         self.assertEqual(len(success_articles), 1)
-        self.assertEqual(success_articles[0]['url_hash'], 'hash1')
+        self.assertEqual(success_articles[0]['url_hash'], hash1)
         self.assertEqual(success_articles[0]['status_text_processing'], 'SUCCESS')
         
         # Test getting articles with 'FAILED' status
         failed_articles = self.article_manager.get_articles_by_processing_status(status='FAILED')
         self.assertEqual(len(failed_articles), 1)
-        self.assertEqual(failed_articles[0]['url_hash'], 'hash2')
+        self.assertEqual(failed_articles[0]['url_hash'], hash2)
         self.assertEqual(failed_articles[0]['status_text_processing'], 'FAILED')
         
         # Test getting articles with 'PENDING' status
         pending_articles = self.article_manager.get_articles_by_processing_status(status='PENDING')
         self.assertEqual(len(pending_articles), 1)
-        self.assertEqual(pending_articles[0]['url_hash'], 'hash3')
+        self.assertEqual(pending_articles[0]['url_hash'], hash3)
         self.assertEqual(pending_articles[0]['status_text_processing'], 'PENDING')
         
         # Test limit parameter
@@ -360,6 +385,7 @@ class TestArticleManager(unittest.TestCase):
         self.assertIn('processed_content', article)
         self.assertIn('url', article)
         self.assertIn('published_at', article)
+        self.assertIn('added_at', article)  # Check for added_at instead of fetched_at
         self.assertIn('status_text_processing', article)
         self.assertIn('status_embedding', article)
         self.assertIn('symbols', article)
@@ -375,19 +401,16 @@ class TestArticleManager(unittest.TestCase):
         """Test the get_database_statistics method."""
         # Prepare test data with different statuses
         article1 = self.test_article.copy()
-        article1['url_hash'] = 'hash1'
         article1['url'] = 'https://example.com/article1'
         article1['source_query_tag'] = 'EARNINGS'
         article1['source_query_symbol'] = 'AAPL.US'
         
         article2 = self.test_article.copy()
-        article2['url_hash'] = 'hash2'
         article2['url'] = 'https://example.com/article2'
         article2['source_query_tag'] = 'TECHNOLOGY'
         article2['source_query_symbol'] = 'MSFT.US'
         
         article3 = self.test_article.copy()
-        article3['url_hash'] = 'hash3'
         article3['url'] = 'https://example.com/article3'
         article3['source_query_tag'] = 'EARNINGS'
         article3['source_query_symbol'] = 'GOOGL.US'
@@ -395,22 +418,26 @@ class TestArticleManager(unittest.TestCase):
         # Store all articles
         self.article_manager.store_articles([article1, article2, article3])
         
+        # Get URL hashes
+        hash1 = ArticleManager.generate_url_hash(article1['url'])
+        hash2 = ArticleManager.generate_url_hash(article2['url'])
+        
         # Update processing status for articles
         self.article_manager.update_article_processing_status(
-            article1['url_hash'],
+            hash1,
             processed_content='Processed content 1',
             status='SUCCESS'
         )
         
         self.article_manager.update_article_processing_status(
-            article2['url_hash'],
+            hash2,
             processed_content='',
             status='FAILED'
         )
         
         # Update embedding status for articles
         self.article_manager.update_article_embedding_status(
-            article1['url_hash'],
+            hash1,
             status='SUCCESS',
             embedding_model='test-model'
         )

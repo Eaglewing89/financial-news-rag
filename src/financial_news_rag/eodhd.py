@@ -7,7 +7,6 @@ It includes robust error handling, rate limiting, and normalization of API respo
 
 import os
 import time
-import hashlib
 import warnings
 import logging
 from datetime import datetime, timezone
@@ -247,10 +246,6 @@ class EODHDClient:
         Returns:
             Normalized article dictionary with consistent field names.
         """
-        # Generate a hash of the URL to create a unique identifier
-        url = article.get('link', '')
-        url_hash = hashlib.sha256(url.encode()).hexdigest() if url else ''
-        
         # Normalize date format
         try:
             # Parse the ISO 8601 date
@@ -263,12 +258,10 @@ class EODHDClient:
         
         # Build normalized article structure
         normalized = {
-            'url_hash': url_hash,
             'title': article.get('title', ''),
             'raw_content': article.get('content', ''),
             'url': article.get('link', ''),
             'published_at': published_at_iso,
-            'fetched_at': datetime.now(timezone.utc).isoformat(),
             'source_api': 'EODHD',
             'symbols': article.get('symbols', []),
             'tags': article.get('tags', []),
