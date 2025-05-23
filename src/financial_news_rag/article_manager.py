@@ -159,36 +159,7 @@ class ArticleManager:
             logger.error(f"Query: {query}, Params: {params}")
             raise
     
-    def get_article_status(self, url_hash: str) -> dict:
-        """
-        Get the processing status of an article.
-        
-        Args:
-            url_hash: SHA-256 hash of the article URL
-            
-        Returns:
-            dict: Article status information or None if not found
-        """
-        query = """
-        SELECT url_hash, status_text_processing, status_embedding, 
-               embedding_model, vector_db_id
-        FROM articles
-        WHERE url_hash = ?
-        """
-        cursor = self._execute_query(query, (url_hash,))
-        row = cursor.fetchone()
-        
-        if not row:
-            return None
-            
-        return {
-            'url_hash': row[0],
-            'status_text_processing': row[1],
-            'status_embedding': row[2],
-            'embedding_model': row[3],
-            'vector_db_id': row[4]
-        }
-    
+
     def get_article_by_hash(self, url_hash: str) -> dict:
         """
         Get complete article data by URL hash.

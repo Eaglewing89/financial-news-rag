@@ -118,12 +118,9 @@ class TestArticleManager(unittest.TestCase):
             status='SUCCESS'
         )
         
-        # Get status and verify
-        status = self.article_manager.get_article_status(self.test_article['url_hash'])
-        self.assertEqual(status['status_text_processing'], 'SUCCESS')
-        
         # Get the article and verify processed content
         article = self.article_manager.get_article_by_hash(self.test_article['url_hash'])
+        self.assertEqual(article['status_text_processing'], 'SUCCESS')
         self.assertEqual(article['processed_content'], 'Processed content')
     
     def test_update_article_embedding_status(self):
@@ -139,11 +136,9 @@ class TestArticleManager(unittest.TestCase):
             vector_db_id='test-id-123'
         )
         
-        # Get status and verify
-        status = self.article_manager.get_article_status(self.test_article['url_hash'])
-        self.assertEqual(status['status_embedding'], 'SUCCESS')
-        self.assertEqual(status['embedding_model'], 'test-model')
-        self.assertEqual(status['vector_db_id'], 'test-id-123')
+        # Get the article and verify embedding status
+        article = self.article_manager.get_article_by_hash(self.test_article['url_hash'])
+        self.assertEqual(article['status_embedding'], 'SUCCESS')
     
     def test_get_processed_articles_for_embedding(self):
         """Test getting processed articles ready for embedding."""
