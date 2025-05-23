@@ -224,32 +224,3 @@ class TextProcessor:
             chunks.append(' '.join(current_chunk))
             
         return chunks
-
-
-# Convenience functions
-def clean_text(text: str) -> str:
-    """
-    Clean and normalize text using the processor's cleaning function.
-    
-    Args:
-        text: Raw text to clean
-        
-    Returns:
-        str: Cleaned text
-    """
-    processor = TextProcessor()
-    return processor.clean_article_text(text)
-
-def split_text(text: str, max_tokens: int = 2048) -> List[str]:
-    """
-    Split text into chunks for embedding.
-    
-    Args:
-        text: Text to split
-        max_tokens: Maximum tokens per chunk
-        
-    Returns:
-        List[str]: List of text chunks
-    """
-    processor = TextProcessor(max_tokens_per_chunk=max_tokens)
-    return processor.split_into_chunks(text)
