@@ -73,10 +73,6 @@ class TestArticleManager(unittest.TestCase):
         result = self.article_manager.store_articles([self.test_article])
         self.assertEqual(result, 1)
         
-        # Check if article exists
-        exists = self.article_manager.article_exists(self.test_article['url_hash'])
-        self.assertTrue(exists)
-        
         # Get pending articles
         pending_articles = self.article_manager.get_articles_by_processing_status(status='PENDING')
         self.assertEqual(len(pending_articles), 1)

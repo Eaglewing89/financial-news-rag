@@ -159,20 +159,6 @@ class ArticleManager:
             logger.error(f"Query: {query}, Params: {params}")
             raise
     
-    def article_exists(self, url_hash: str) -> bool:
-        """
-        Check if an article with the given URL hash exists in the database.
-        
-        Args:
-            url_hash: SHA-256 hash of the article URL
-            
-        Returns:
-            bool: True if the article exists, False otherwise
-        """
-        query = "SELECT 1 FROM articles WHERE url_hash = ? LIMIT 1"
-        cursor = self._execute_query(query, (url_hash,))
-        return cursor.fetchone() is not None
-    
     def get_article_status(self, url_hash: str) -> dict:
         """
         Get the processing status of an article.
