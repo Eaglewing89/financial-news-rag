@@ -359,7 +359,7 @@ class TestFinancialNewsRAG:
             {"embeddings": mock_embeddings_pending_1, "all_valid": True},
             {"embeddings": mock_embeddings_pending_2, "all_valid": True}
         ]
-        self.orchestrator.chroma_manager.add_embeddings.return_value = True
+        self.orchestrator.chroma_manager.add_article_chunks.return_value = True
         
         # Call the method for PENDING status
         result_pending = self.orchestrator.embed_processed_articles(status='PENDING')
@@ -368,8 +368,35 @@ class TestFinancialNewsRAG:
         self.orchestrator.article_manager.get_processed_articles_for_embedding.assert_called_once_with(status='PENDING', limit=100)
         assert self.orchestrator.text_processor.split_into_chunks.call_count == 2
         assert self.mock_embeddings_instance.generate_and_verify_embeddings.call_count == 2
-        assert self.orchestrator.chroma_manager.add_embeddings.call_count == 2
+        assert self.orchestrator.chroma_manager.add_article_chunks.call_count == 2
         self.orchestrator.chroma_manager.delete_embeddings_by_article.assert_not_called() # Should not be called for PENDING
+        
+        # Check that add_article_chunks was called with the correct arguments
+        add_chunks_calls = self.orchestrator.chroma_manager.add_article_chunks.call_args_list
+        
+        # First article
+        first_call_args = add_chunks_calls[0][0]  # Positional arguments of first call
+        first_call_kwargs = add_chunks_calls[0][1]  # Keyword arguments of first call
+        assert first_call_args[0] == "hash_pending_1"  # article_url_hash
+        assert first_call_args[1] == mock_chunks_pending_1  # chunk_texts
+        assert first_call_args[2] == mock_embeddings_pending_1  # chunk_vectors
+        assert first_call_args[3] == {  # article_data
+            'published_at': '2023-01-01T12:00:00Z',
+            'source_query_tag': 'TECHNOLOGY',
+            'source_query_symbol': None
+        }
+        
+        # Second article
+        second_call_args = add_chunks_calls[1][0]  # Positional arguments of second call
+        second_call_kwargs = add_chunks_calls[1][1]  # Keyword arguments of second call
+        assert second_call_args[0] == "hash_pending_2"  # article_url_hash
+        assert second_call_args[1] == mock_chunks_pending_2  # chunk_texts
+        assert second_call_args[2] == mock_embeddings_pending_2  # chunk_vectors
+        assert second_call_args[3] == {  # article_data
+            'published_at': '2023-01-02T12:00:00Z',
+            'source_query_tag': None,
+            'source_query_symbol': 'AAPL'
+        }
         
         # Check that embedding status was updated for PENDING
         update_calls_pending = self.orchestrator.article_manager.update_article_embedding_status.call_args_list
@@ -416,7 +443,7 @@ class TestFinancialNewsRAG:
             "embeddings": mock_embeddings_failed_1, "all_valid": True
         }
         self.orchestrator.chroma_manager.delete_embeddings_by_article.return_value = True
-        self.orchestrator.chroma_manager.add_embeddings.return_value = True
+        self.orchestrator.chroma_manager.add_article_chunks.return_value = True
     
         # Call the method for FAILED status
         result_failed = self.orchestrator.embed_processed_articles(status='FAILED')
@@ -427,7 +454,18 @@ class TestFinancialNewsRAG:
         gve_mock.assert_called_once_with(mock_chunks_failed_1)
     
         self.orchestrator.chroma_manager.delete_embeddings_by_article.assert_called_once_with("hash_failed_1")
-        self.orchestrator.chroma_manager.add_embeddings.assert_called_once() # Check it was called
+        self.orchestrator.chroma_manager.add_article_chunks.assert_called_once()
+        
+        # Check that add_article_chunks was called with the correct arguments
+        add_chunks_call_args = self.orchestrator.chroma_manager.add_article_chunks.call_args[0]  # Positional arguments
+        assert add_chunks_call_args[0] == "hash_failed_1"  # article_url_hash
+        assert add_chunks_call_args[1] == mock_chunks_failed_1  # chunk_texts
+        assert add_chunks_call_args[2] == mock_embeddings_failed_1  # chunk_vectors
+        assert add_chunks_call_args[3] == {  # article_data
+            'published_at': '2023-01-03T12:00:00Z',
+            'source_query_tag': None,
+            'source_query_symbol': None
+        }
 
         # Check that embedding status was updated for FAILED
         update_calls_failed = self.orchestrator.article_manager.update_article_embedding_status.call_args_list

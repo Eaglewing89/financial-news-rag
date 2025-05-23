@@ -375,56 +375,24 @@ class FinancialNewsRAG:
                         results["articles_failed"] += 1
                         continue
                     
-                    # Prepare chunks with embeddings for ChromaDB storage
-                    formatted_chunk_embeddings = []
-                    
-                    # Get article published_at and convert to timestamp if available
-                    published_at = article.get('published_at')
-                    try:
-                        # Try to convert ISO format date to UNIX timestamp
-                        dt = datetime.fromisoformat(published_at.replace('Z', '+00:00'))
-                        published_at_timestamp = int(dt.timestamp())
-                    except (ValueError, AttributeError, TypeError):
-                        published_at_timestamp = None
-                    
-                    # Get source query tag and symbol if available
-                    source_query_tag = article.get('source_query_tag')
-                    source_query_symbol = article.get('source_query_symbol')
-                    
-                    # Format each chunk with its embedding for ChromaDB
-                    for i, (chunk_text, embedding_vector) in enumerate(zip(chunks, chunk_embeddings)):
-                        chunk_id = f"{url_hash}_{i}"
-                        
-                        # Prepare metadata
-                        metadata = {
-                            "article_url_hash": url_hash,
-                            "chunk_index": i
-                        }
-                        
-                        # Add optional metadata if available
-                        if published_at_timestamp:
-                            metadata["published_at_timestamp"] = published_at_timestamp
-                        if source_query_tag:
-                            metadata["source_query_tag"] = source_query_tag
-                        if source_query_symbol:
-                            metadata["source_query_symbol"] = source_query_symbol
-                        
-                        formatted_chunk_embeddings.append({
-                            "chunk_id": chunk_id,
-                            "embedding": embedding_vector,
-                            "text": chunk_text,
-                            "metadata": metadata
-                        })
+                    # Prepare article data for ChromaDB
+                    article_data_for_chroma = {
+                        'published_at': article.get('published_at'),
+                        'source_query_tag': article.get('source_query_tag'),
+                        'source_query_symbol': article.get('source_query_symbol')
+                    }
                     
                     # If re-embedding (status was 'FAILED'), delete existing embeddings first
                     if status == 'FAILED':
                         logger.info(f"Deleting existing embeddings for article {url_hash} before re-embedding.")
                         self.chroma_manager.delete_embeddings_by_article(url_hash)
                         
-                    # Store embeddings in ChromaDB
-                    storage_success = self.chroma_manager.add_embeddings(
+                    # Store embeddings in ChromaDB using the new method
+                    storage_success = self.chroma_manager.add_article_chunks(
                         url_hash,
-                        formatted_chunk_embeddings
+                        chunks,
+                        chunk_embeddings,
+                        article_data_for_chroma
                     )
                     
                     if storage_success:

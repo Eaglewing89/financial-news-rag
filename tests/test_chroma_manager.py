@@ -13,6 +13,7 @@ import sys
 import tempfile
 import unittest
 from typing import Dict, List, Any
+from unittest.mock import MagicMock
 
 import pytest
 import numpy as np
@@ -325,3 +326,193 @@ class TestChromaDBManager:
         assert results[0]["chunk_id"] == duplicate_embedding["chunk_id"]
         assert results[0]["text"] == duplicate_embedding["text"]
         assert results[0]["metadata"].get("is_updated") is True
+    
+    def test_add_article_chunks(self):
+        """Test adding article chunks with the new method."""
+        # Sample data
+        article_url_hash = "test_article_add_chunks"
+        chunk_texts = ["This is the first chunk.", "This is the second chunk."]
+        chunk_vectors = [
+            [0.1] * self.chroma_manager.embedding_dimension,
+            [0.2] * self.chroma_manager.embedding_dimension
+        ]
+        article_data = {
+            "published_at": "2023-05-15T14:30:00Z",
+            "source_query_tag": "TECHNOLOGY",
+            "source_query_symbol": "AAPL"
+        }
+        
+        # Add article chunks
+        success = self.chroma_manager.add_article_chunks(
+            article_url_hash,
+            chunk_texts,
+            chunk_vectors,
+            article_data
+        )
+        
+        # Check if addition was successful
+        assert success is True
+        
+        # Query to verify that chunks were added correctly with all metadata
+        query_embedding = [0.1] * self.chroma_manager.embedding_dimension
+        results = self.chroma_manager.query_embeddings(
+            query_embedding=query_embedding,
+            n_results=2,
+            filter_metadata={"article_url_hash": article_url_hash}
+        )
+        
+        # Verify results
+        assert len(results) == 2
+        
+        # Verify IDs
+        assert results[0]["chunk_id"] == f"{article_url_hash}_0"
+        assert results[1]["chunk_id"] == f"{article_url_hash}_1"
+        
+        # Verify texts
+        assert results[0]["text"] == chunk_texts[0]
+        assert results[1]["text"] == chunk_texts[1]
+        
+        # Verify metadata
+        for result in results:
+            metadata = result["metadata"]
+            # Check required metadata fields
+            assert metadata["article_url_hash"] == article_url_hash
+            assert "chunk_index" in metadata
+            
+            # Check optional metadata fields
+            assert "published_at_timestamp" in metadata  # Should be converted from ISO string
+            assert metadata["source_query_tag"] == "TECHNOLOGY"
+            assert metadata["source_query_symbol"] == "AAPL"
+    
+    def test_add_article_chunks_missing_optional_fields(self):
+        """Test adding article chunks with missing optional metadata fields."""
+        # Sample data with missing optional fields
+        article_url_hash = "test_article_missing_fields"
+        chunk_texts = ["This is a test chunk."]
+        chunk_vectors = [
+            [0.3] * self.chroma_manager.embedding_dimension
+        ]
+        article_data = {}  # Empty article data
+        
+        # Add article chunks
+        success = self.chroma_manager.add_article_chunks(
+            article_url_hash,
+            chunk_texts,
+            chunk_vectors,
+            article_data
+        )
+        
+        # Check if addition was successful
+        assert success is True
+        
+        # Query to verify that chunks were added correctly
+        query_embedding = [0.3] * self.chroma_manager.embedding_dimension
+        results = self.chroma_manager.query_embeddings(
+            query_embedding=query_embedding,
+            n_results=1,
+            filter_metadata={"article_url_hash": article_url_hash}
+        )
+        
+        # Verify results
+        assert len(results) == 1
+        metadata = results[0]["metadata"]
+        
+        # Check required metadata fields
+        assert metadata["article_url_hash"] == article_url_hash
+        assert "chunk_index" in metadata
+        
+        # Check that optional fields are not present
+        assert "published_at_timestamp" not in metadata
+        assert "source_query_tag" not in metadata
+        assert "source_query_symbol" not in metadata
+    
+    def test_add_article_chunks_invalid_published_at(self):
+        """Test adding article chunks with invalid published_at format."""
+        # Sample data with invalid published_at
+        article_url_hash = "test_article_invalid_date"
+        chunk_texts = ["This is a test chunk."]
+        chunk_vectors = [
+            [0.4] * self.chroma_manager.embedding_dimension
+        ]
+        article_data = {
+            "published_at": "invalid-date-format",
+            "source_query_tag": "FINANCE"
+        }
+        
+        # Add article chunks
+        success = self.chroma_manager.add_article_chunks(
+            article_url_hash,
+            chunk_texts,
+            chunk_vectors,
+            article_data
+        )
+        
+        # Check if addition was successful despite invalid date
+        assert success is True
+        
+        # Query to verify that chunks were added correctly
+        query_embedding = [0.4] * self.chroma_manager.embedding_dimension
+        results = self.chroma_manager.query_embeddings(
+            query_embedding=query_embedding,
+            n_results=1,
+            filter_metadata={"article_url_hash": article_url_hash}
+        )
+        
+        # Verify results
+        assert len(results) == 1
+        metadata = results[0]["metadata"]
+        
+        # Check required metadata fields
+        assert metadata["article_url_hash"] == article_url_hash
+        assert "chunk_index" in metadata
+        
+        # Check that published_at_timestamp is not present due to invalid format
+        assert "published_at_timestamp" not in metadata
+        # But other valid metadata should be present
+        assert metadata["source_query_tag"] == "FINANCE"
+    
+    def test_add_article_chunks_empty_lists(self):
+        """Test adding article chunks with empty chunk lists."""
+        article_url_hash = "test_article_empty_chunks"
+        chunk_texts = []
+        chunk_vectors = []
+        article_data = {"published_at": "2023-05-15T14:30:00Z"}
+        
+        # Add article chunks
+        success = self.chroma_manager.add_article_chunks(
+            article_url_hash,
+            chunk_texts,
+            chunk_vectors,
+            article_data
+        )
+        
+        # Should return False for empty lists
+        assert success is False
+    
+    def test_add_article_chunks_exception_handling(self):
+        """Test exception handling in add_article_chunks method."""
+        article_url_hash = "test_article_exception"
+        chunk_texts = ["This is a test chunk."]
+        chunk_vectors = [
+            [0.5] * self.chroma_manager.embedding_dimension
+        ]
+        article_data = {"published_at": "2023-05-15T14:30:00Z"}
+        
+        # Mock the collection.upsert method to raise an exception
+        original_upsert = self.chroma_manager.collection.upsert
+        self.chroma_manager.collection.upsert = MagicMock(side_effect=Exception("Test exception"))
+        
+        try:
+            # Add article chunks (should handle the exception)
+            success = self.chroma_manager.add_article_chunks(
+                article_url_hash,
+                chunk_texts,
+                chunk_vectors,
+                article_data
+            )
+            
+            # Should return False when exception occurs
+            assert success is False
+        finally:
+            # Restore the original upsert method
+            self.chroma_manager.collection.upsert = original_upsert

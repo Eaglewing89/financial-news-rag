@@ -98,7 +98,6 @@ class ChromaDBManager:
                     metadata={"dimension": self.embedding_dimension}
                 )
                 logger.info(f"Created new collection: {self.collection_name} with dimension {self.embedding_dimension}")
-        
         except Exception as e:
             logger.error(f"Error initializing ChromaDB: {e}")
             raise
@@ -296,4 +295,84 @@ class ChromaDBManager:
             
         except Exception as e:
             logger.error(f"Error deleting embeddings for article {article_url_hash}: {e}")
+            return False
+    
+    def add_article_chunks(self, article_url_hash: str, chunk_texts: List[str], 
+                          chunk_vectors: List[List[float]], article_data: Dict[str, Any]) -> bool:
+        """
+        Add chunk data for an article to ChromaDB.
+        
+        Args:
+            article_url_hash: The unique identifier from the SQLite articles table.
+            chunk_texts: A list of raw text chunks from the article.
+            chunk_vectors: A list of embedding vectors corresponding to each chunk.
+            article_data: A dictionary containing article-level information like:
+                - published_at: ISO format date string (optional)
+                - source_query_tag: Source query tag (optional)
+                - source_query_symbol: Source query symbol (optional)
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Initialize empty lists for batch addition to ChromaDB
+            ids = []
+            embeddings_list = []
+            metadatas_list = []
+            documents_list = []
+            
+            # Process each chunk and create metadata
+            for i, (chunk_text, chunk_vector) in enumerate(zip(chunk_texts, chunk_vectors)):
+                # Create unique chunk ID
+                chunk_id = f"{article_url_hash}_{i}"
+                
+                # Create metadata dictionary
+                current_metadata = {
+                    "article_url_hash": article_url_hash,
+                    "chunk_index": i
+                }
+                
+                # Process published_at if available
+                published_at_str = article_data.get('published_at')
+                if published_at_str is not None:
+                    try:
+                        from datetime import datetime
+                        # Convert ISO format to UNIX timestamp
+                        dt = datetime.fromisoformat(published_at_str.replace('Z', '+00:00'))
+                        timestamp = int(dt.timestamp())
+                        current_metadata["published_at_timestamp"] = timestamp
+                    except (ValueError, AttributeError, TypeError) as e:
+                        logger.warning(f"Failed to convert published_at date '{published_at_str}' to timestamp: {e}")
+                
+                # Add additional metadata if available
+                if article_data.get('source_query_tag'):
+                    current_metadata["source_query_tag"] = article_data.get('source_query_tag')
+                
+                if article_data.get('source_query_symbol'):
+                    current_metadata["source_query_symbol"] = article_data.get('source_query_symbol')
+                
+                # Add to batch lists
+                ids.append(chunk_id)
+                embeddings_list.append(chunk_vector)
+                metadatas_list.append(current_metadata)
+                documents_list.append(chunk_text)
+            
+            # Check if we have any valid chunks to add
+            if not ids:
+                logger.warning(f"No valid chunk embeddings to add for article {article_url_hash}")
+                return False
+            
+            # Add embeddings to ChromaDB collection
+            self.collection.upsert(
+                ids=ids,
+                embeddings=embeddings_list,
+                metadatas=metadatas_list,
+                documents=documents_list
+            )
+            
+            logger.info(f"Successfully upserted {len(ids)} chunk embeddings for article {article_url_hash}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error upserting embeddings for article {article_url_hash}: {e}")
             return False
