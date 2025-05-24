@@ -30,9 +30,9 @@ class EODHDClient:
         self,
         api_key: str,
         api_url: str = 'https://eodhd.com/api/news',
-        timeout: int = 100,
-        max_retries: int = 3,
-        backoff_factor: float = 1.5,
+        default_timeout: int = 100,
+        default_max_retries: int = 3,
+        default_backoff_factor: float = 1.5,
         default_limit: int = 50
     ):
         """
@@ -41,9 +41,9 @@ class EODHDClient:
         Args:
             api_key: EODHD API key (required).
             api_url: EODHD API endpoint URL.
-            timeout: Request timeout in seconds.
-            max_retries: Maximum number of retry attempts for failed requests.
-            backoff_factor: Backoff factor for retry timing.
+            default_timeout: Default request timeout in seconds.
+            default_max_retries: Default maximum number of retry attempts for failed requests.
+            default_backoff_factor: Default backoff factor for retry timing.
             default_limit: Default number of articles to return per request.
         
         Raises:
@@ -54,9 +54,9 @@ class EODHDClient:
         
         self.api_key = api_key
         self.api_url = api_url
-        self.timeout = timeout
-        self.max_retries = max_retries
-        self.backoff_factor = backoff_factor
+        self.default_timeout = default_timeout
+        self.default_max_retries = default_max_retries
+        self.default_backoff_factor = default_backoff_factor
         self.default_limit = default_limit
     
     def fetch_news(
@@ -97,12 +97,12 @@ class EODHDClient:
             EODHDApiError: If the API request fails after retries.
         """
         # Use instance defaults if parameters not provided
-        limit = limit if limit is not None else self.default_limit
-        max_retries = max_retries if max_retries is not None else self.max_retries
-        backoff_factor = backoff_factor if backoff_factor is not None else self.backoff_factor
+        limit_to_use = limit if limit is not None else self.default_limit
+        max_retries_to_use = max_retries if max_retries is not None else self.default_max_retries
+        backoff_factor_to_use = backoff_factor if backoff_factor is not None else self.default_backoff_factor
         
         # Validate limit parameter
-        if not 1 <= limit <= 1000:
+        if not 1 <= limit_to_use <= 1000:
             raise ValueError("'limit' must be between 1 and 1000")
         
         # Validate date format
@@ -126,7 +126,7 @@ class EODHDClient:
         params = {
             'api_token': self.api_key,
             'fmt': 'json',
-            'limit': limit,
+            'limit': limit_to_use,
             'offset': offset
         }
         
@@ -141,7 +141,7 @@ class EODHDClient:
             params['to'] = to_date
         
         # Fetch with retry
-        raw_articles = self._fetch_with_retry(self.api_url, params, max_retries, backoff_factor)
+        raw_articles = self._fetch_with_retry(self.api_url, params, max_retries_to_use, backoff_factor_to_use)
         
         # Normalize each article
         normalized_articles = []
@@ -193,7 +193,7 @@ class EODHDClient:
         
         for attempt in range(max_retries):
             try:
-                response = requests.get(url, params=params, timeout=self.timeout)
+                response = requests.get(url, params=params, timeout=self.default_timeout)
                 
                 # Capture the status code
                 result["status_code"] = response.status_code
