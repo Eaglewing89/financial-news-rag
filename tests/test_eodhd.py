@@ -5,7 +5,6 @@ Tests for the EODHD API client module.
 import os
 import pytest
 import requests
-import warnings
 from unittest.mock import patch, MagicMock
 from datetime import datetime
 
@@ -77,57 +76,40 @@ class TestEODHDClient:
         assert articles[0]["tags"] == SAMPLE_ARTICLE["tags"]
     
     @patch("requests.get")
-    def test_fetch_news_with_symbols(self, mock_get):
-        """Test fetching news with symbols parameter."""
+    def test_fetch_news_with_symbol(self, mock_get):
+        """Test fetching news with symbol parameter."""
         # Set up the mock
         mock_response = MagicMock()
         mock_response.json.return_value = SAMPLE_RESPONSE
         mock_get.return_value = mock_response
         
-        # Call the method with a string of symbols (should take only the first symbol)
-        with warnings.catch_warnings(record=True) as w:
-            articles = self.client.fetch_news(symbols="AAPL.US,MSFT.US")
-            # Verify warning was raised
-            assert len(w) == 1
-            assert issubclass(w[0].category, UserWarning)
-            assert "only supports a single symbol" in str(w[0].message)
+        # Call the method with a single valid symbol
+        articles = self.client.fetch_news(symbol="AAPL.US")
         
-        # Check the call parameters - should use only first symbol
-        mock_get.assert_called_once()
-        args, kwargs = mock_get.call_args
-        assert kwargs["params"]["s"] == "AAPL.US"
-        
-        # Reset the mock
-        mock_get.reset_mock()
-        
-        # Call the method with a list of symbols (should take only the first symbol)
-        with warnings.catch_warnings(record=True) as w:
-            articles = self.client.fetch_news(symbols=["AAPL.US", "MSFT.US"])
-            # Verify warning was raised for multiple symbols
-            assert len(w) == 1
-            assert issubclass(w[0].category, UserWarning)
-            assert "only supports a single symbol" in str(w[0].message)
-        
-        # Check the call parameters - should use only first symbol
-        mock_get.assert_called_once()
-        args, kwargs = mock_get.call_args
-        assert kwargs["params"]["s"] == "AAPL.US"
-        
-        # Reset the mock
-        mock_get.reset_mock()
-        
-        # Call with a single symbol string (no warning expected)
-        with warnings.catch_warnings(record=True) as w:
-            articles = self.client.fetch_news(symbols="AAPL.US")
-            assert len(w) == 0  # No warnings when using a single symbol
-        
-        # Check call parameters
+        # Check the call parameters
         mock_get.assert_called_once()
         args, kwargs = mock_get.call_args
         assert kwargs["params"]["s"] == "AAPL.US"
     
-    def test_fetch_news_without_tag_or_symbols(self):
-        """Test fetching news without tag or symbols raises ValueError."""
+    @patch("requests.get")
+    def test_fetch_news_with_none_symbol(self, mock_get):
+        """Test fetching news with symbol=None."""
+        # Set up the mock
+        mock_response = MagicMock()
+        mock_response.json.return_value = SAMPLE_RESPONSE
+        mock_get.return_value = mock_response
+        
+        # Call the method with tag since symbol is None
+        articles = self.client.fetch_news(symbol=None, tag="HOSPITALITY")
+        
+        # Check the call parameters - should use tag and not symbol
+        mock_get.assert_called_once()
+        args, kwargs = mock_get.call_args
+        assert "s" not in kwargs["params"]
+        assert kwargs["params"]["t"] == "HOSPITALITY"
+    
+    def test_fetch_news_without_tag_or_symbol(self):
+        """Test fetching news without tag or symbol raises ValueError."""
         with pytest.raises(ValueError):
             self.client.fetch_news()
     
@@ -262,7 +244,7 @@ class TestEODHDClient:
         mock_get.return_value = mock_response
         
         # Call the method
-        articles = self.client.fetch_news(symbols="AAPL")
+        articles = self.client.fetch_news(symbol="AAPL")
         normalized = articles[0]
         
         # Check source query symbol
@@ -309,3 +291,29 @@ class TestEODHDClient:
                     max_retries=3,
                     backoff_factor=0.1
                 )
+    
+    @patch("requests.get")
+    def test_api_error_propagation(self, mock_get):
+        """Test that API errors are properly propagated to the caller."""
+        # Create a mock response with an API error
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "code": "401",
+            "message": "Invalid API key or access denied"
+        }
+        mock_get.return_value = mock_response
+        
+        # Should raise EODHDApiError with the error message from the API
+        with pytest.raises(EODHDApiError) as exc_info:
+            self.client.fetch_news(symbol="AAPL")
+        
+        assert "Invalid API key or access denied" in str(exc_info.value)
+        
+        # Test HTTP error propagation
+        mock_get.reset_mock()
+        mock_get.side_effect = requests.exceptions.HTTPError("404 Client Error")
+        
+        with pytest.raises(EODHDApiError) as exc_info:
+            self.client.fetch_news(symbol="AAPL")
+        
+        assert "404 Client Error" in str(exc_info.value)

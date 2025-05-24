@@ -7,10 +7,9 @@ It includes robust error handling, rate limiting, and normalization of API respo
 
 import os
 import time
-import warnings
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import requests
 from dotenv import load_dotenv
@@ -56,7 +55,7 @@ class EODHDClient:
     
     def fetch_news(
         self,
-        symbols: Optional[Union[str, List[str]]] = None,
+        symbol: Optional[str] = None,
         tag: Optional[str] = None,
         from_date: Optional[str] = None,
         to_date: Optional[str] = None,
@@ -69,9 +68,7 @@ class EODHDClient:
         Fetch financial news articles from EODHD API.
         
         Args:
-            symbols: Ticker symbol(s) to filter news for. Can be a string (single symbol), a comma-separated string, 
-                   or a list of symbols. If a list or a comma-separated string is provided, a warning will be triggered, 
-                   and only the first symbol will be used.
+            symbol: A single ticker symbol to filter news for (e.g., "AAPL.US").
             tag: Topic tag to filter news for (e.g., "mergers and acquisitions").
             from_date: Start date for filtering news (YYYY-MM-DD).
             to_date: End date for filtering news (YYYY-MM-DD).
@@ -108,27 +105,8 @@ class EODHDClient:
                 raise ValueError("'to_date' must be in YYYY-MM-DD format")
         
         # Construct parameters
-        if not symbols and not tag:
-            raise ValueError("Either 'symbols' or 'tag' must be provided.")
-        
-        # Handle symbols parameter
-        if isinstance(symbols, list):
-            if len(symbols) > 1:
-                warnings.warn(
-                    "EODHD API only supports a single symbol despite official documentation. "
-                    "Only the first symbol will be used. For multiple symbols, make separate API calls for each.",
-                    UserWarning
-                )
-                symbols = symbols[0]  # Take only the first symbol
-            else:
-                symbols = symbols[0] if symbols else None
-        elif symbols and ',' in symbols:
-            warnings.warn(
-                "EODHD API only supports a single symbol despite official documentation. "
-                "Only the first symbol will be used. For multiple symbols, make separate API calls for each.",
-                UserWarning
-            )
-            symbols = symbols.split(',')[0].strip()  # Take only the first symbol before any comma
+        if not symbol and not tag:
+            raise ValueError("Either 'symbol' or 'tag' must be provided.")
         
         params = {
             'api_token': self.api_key,
@@ -139,8 +117,8 @@ class EODHDClient:
         
         if tag:
             params['t'] = tag
-        elif symbols:
-            params['s'] = symbols
+        elif symbol:
+            params['s'] = symbol
         
         if from_date:
             params['from'] = from_date

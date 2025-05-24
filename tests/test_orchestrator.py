@@ -151,7 +151,7 @@ class TestFinancialNewsRAG:
         
         # Assertions
         self.orchestrator.eodhd_client.fetch_news.assert_called_once_with(
-            symbols="AAPL", 
+            symbol="AAPL", 
             from_date=None, 
             to_date=None, 
             limit=50
@@ -171,50 +171,38 @@ class TestFinancialNewsRAG:
         assert result["articles_fetched"] == 2
         assert result["articles_stored"] == 2
     
-    def test_fetch_and_store_articles_with_multiple_symbols(self):
-        """Test fetching and storing articles with multiple symbols."""
-        # Mock articles return value for each symbol
-        mock_articles_aapl = [
-            {
-                "title": "AAPL Article", 
-                "published_at": "2023-01-01T12:00:00Z",
-                "raw_content": "AAPL content",
-                "source_query_symbol": "AAPL"
-            }
-        ]
-        mock_articles_msft = [
-            {
-                "title": "MSFT Article", 
-                "published_at": "2023-01-02T12:00:00Z",
-                "raw_content": "MSFT content",
-                "source_query_symbol": "MSFT"
-            }
-        ]
+    def test_fetch_and_store_articles_neither_tag_nor_symbol(self):
+        """Test that ValueError is raised if neither tag nor symbol is provided."""
+        # Call the method with neither tag nor symbol
+        with pytest.raises(ValueError) as excinfo:
+            self.orchestrator.fetch_and_store_articles()
         
-        # Configure mock to return different values on each call
-        self.orchestrator.eodhd_client.fetch_news.side_effect = [mock_articles_aapl, mock_articles_msft]
-        self.orchestrator.article_manager.store_articles.return_value = 1
+        # Check error message
+        assert "Either tag or symbol must be provided" in str(excinfo.value)
+    
+    def test_fetch_and_store_articles_both_tag_and_symbol(self):
+        """Test that ValueError is raised if both tag and symbol are provided."""
+        # Call the method with both tag and symbol
+        with pytest.raises(ValueError) as excinfo:
+            self.orchestrator.fetch_and_store_articles(tag="TECHNOLOGY", symbol="AAPL")
         
-        # Call the method with comma-separated symbols
-        result = self.orchestrator.fetch_and_store_articles(symbol="AAPL,MSFT")
+        # Check error message
+        assert "tag and symbol parameters are mutually exclusive" in str(excinfo.value)
+    
+    def test_fetch_and_store_articles_with_api_error(self):
+        """Test error handling when the EODHD API raises an exception."""
+        # Configure mock to raise an exception
+        self.orchestrator.eodhd_client.fetch_news.side_effect = Exception("API Error")
+        
+        # Call the method
+        result = self.orchestrator.fetch_and_store_articles(symbol="AAPL")
         
         # Assertions
-        assert self.orchestrator.eodhd_client.fetch_news.call_count == 2
-        # First call with AAPL
-        assert self.orchestrator.eodhd_client.fetch_news.call_args_list[0][1]["symbols"] == "AAPL"
-        # Second call with MSFT
-        assert self.orchestrator.eodhd_client.fetch_news.call_args_list[1][1]["symbols"] == "MSFT"
-        
-        # Check that store_articles was called twice
-        assert self.orchestrator.article_manager.store_articles.call_count == 2
-        
-        # Check result
-        assert result["status"] == "SUCCESS"
-        assert result["articles_fetched"] == 2
-        assert result["articles_stored"] == 2
-    
-    def test_process_articles_by_status_pending(self):
-        """Test processing articles with pending status."""
+        assert result["status"] == "FAILED"
+        assert len(result["errors"]) == 1
+        assert "Error fetching news for symbol AAPL: API Error" in result["errors"][0]
+        assert result["articles_fetched"] == 0
+        assert result["articles_stored"] == 0
         # Mock pending articles
         mock_articles = [
             {"url_hash": "hash1", "raw_content": "Test content 1"},

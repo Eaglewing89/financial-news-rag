@@ -113,6 +113,7 @@ class FinancialNewsRAG:
         Args:
             tag: News tag to filter articles (e.g., "TECHNOLOGY")
             symbol: Stock symbol to fetch news for (e.g., "AAPL")
+                Note: Only a single symbol string is accepted, not a comma-separated list.
             from_date: Start date in YYYY-MM-DD format
             to_date: End date in YYYY-MM-DD format
             limit: Maximum number of articles to fetch
@@ -122,9 +123,13 @@ class FinancialNewsRAG:
         
         Raises:
             ValueError: If neither tag nor symbol is provided
+            ValueError: If both tag and symbol are provided (mutually exclusive)
         """
         if not tag and not symbol:
             raise ValueError("Either tag or symbol must be provided")
+        
+        if tag and symbol:
+            raise ValueError("tag and symbol parameters are mutually exclusive - provide only one")
         
         # Initialize results dictionary
         results = {
@@ -135,17 +140,6 @@ class FinancialNewsRAG:
         }
         
         try:
-            # Handle symbol(s) as a list or single string
-            symbols = []
-            if symbol:
-                if isinstance(symbol, str):
-                    if ',' in symbol:
-                        symbols = [s.strip() for s in symbol.split(',')]
-                    else:
-                        symbols = [symbol]
-                elif isinstance(symbol, list):
-                    symbols = symbol
-            
             # Fetch by tag
             if tag:
                 logger.info(f"Fetching articles with tag: {tag}")
@@ -178,12 +172,12 @@ class FinancialNewsRAG:
                 results["articles_fetched"] += len(fetched_articles)
                 results["articles_stored"] += stored_count
             
-            # Fetch by symbol(s)
-            if symbols:
-                for sym in symbols:
-                    logger.info(f"Fetching articles for symbol: {sym}")
+            # Fetch by symbol
+            elif symbol:
+                logger.info(f"Fetching articles for symbol: {symbol}")
+                try:
                     fetched_articles = self.eodhd_client.fetch_news(
-                        symbols=sym,
+                        symbol=symbol,
                         from_date=from_date,
                         to_date=to_date,
                         limit=limit
@@ -193,7 +187,7 @@ class FinancialNewsRAG:
                     if fetched_articles:
                         self.article_manager.log_api_call(
                             query_type='symbol',
-                            query_value=sym,
+                            query_value=symbol,
                             from_date=from_date,
                             to_date=to_date,
                             limit=limit,
@@ -210,6 +204,13 @@ class FinancialNewsRAG:
                     # Update results
                     results["articles_fetched"] += len(fetched_articles)
                     results["articles_stored"] += stored_count
+                except Exception as e:
+                    logger.error(f"Error fetching news for symbol {symbol}: {str(e)}")
+                    results["status"] = "FAILED"
+                    results["errors"].append(f"Error fetching news for symbol {symbol}: {str(e)}")
+                    # TODO: Implement ArticleManager.log_api_error(...)
+                    # TODO: Call ArticleManager.log_api_error with details from the caught exception (e)
+                    # TODO: Decide on how to surface this failure to the user beyond the results dict
             
             logger.info(f"Fetched {results['articles_fetched']} articles, stored {results['articles_stored']}")
             
