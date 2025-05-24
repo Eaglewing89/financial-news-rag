@@ -13,7 +13,7 @@ import sys
 import tempfile
 import unittest
 from typing import Dict, List, Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import numpy as np
@@ -22,6 +22,7 @@ import numpy as np
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from financial_news_rag.chroma_manager import ChromaDBManager
+from financial_news_rag.utils import parse_iso_date_string, convert_iso_to_timestamp
 
 
 class TestChromaDBManager:
@@ -1005,3 +1006,48 @@ class TestChromaDBManager:
         assert len(results) == 1
         assert results[0]["metadata"]["article_url_hash"] == finance2_article_hash
         assert results[0]["metadata"]["source_query_tag"] == "FINANCE"
+    
+    def test_integration_with_utils_parse_functions(self):
+        """Test the integration of ChromaDBManager with utils parse functions."""
+        # We'll mock the utility functions to verify they're being called correctly
+        with patch('financial_news_rag.chroma_manager.convert_iso_to_timestamp') as mock_convert, \
+             patch('financial_news_rag.chroma_manager.parse_iso_date_string') as mock_parse:
+            
+            # Setup mock return values
+            mock_convert.return_value = 1633046400  # 2021-10-01 00:00:00 UTC
+            
+            # Test query_embeddings with date filters
+            query_embedding = np.random.rand(self.test_embedding_dimension).tolist()
+            self.chroma_manager.query_embeddings(
+                query_embedding=query_embedding,
+                n_results=5,
+                from_date_str="2021-10-01",
+                to_date_str="2021-10-31"
+            )
+            
+            # Verify convert_iso_to_timestamp was called twice with correct parameters
+            mock_convert.assert_any_call("2021-10-01")
+            mock_convert.assert_any_call("2021-10-31")
+            assert mock_convert.call_count == 2
+            
+            # Reset mocks for next test
+            mock_convert.reset_mock()
+            
+            # Test add_article_chunks with published_at
+            article_url_hash = "test_utils_integration"
+            chunk_texts = ["Test chunk for utils integration"]
+            chunk_vector = np.random.rand(self.test_embedding_dimension).tolist()
+            article_data = {
+                "published_at": "2021-10-15T12:30:00Z",
+                "source_query_tag": "TEST"
+            }
+            
+            self.chroma_manager.add_article_chunks(
+                article_url_hash,
+                chunk_texts,
+                [chunk_vector],
+                article_data
+            )
+            
+            # Verify convert_iso_to_timestamp was called with correct parameter
+            mock_convert.assert_called_once_with("2021-10-15T12:30:00Z")
