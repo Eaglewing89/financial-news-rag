@@ -525,13 +525,14 @@ class FinancialNewsRAG:
                         # This would need to be implemented properly with actual date ranges
                         pass
             
-            # Query the vector database
+            # Query the vector database with similarity scores
             chroma_results = self.chroma_manager.query_embeddings(
                 query_embedding=query_embedding,
                 n_results=n_results if not rerank else max(n_results * 2, 10),  # Get more results for reranking
                 filter_metadata=filter_metadata,
                 from_date_str=from_date_str,
-                to_date_str=to_date_str
+                to_date_str=to_date_str,
+                return_similarity_score=True  # Use the new parameter to get similarity scores
             )
             
             if not chroma_results:
@@ -550,13 +551,12 @@ class FinancialNewsRAG:
             # Fetch full article content for the retrieved articles
             article_scores = {}  # Track best score for each article
             
-            # Calculate similarity scores for each article based on its best chunk
+            # Use similarity scores directly from ChromaDBManager
             for result in chroma_results:
                 url_hash = result['metadata'].get('article_url_hash')
                 if url_hash:
-                    # ChromaDB returns distance, convert to similarity (lower distance = higher similarity)
-                    distance = result.get('distance', 0)
-                    similarity = 1.0 - (distance / 2.0)  # Normalize to 0-1
+                    # Use the similarity_score from ChromaDBManager
+                    similarity = result.get('similarity_score', 0)
                     
                     # Update best score for this article
                     if url_hash not in article_scores or similarity > article_scores[url_hash]:

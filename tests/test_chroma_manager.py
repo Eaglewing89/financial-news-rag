@@ -63,8 +63,8 @@ class TestChromaDBManager:
     
     # Tests for add_embeddings method have been removed since the method was removed from the implementation
     
-    def test_query_embeddings(self):
-        """Test querying embeddings."""
+    def test_query_embeddings_with_similarity_score(self):
+        """Test querying embeddings with similarity score calculation."""
         # Set up test data
         article_url_hash = self.sample_article_hash
         chunk_texts = ["This is test chunk 0 for the article."]
@@ -88,17 +88,34 @@ class TestChromaDBManager:
         # Create a query embedding (use the same embedding for testing)
         query_embedding = chunk_vector
         
-        # Query without filter
-        results = self.chroma_manager.query_embeddings(
+        # Query with return_similarity_score=True
+        results_with_score = self.chroma_manager.query_embeddings(
+            query_embedding=query_embedding,
+            n_results=2,
+            return_similarity_score=True
+        )
+        
+        # Check results
+        assert len(results_with_score) == 1
+        # The result should be the exact match with similarity_score close to 1.0
+        assert results_with_score[0]["chunk_id"] == f"{self.sample_article_hash}_0"
+        assert "similarity_score" in results_with_score[0]
+        assert "distance" not in results_with_score[0]
+        assert results_with_score[0]["similarity_score"] > 0.99  # Should be very close to 1
+        
+        # Query with return_similarity_score=False (default)
+        results_without_score = self.chroma_manager.query_embeddings(
             query_embedding=query_embedding,
             n_results=2
         )
         
         # Check results
-        assert len(results) == 1
-        # The result should be the exact match with distance close to 0
-        assert results[0]["chunk_id"] == f"{self.sample_article_hash}_0"
-        assert results[0]["distance"] < 0.001  # Should be very close to 0
+        assert len(results_without_score) == 1
+        # The result should have distance but not similarity_score
+        assert results_without_score[0]["chunk_id"] == f"{self.sample_article_hash}_0"
+        assert "distance" in results_without_score[0]
+        assert "similarity_score" not in results_without_score[0]
+        assert results_without_score[0]["distance"] < 0.001  # Should be very close to 0
     
     def test_query_with_filter(self):
         """Test querying with metadata filters."""

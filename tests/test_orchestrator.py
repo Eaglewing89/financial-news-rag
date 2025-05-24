@@ -558,24 +558,24 @@ class TestFinancialNewsRAG:
         # Mock query embedding
         mock_query_embedding = [0.1, 0.2, 0.3]
         
-        # Mock ChromaDB results
+        # Mock ChromaDB results with similarity_score instead of distance
         mock_chroma_results = [
             {
                 "chunk_id": "hash1_0",
                 "text": "Chunk text 1",
-                "distance": 0.1,
+                "similarity_score": 0.95,
                 "metadata": {"article_url_hash": "hash1", "chunk_index": 0}
             },
             {
                 "chunk_id": "hash1_1",
                 "text": "Chunk text 2",
-                "distance": 0.2,
+                "similarity_score": 0.9,
                 "metadata": {"article_url_hash": "hash1", "chunk_index": 1}
             },
             {
                 "chunk_id": "hash2_0",
                 "text": "Chunk text 3",
-                "distance": 0.3,
+                "similarity_score": 0.85,
                 "metadata": {"article_url_hash": "hash2", "chunk_index": 0}
             }
         ]
@@ -663,12 +663,12 @@ class TestFinancialNewsRAG:
         # Mock query embedding
         mock_query_embedding = [0.1, 0.2, 0.3]
         
-        # Mock ChromaDB results
+        # Mock ChromaDB results with similarity_score
         mock_chroma_results = [
             {
                 "chunk_id": "hash1_0",
                 "text": "Chunk text 1",
-                "distance": 0.1,
+                "similarity_score": 0.95,
                 "metadata": {"article_url_hash": "hash1", "chunk_index": 0}
             }
         ]

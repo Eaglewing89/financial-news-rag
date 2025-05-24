@@ -111,7 +111,8 @@ class ChromaDBManager:
         n_results: int = 5, 
         filter_metadata: Optional[Dict[str, Any]] = None,
         from_date_str: Optional[str] = None,
-        to_date_str: Optional[str] = None
+        to_date_str: Optional[str] = None,
+        return_similarity_score: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Query ChromaDB for the most similar embeddings to the query embedding.
@@ -125,9 +126,11 @@ class ChromaDBManager:
                 for filtering articles published on or after this date
             to_date_str: Optional ISO format string (YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)
                 for filtering articles published on or before this date
+            return_similarity_score: If True, converts distance to similarity score
+                and returns it in place of distance in the results.
             
         Returns:
-            List of results, each including chunk_id, distance/score, metadata, and text
+            List of results, each including chunk_id, distance/similarity_score, metadata, and text
         """
         try:
             # Build query parameters
@@ -206,10 +209,19 @@ class ChromaDBManager:
                 for i, chunk_id in enumerate(results['ids'][0]):
                     result = {
                         'chunk_id': chunk_id,
-                        'distance': results['distances'][0][i] if 'distances' in results else None,
                         'metadata': results['metadatas'][0][i] if 'metadatas' in results else {},
                         'text': results['documents'][0][i] if 'documents' in results else None
                     }
+                    
+                    # Add distance or similarity_score based on return_similarity_score parameter
+                    if 'distances' in results:
+                        distance = results['distances'][0][i]
+                        if return_similarity_score:
+                            # Convert distance to similarity score using the formula: 1.0 - (distance / 2.0)
+                            result['similarity_score'] = 1.0 - (distance / 2.0)
+                        else:
+                            result['distance'] = distance
+                    
                     formatted_results.append(result)
             
             return formatted_results
