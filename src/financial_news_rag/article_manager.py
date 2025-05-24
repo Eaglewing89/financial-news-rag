@@ -533,6 +533,27 @@ class ArticleManager:
             
         return articles
     
+    def delete_article_by_hash(self, url_hash: str) -> bool:
+        """
+        Delete an article from the database by its URL hash.
+        
+        Args:
+            url_hash: SHA-256 hash of the article URL
+            
+        Returns:
+            bool: True if an article was successfully deleted, False otherwise
+                 (e.g., article not found or database error)
+        """
+        try:
+            query = "DELETE FROM articles WHERE url_hash = ?"
+            cursor = self._execute_query(query, (url_hash,), commit=True)
+            
+            # Check if any rows were affected (article was deleted)
+            return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            logger.error(f"Error deleting article with hash {url_hash}: {e}")
+            return False
+            
     def get_database_statistics(self) -> Dict[str, Any]:
         """
         Get statistics about the article database.

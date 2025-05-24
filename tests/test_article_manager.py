@@ -527,3 +527,54 @@ class TestArticleManager(unittest.TestCase):
             self.article_manager.conn = original_conn
             self.assertIn('error', result)
             self.assertIn('Simulated database error', result['error'])
+    
+    def test_delete_article_by_hash_successful(self):
+        """Test successful deletion of an article by its URL hash."""
+        # Store the test article
+        self.article_manager.store_articles([self.test_article])
+        
+        # Get the URL hash
+        url_hash = ArticleManager.generate_url_hash(self.test_article['url'])
+        
+        # Verify article exists before deletion
+        article = self.article_manager.get_article_by_hash(url_hash)
+        self.assertIsNotNone(article)
+        
+        # Delete the article
+        result = self.article_manager.delete_article_by_hash(url_hash)
+        
+        # Assert deletion was successful
+        self.assertTrue(result)
+        
+        # Verify article no longer exists
+        article = self.article_manager.get_article_by_hash(url_hash)
+        self.assertIsNone(article)
+    
+    def test_delete_article_by_hash_nonexistent(self):
+        """Test deletion of a non-existent article."""
+        # Generate a hash for a URL that doesn't exist in the database
+        nonexistent_hash = ArticleManager.generate_url_hash("https://example.com/nonexistent")
+        
+        # Try to delete the non-existent article
+        result = self.article_manager.delete_article_by_hash(nonexistent_hash)
+        
+        # Assert deletion failed (returns False)
+        self.assertFalse(result)
+    
+    def test_delete_article_by_hash_with_error(self):
+        """Test deletion with database error."""
+        # Store the test article
+        self.article_manager.store_articles([self.test_article])
+        
+        # Get the URL hash
+        url_hash = ArticleManager.generate_url_hash(self.test_article['url'])
+        
+        # Mock the database connection to simulate an error
+        with mock.patch.object(self.article_manager, 'conn') as mock_conn:
+            mock_conn.cursor.side_effect = sqlite3.Error("Simulated database error")
+            
+            # Try to delete the article with a simulated error
+            result = self.article_manager.delete_article_by_hash(url_hash)
+            
+            # Assert deletion failed due to the error
+            self.assertFalse(result)
