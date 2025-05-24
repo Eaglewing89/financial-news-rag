@@ -45,6 +45,9 @@ class Config:
         # ReRanker configuration
         self._reranker_default_model = self._get_env('RERANKER_DEFAULT_MODEL', 'gemini-2.0-flash')
         
+        # Database configuration
+        self._database_path = self._get_env('DATABASE_PATH_OVERRIDE', os.path.join(os.getcwd(), 'financial_news.db'))
+        
         # Model dimensions as a dictionary with model names as keys and dimensions as values
         default_dimensions = {'text-embedding-004': 768}
         try:
@@ -163,6 +166,11 @@ class Config:
     def reranker_default_model(self) -> str:
         """Get the default model for the ReRanker."""
         return self._reranker_default_model
+    
+    @property
+    def database_path(self) -> str:
+        """Get the path to the SQLite database file."""
+        return self._database_path
 
 
 # Create a global config instance for easy import

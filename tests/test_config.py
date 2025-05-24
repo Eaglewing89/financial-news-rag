@@ -167,3 +167,50 @@ class TestConfig:
                     
                     # Verify default values are used
                     assert config.embeddings_model_dimensions == {"text-embedding-004": 768}
+    
+    @patch('financial_news_rag.config.Config._get_required_env')
+    @patch('financial_news_rag.config.os.getcwd')
+    @patch('financial_news_rag.config.load_dotenv')
+    def test_database_path_default_value(self, mock_load_dotenv, mock_getcwd, mock_get_required_env):
+        """Test that the database_path uses the default value when no override is provided."""
+        # Configure the mocks
+        mock_getcwd.return_value = "/test/current/directory"
+        mock_get_required_env.side_effect = lambda key: {
+            'EODHD_API_KEY': 'test_eodhd_api_key',
+            'GEMINI_API_KEY': 'test_gemini_api_key'
+        }[key]
+        
+        with patch.dict(os.environ, clear=True):
+            config = Config()
+            # The default database path should be in the current working directory
+            expected_path = os.path.join("/test/current/directory", "financial_news.db")
+            assert config._database_path == expected_path
+    
+    @patch('financial_news_rag.config.Config._get_required_env')
+    def test_database_path_environment_override(self, mock_get_required_env):
+        """Test that the database_path can be overridden with an environment variable."""
+        # Configure the mock
+        mock_get_required_env.side_effect = lambda key: {
+            'EODHD_API_KEY': 'test_eodhd_api_key',
+            'GEMINI_API_KEY': 'test_gemini_api_key'
+        }[key]
+        
+        custom_db_path = "/custom/path/to/database.db"
+        with patch.dict(os.environ, {"DATABASE_PATH_OVERRIDE": custom_db_path}):
+            config = Config()
+            assert config._database_path == custom_db_path
+    
+    def test_database_path_property_getter(self):
+        """Test that the database_path property getter returns the correct value."""
+        with patch('financial_news_rag.config.Config._get_required_env') as mock_get_required_env:
+            mock_get_required_env.side_effect = lambda key: {
+                'EODHD_API_KEY': 'test_eodhd_api_key',
+                'GEMINI_API_KEY': 'test_gemini_api_key'
+            }[key]
+            
+            custom_db_path = "/custom/path/to/database.db"
+            with patch.dict(os.environ, {"DATABASE_PATH_OVERRIDE": custom_db_path}):
+                config = Config()
+                # Test that the property getter returns the same value as the internal attribute
+                assert config.database_path == config._database_path
+                assert config.database_path == custom_db_path
