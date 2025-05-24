@@ -102,75 +102,8 @@ class ChromaDBManager:
             logger.error(f"Error initializing ChromaDB: {e}")
             raise
     
-    def add_embeddings(self, article_url_hash: str, chunk_embeddings: List[Dict[str, Any]]) -> bool:
-        """
-        Add chunk embeddings for an article to ChromaDB.
-        
-        Args:
-            article_url_hash: The unique identifier from the SQLite articles table.
-            chunk_embeddings: A list of dictionaries, where each contains:
-                - chunk_id: Unique ID for the chunk (e.g., "{article_url_hash}_{chunk_index}")
-                - embedding: The embedding vector (list of floats)
-                - text: The actual text of the chunk
-                - metadata: A dictionary containing minimal metadata:
-                  - article_url_hash: The url_hash of the parent article
-                  - chunk_index: Index of this chunk within the article
-                  - published_at_timestamp: Optional timestamp for date filtering
-                  - ... other metadata for direct filtering in ChromaDB
-        
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        if not chunk_embeddings:
-            logger.warning(f"No chunk embeddings provided for article {article_url_hash}")
-            return False
-            
-        try:
-            # Prepare data for batch addition to ChromaDB
-            ids = []
-            embeddings = []
-            metadatas = []
-            documents = []
-            
-            for chunk in chunk_embeddings:
-                # Extract required fields
-                chunk_id = chunk.get('chunk_id')
-                embedding = chunk.get('embedding')
-                text = chunk.get('text', '')
-                metadata = chunk.get('metadata', {})
-                
-                # Validate required fields
-                if not chunk_id or not embedding:
-                    logger.warning(f"Skipping chunk with missing chunk_id or embedding: {chunk}")
-                    continue
-                
-                # Ensure article_url_hash is in metadata
-                if 'article_url_hash' not in metadata:
-                    metadata['article_url_hash'] = article_url_hash
-                
-                ids.append(chunk_id)
-                embeddings.append(embedding)
-                metadatas.append(metadata)
-                documents.append(text)
-            
-            if not ids:
-                logger.warning(f"No valid chunk embeddings to add for article {article_url_hash}")
-                return False
-            
-            # Add embeddings to ChromaDB collection
-            self.collection.upsert(
-                ids=ids,
-                embeddings=embeddings,
-                metadatas=metadatas,
-                documents=documents
-            )
-            
-            logger.info(f"Successfully added {len(ids)} chunk embeddings for article {article_url_hash}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error adding embeddings for article {article_url_hash}: {e}")
-            return False
+    # The add_embeddings method has been removed as it's not used by the FinancialNewsRAG orchestrator.
+    # The add_article_chunks method handles the needed functionality.
     
     def query_embeddings(
         self, 

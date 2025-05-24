@@ -42,27 +42,8 @@ class TestChromaDBManager:
             in_memory=True  # Use in-memory mode for tests
         )
         
-        # Sample article and chunks for testing
+        # Sample article hash for testing
         self.sample_article_hash = "test_article_123"
-        
-        # Create sample embeddings (768 dimensions to match text-embedding-004)
-        self.sample_embeddings = []
-        for i in range(3):
-            # Create a normalized random vector for the embedding
-            embedding = np.random.rand(768)
-            embedding = embedding / np.linalg.norm(embedding)
-            
-            self.sample_embeddings.append({
-                "chunk_id": f"{self.sample_article_hash}_{i}",
-                "embedding": embedding.tolist(),
-                "text": f"This is test chunk {i} for the article.",
-                "metadata": {
-                    "article_url_hash": self.sample_article_hash,
-                    "chunk_index": i,
-                    "published_at_timestamp": 1621456789,
-                    "source_query_tag": "TECHNOLOGY"
-                }
-            })
     
     def teardown_method(self):
         """Cleanup after each test."""
@@ -80,47 +61,32 @@ class TestChromaDBManager:
         assert collection_status["collection_name"] == self.test_collection_name
         assert collection_status["is_empty"] is True
     
-    def test_add_embeddings_single_article(self):
-        """Test adding embeddings for a single article."""
-        # Add sample embeddings
-        success = self.chroma_manager.add_embeddings(
-            self.sample_article_hash,
-            self.sample_embeddings
-        )
-        
-        # Check if addition was successful
-        assert success is True
-        
-        # Verify embeddings were added
-        collection_status = self.chroma_manager.get_collection_status()
-        assert collection_status["total_chunks"] == 3
-        assert collection_status["unique_articles"] == 1
-    
-    def test_add_embeddings_empty_list(self):
-        """Test adding an empty list of embeddings."""
-        # Try to add empty list
-        success = self.chroma_manager.add_embeddings(
-            self.sample_article_hash,
-            []
-        )
-        
-        # Should return False for empty list
-        assert success is False
-        
-        # Collection should still be empty
-        collection_status = self.chroma_manager.get_collection_status()
-        assert collection_status["is_empty"] is True
+    # Tests for add_embeddings method have been removed since the method was removed from the implementation
     
     def test_query_embeddings(self):
         """Test querying embeddings."""
-        # Add sample embeddings
-        self.chroma_manager.add_embeddings(
-            self.sample_article_hash,
-            self.sample_embeddings
+        # Set up test data
+        article_url_hash = self.sample_article_hash
+        chunk_texts = ["This is test chunk 0 for the article."]
+        # Create a normalized random vector for the embedding
+        embedding = np.random.rand(768)
+        embedding = embedding / np.linalg.norm(embedding)
+        chunk_vector = embedding.tolist()
+        article_data = {
+            "published_at": "2023-05-15T14:30:00Z",
+            "source_query_tag": "TECHNOLOGY"
+        }
+        
+        # Add article chunk using add_article_chunks
+        self.chroma_manager.add_article_chunks(
+            article_url_hash,
+            chunk_texts,
+            [chunk_vector],
+            article_data
         )
         
-        # Create a query embedding (use one of the sample embeddings for testing)
-        query_embedding = self.sample_embeddings[0]["embedding"]
+        # Create a query embedding (use the same embedding for testing)
+        query_embedding = chunk_vector
         
         # Query without filter
         results = self.chroma_manager.query_embeddings(
@@ -129,41 +95,45 @@ class TestChromaDBManager:
         )
         
         # Check results
-        assert len(results) == 2
-        # The first result should be the exact match with distance close to 0
-        assert results[0]["chunk_id"] == self.sample_embeddings[0]["chunk_id"]
+        assert len(results) == 1
+        # The result should be the exact match with distance close to 0
+        assert results[0]["chunk_id"] == f"{self.sample_article_hash}_0"
         assert results[0]["distance"] < 0.001  # Should be very close to 0
     
     def test_query_with_filter(self):
         """Test querying with metadata filters."""
-        # Add sample embeddings
-        self.chroma_manager.add_embeddings(
-            self.sample_article_hash,
-            self.sample_embeddings
+        # Set up test data for first article
+        first_article_hash = self.sample_article_hash
+        first_chunk_texts = ["This is test chunk 0 for the article."]
+        first_chunk_vector = np.random.rand(768).tolist()
+        first_article_data = {
+            "published_at": "2023-05-15T14:30:00Z",
+            "source_query_tag": "TECHNOLOGY"
+        }
+        
+        # Add first article chunk
+        self.chroma_manager.add_article_chunks(
+            first_article_hash,
+            first_chunk_texts,
+            [first_chunk_vector],
+            first_article_data
         )
         
-        # Add another article's embeddings with different metadata
-        another_article_hash = "test_article_456"
-        another_embeddings = []
-        for i in range(2):
-            embedding = np.random.rand(768)
-            embedding = embedding / np.linalg.norm(embedding)
-            
-            another_embeddings.append({
-                "chunk_id": f"{another_article_hash}_{i}",
-                "embedding": embedding.tolist(),
-                "text": f"This is test chunk {i} for another article.",
-                "metadata": {
-                    "article_url_hash": another_article_hash,
-                    "chunk_index": i,
-                    "published_at_timestamp": 1631456789,
-                    "source_query_tag": "FINANCE"
-                }
-            })
+        # Set up test data for second article
+        second_article_hash = "test_article_456"
+        second_chunk_texts = ["This is test chunk 0 for another article."]
+        second_chunk_vector = np.random.rand(768).tolist()
+        second_article_data = {
+            "published_at": "2023-06-20T10:45:00Z",
+            "source_query_tag": "FINANCE"
+        }
         
-        self.chroma_manager.add_embeddings(
-            another_article_hash,
-            another_embeddings
+        # Add second article chunk
+        self.chroma_manager.add_article_chunks(
+            second_article_hash,
+            second_chunk_texts,
+            [second_chunk_vector],
+            second_article_data
         )
         
         # Create a query embedding
@@ -174,13 +144,13 @@ class TestChromaDBManager:
         results = self.chroma_manager.query_embeddings(
             query_embedding=query_embedding.tolist(),
             n_results=5,
-            filter_metadata={"article_url_hash": self.sample_article_hash}
+            filter_metadata={"article_url_hash": first_article_hash}
         )
         
         # Check results
-        assert len(results) <= 3  # Should return at most 3 results (all from first article)
+        assert len(results) == 1  # Should return 1 result from first article
         for result in results:
-            assert result["metadata"]["article_url_hash"] == self.sample_article_hash
+            assert result["metadata"]["article_url_hash"] == first_article_hash
         
         # Query with filter for tag
         results = self.chroma_manager.query_embeddings(
@@ -190,7 +160,7 @@ class TestChromaDBManager:
         )
         
         # Check results
-        assert len(results) <= 2  # Should return at most 2 results (all with FINANCE tag)
+        assert len(results) == 1  # Should return 1 result with FINANCE tag
         for result in results:
             assert result["metadata"]["source_query_tag"] == "FINANCE"
     
@@ -202,61 +172,74 @@ class TestChromaDBManager:
         assert status["unique_articles"] == 0
         assert status["is_empty"] is True
         
-        # Add sample embeddings
-        self.chroma_manager.add_embeddings(
-            self.sample_article_hash,
-            self.sample_embeddings
+        # Add chunk using add_article_chunks
+        article_url_hash = self.sample_article_hash
+        chunk_texts = ["This is test chunk 0 for the article."]
+        chunk_vector = np.random.rand(768).tolist()
+        article_data = {
+            "published_at": "2023-05-15T14:30:00Z",
+            "source_query_tag": "TECHNOLOGY"
+        }
+        
+        self.chroma_manager.add_article_chunks(
+            article_url_hash,
+            chunk_texts,
+            [chunk_vector],
+            article_data
         )
         
         # Check status after adding
         status = self.chroma_manager.get_collection_status()
-        assert status["total_chunks"] == 3
+        assert status["total_chunks"] == 1
         assert status["unique_articles"] == 1
         assert status["is_empty"] is False
     
     def test_delete_embeddings_by_article(self):
         """Test deleting embeddings for a specific article."""
-        # Add sample embeddings
-        self.chroma_manager.add_embeddings(
-            self.sample_article_hash,
-            self.sample_embeddings
+        # Add first article's chunks
+        first_article_hash = self.sample_article_hash
+        first_chunk_texts = ["This is test chunk 0 for the article."]
+        first_chunk_vector = np.random.rand(768).tolist()
+        first_article_data = {
+            "published_at": "2023-05-15T14:30:00Z",
+            "source_query_tag": "TECHNOLOGY"
+        }
+        
+        self.chroma_manager.add_article_chunks(
+            first_article_hash,
+            first_chunk_texts,
+            [first_chunk_vector],
+            first_article_data
         )
         
-        # Add another article's embeddings
-        another_article_hash = "test_article_456"
-        another_embeddings = []
-        for i in range(2):
-            embedding = np.random.rand(768)
-            embedding = embedding / np.linalg.norm(embedding)
-            
-            another_embeddings.append({
-                "chunk_id": f"{another_article_hash}_{i}",
-                "embedding": embedding.tolist(),
-                "text": f"This is test chunk {i} for another article.",
-                "metadata": {
-                    "article_url_hash": another_article_hash,
-                    "chunk_index": i,
-                    "published_at_timestamp": 1631456789,
-                }
-            })
+        # Add second article's chunks
+        second_article_hash = "test_article_456"
+        second_chunk_texts = ["This is test chunk 0 for another article."]
+        second_chunk_vector = np.random.rand(768).tolist()
+        second_article_data = {
+            "published_at": "2023-06-20T10:45:00Z",
+            "source_query_tag": "FINANCE"
+        }
         
-        self.chroma_manager.add_embeddings(
-            another_article_hash,
-            another_embeddings
+        self.chroma_manager.add_article_chunks(
+            second_article_hash,
+            second_chunk_texts,
+            [second_chunk_vector],
+            second_article_data
         )
         
         # Check total before deletion
         status_before = self.chroma_manager.get_collection_status()
-        assert status_before["total_chunks"] == 5
+        assert status_before["total_chunks"] == 2
         assert status_before["unique_articles"] == 2
         
         # Delete first article's embeddings
-        success = self.chroma_manager.delete_embeddings_by_article(self.sample_article_hash)
+        success = self.chroma_manager.delete_embeddings_by_article(first_article_hash)
         assert success is True
         
         # Check status after deletion
         status_after = self.chroma_manager.get_collection_status()
-        assert status_after["total_chunks"] == 2  # 5 - 3 = 2
+        assert status_after["total_chunks"] == 1
         assert status_after["unique_articles"] == 1
         
         # Verify only the correct embeddings were deleted
@@ -267,7 +250,7 @@ class TestChromaDBManager:
         results = self.chroma_manager.query_embeddings(
             query_embedding=query_embedding.tolist(),
             n_results=10,
-            filter_metadata={"article_url_hash": self.sample_article_hash}
+            filter_metadata={"article_url_hash": first_article_hash}
         )
         
         # Should be empty
@@ -277,55 +260,71 @@ class TestChromaDBManager:
         results = self.chroma_manager.query_embeddings(
             query_embedding=query_embedding.tolist(),
             n_results=10,
-            filter_metadata={"article_url_hash": another_article_hash}
+            filter_metadata={"article_url_hash": second_article_hash}
         )
         
-        # Should have 2 results
-        assert len(results) == 2
+        # Should have 1 result
+        assert len(results) == 1
     
-    def test_handling_duplicate_chunk_ids(self):
-        """Test handling of duplicate chunk IDs."""
-        # Add initial embeddings
-        self.chroma_manager.add_embeddings(
-            self.sample_article_hash,
-            self.sample_embeddings
-        )
-        
-        # Create a duplicate embedding with same chunk_id but different content
-        duplicate_embedding = {
-            "chunk_id": self.sample_embeddings[0]["chunk_id"],  # Same ID as existing
-            "embedding": np.random.rand(768).tolist(),  # Different embedding
-            "text": "This is an updated chunk text.",  # Different text
-            "metadata": {
-                "article_url_hash": self.sample_article_hash,
-                "chunk_index": 0,
-                "published_at_timestamp": 1621456789,
-                "is_updated": True  # Additional metadata
-            }
+    def test_handling_duplicate_chunk_ids_with_article_chunks(self):
+        """Test handling of duplicate chunk IDs with add_article_chunks."""
+        # Sample data for first addition
+        article_url_hash = "test_article_duplicate"
+        chunk_texts = ["This is the original chunk."]
+        chunk_vectors = [
+            [0.6] * self.chroma_manager.embedding_dimension
+        ]
+        article_data = {
+            "published_at": "2023-05-15T14:30:00Z",
+            "source_query_tag": "TECHNOLOGY"
         }
         
-        # Add the duplicate embedding
-        self.chroma_manager.add_embeddings(
-            self.sample_article_hash,
-            [duplicate_embedding]
+        # First addition
+        self.chroma_manager.add_article_chunks(
+            article_url_hash,
+            chunk_texts,
+            chunk_vectors,
+            article_data
         )
         
-        # Check that the collection count hasn't changed (upsert replaces duplicate)
-        status = self.chroma_manager.get_collection_status()
-        assert status["total_chunks"] == 3  # Still 3, not 4
+        # Check initial status
+        status_before = self.chroma_manager.get_collection_status()
+        assert status_before["total_chunks"] == 1
         
-        # Query to check if the duplicate was replaced
-        query_embedding = duplicate_embedding["embedding"]
+        # Sample data for update with same chunk ID
+        updated_chunk_texts = ["This is the updated chunk."]
+        updated_chunk_vectors = [
+            [0.7] * self.chroma_manager.embedding_dimension
+        ]
+        updated_article_data = {
+            "published_at": "2023-05-16T14:30:00Z",
+            "source_query_tag": "UPDATED_TAG"
+        }
         
+        # Update with new data (will use same chunk ID format article_url_hash_0)
+        self.chroma_manager.add_article_chunks(
+            article_url_hash,
+            updated_chunk_texts,
+            updated_chunk_vectors,
+            updated_article_data
+        )
+        
+        # Check that count hasn't changed (upsert should replace)
+        status_after = self.chroma_manager.get_collection_status()
+        assert status_after["total_chunks"] == 1
+        
+        # Query to verify update was applied
+        query_embedding = updated_chunk_vectors[0]
         results = self.chroma_manager.query_embeddings(
             query_embedding=query_embedding,
             n_results=1
         )
         
-        # Check that the updated content was stored
-        assert results[0]["chunk_id"] == duplicate_embedding["chunk_id"]
-        assert results[0]["text"] == duplicate_embedding["text"]
-        assert results[0]["metadata"].get("is_updated") is True
+        # Check that updated content was stored
+        assert len(results) == 1
+        assert results[0]["chunk_id"] == f"{article_url_hash}_0"
+        assert results[0]["text"] == updated_chunk_texts[0]
+        assert results[0]["metadata"]["source_query_tag"] == "UPDATED_TAG"
     
     def test_add_article_chunks(self):
         """Test adding article chunks with the new method."""
