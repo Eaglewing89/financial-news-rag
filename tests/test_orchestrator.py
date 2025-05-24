@@ -752,26 +752,7 @@ class TestFinancialNewsRAG:
         # Verify filter_metadata is None
         assert filter_metadata_none is None
     
-    def test_delete_article_data(self):
-        """Test deleting an article and its embeddings."""
-        # Configure mocks
-        self.orchestrator.chroma_manager.delete_embeddings_by_article.return_value = True
-        mock_cursor = MagicMock()
-        mock_cursor.rowcount = 1
-        self.orchestrator.article_manager.conn.cursor.return_value = mock_cursor
-        
-        # Call the method
-        result = self.orchestrator.delete_article_data("test_hash")
-        
-        # Assertions
-        self.orchestrator.chroma_manager.delete_embeddings_by_article.assert_called_once_with("test_hash")
-        mock_cursor.execute.assert_called_once()
-        self.orchestrator.article_manager.conn.commit.assert_called_once()
-        
-        # Check result
-        assert result["status"] == "SUCCESS"
-        assert result["article_deleted"] is True
-        assert result["embeddings_deleted"] is True
+
     
     def test_delete_articles_older_than(self):
         """Test deleting articles older than a specified number of days."""

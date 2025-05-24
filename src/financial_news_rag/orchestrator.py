@@ -626,59 +626,7 @@ class FinancialNewsRAG:
             logger.error(f"Error searching articles: {str(e)}")
             return []
     
-    def delete_article_data(self, article_url_hash: str) -> Dict[str, Any]:
-        """
-        Delete an article and its associated embeddings.
-        
-        Args:
-            article_url_hash: The URL hash of the article to delete
-        
-        Returns:
-            Dict containing operation result and status
-        """
-        results = {
-            "status": "SUCCESS",
-            "message": f"Article {article_url_hash} deleted successfully",
-            "article_deleted": False,
-            "embeddings_deleted": False,
-            "errors": []
-        }
-        
-        try:
-            # First try to delete embeddings from ChromaDB
-            embeddings_deleted = self.chroma_manager.delete_embeddings_by_article(article_url_hash)
-            results["embeddings_deleted"] = embeddings_deleted
-            
-            if not embeddings_deleted:
-                logger.warning(f"No embeddings found for article {article_url_hash}")
-                results["message"] = f"No embeddings found for article {article_url_hash}"
-            
-            # Then delete the article from SQLite
-            cursor = self.article_manager.conn.cursor()
-            cursor.execute("DELETE FROM articles WHERE url_hash = ?", (article_url_hash,))
-            deleted_count = cursor.rowcount
-            self.article_manager.conn.commit();
-            
-            results["article_deleted"] = deleted_count > 0
-            
-            if deleted_count == 0:
-                logger.warning(f"No article found with URL hash {article_url_hash}")
-                results["message"] = f"No article found with URL hash {article_url_hash}"
-            
-            # Overall status
-            if not results["article_deleted"] and not results["embeddings_deleted"]:
-                results["status"] = "WARNING"
-                results["message"] = f"No data found for article {article_url_hash}"
-            
-            logger.info(f"Deleted article {article_url_hash}: {results['message']}")
-            
-        except Exception as e:
-            logger.error(f"Error deleting article {article_url_hash}: {str(e)}")
-            results["status"] = "FAILED"
-            results["message"] = f"Error deleting article: {str(e)}"
-            results["errors"].append(str(e))
-        
-        return results
+
     
     def delete_articles_older_than(self, days: int = 180) -> Dict[str, Any]:
         """
