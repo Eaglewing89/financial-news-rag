@@ -2,16 +2,14 @@
 ReRanker for Financial News RAG.
 
 This module provides a class for re-ranking a list of articles based on their relevance to a query
-using the Gemini 2.0 Flash LLM.
+using the Gemini LLM.
 """
 
 import logging
-import os
 import json
-from typing import List, Dict, Optional, Any, Union
+from typing import List, Dict, Any, Union
 import re
 
-from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from google.api_core.exceptions import GoogleAPIError, ServiceUnavailable
@@ -27,41 +25,31 @@ logger = logging.getLogger(__name__)
 
 class ReRanker:
     """
-    A class for re-ranking articles based on relevance to a query using the Gemini 2.0 Flash LLM.
+    A class for re-ranking articles based on relevance to a query using the Gemini LLM.
     
     This class is responsible for:
     - Initializing a Gemini API client
-    - Loading the API key from environment variables
     - Re-ranking articles based on their content relevance to a query
     - Handling API errors gracefully with retry logic
     """
     
-    DEFAULT_MODEL = "gemini-2.0-flash"
-    
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str, model_name: str = "gemini-2.0-flash"):
         """
-        Initialize the ReRanker with API key.
+        Initialize the ReRanker with API key and model name.
         
         Args:
-            api_key: The Gemini API key. If None, loads from GEMINI_API_KEY environment variable.
+            api_key: The Gemini API key.
+            model_name: The Gemini model to use. Defaults to "gemini-2.0-flash".
         
         Raises:
-            ValueError: If the API key is not provided and not found in environment variables.
+            ValueError: If the API key is not provided.
         """
-        # Load API key from environment if not provided
-        if api_key is None:
-            load_dotenv()
-            api_key = os.getenv('GEMINI_API_KEY')
-            
         if not api_key:
-            raise ValueError(
-                "Gemini API key is required. Please provide it as an argument "
-                "or set the GEMINI_API_KEY environment variable."
-            )
+            raise ValueError("Gemini API key is required.")
             
         # Initialize Gemini client
         self.client = genai.Client(api_key=api_key)
-        self.model_name = self.DEFAULT_MODEL
+        self.model_name = model_name
         logger.info(f"ReRanker initialized with model: {self.model_name}")
     
     @retry(

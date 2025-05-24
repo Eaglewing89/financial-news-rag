@@ -11,21 +11,29 @@ import logging
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime, timedelta, timezone
 
-from dotenv import load_dotenv
-
 from financial_news_rag.eodhd import EODHDClient
 from financial_news_rag.article_manager import ArticleManager
 from financial_news_rag.text_processor import TextProcessor
 from financial_news_rag.embeddings import EmbeddingsGenerator
 from financial_news_rag.chroma_manager import ChromaDBManager
 from financial_news_rag.reranker import ReRanker
+from financial_news_rag.config import Config
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# logging.basicConfig(
+# level=logging.INFO,
+# format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+# )
 logger = logging.getLogger(__name__)
+
+# Configure basic logging if no handlers are configured for the root logger.
+# This allows the application (e.g., the notebook) to set up its own logging
+# configuration if desired, without the library overriding it or adding duplicate handlers.
+if not logging.root.handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
 
 
 class FinancialNewsRAG:
@@ -54,48 +62,70 @@ class FinancialNewsRAG:
         gemini_api_key: Optional[str] = None,
         db_path: Optional[str] = None,
         chroma_persist_dir: Optional[str] = None,
-        chroma_collection_name: str = "financial_news_embeddings",
-        max_tokens_per_chunk: int = 2048,
+        chroma_collection_name: Optional[str] = None,
+        max_tokens_per_chunk: Optional[int] = None,
     ):
         """
         Initialize the Financial News RAG orchestrator.
         
         Args:
-            eodhd_api_key: EODHD API key. If None, will be loaded from environment variable.
-            gemini_api_key: Gemini API key. If None, will be loaded from environment variable.
-            db_path: Path to SQLite database file. If None, uses the default path.
-            chroma_persist_dir: Directory to persist ChromaDB. If None, uses current working directory.
-            chroma_collection_name: Name of the ChromaDB collection.
-            max_tokens_per_chunk: Maximum number of tokens per chunk for text processing.
+            eodhd_api_key: EODHD API key. If None, will be loaded from Config.
+            gemini_api_key: Gemini API key. If None, will be loaded from Config.
+            db_path: Path to SQLite database file. If None, will be loaded from Config.
+            chroma_persist_dir: Directory to persist ChromaDB. If None, will be loaded from Config.
+            chroma_collection_name: Name of the ChromaDB collection. If None, will be loaded from Config.
+            max_tokens_per_chunk: Maximum number of tokens per chunk for text processing. If None, will be loaded from Config.
         """
-        # Load environment variables
-        load_dotenv()
+        # Initialize the config
+        self.config = Config()
         
-        # Initialize API keys from environment if not provided
-        self.eodhd_api_key = eodhd_api_key or os.getenv("EODHD_API_KEY")
-        self.gemini_api_key = gemini_api_key or os.getenv("GEMINI_API_KEY")
+        # Get API keys from parameters or config
+        self.eodhd_api_key = eodhd_api_key or self.config.eodhd_api_key
+        self.gemini_api_key = gemini_api_key or self.config.gemini_api_key
         
         # Check for required API keys
         if not self.eodhd_api_key:
-            raise ValueError("EODHD API key not provided and not found in environment variables")
+            raise ValueError("EODHD API key not provided in parameters or config")
         if not self.gemini_api_key:
-            raise ValueError("Gemini API key not provided and not found in environment variables")
+            raise ValueError("Gemini API key not provided in parameters or config")
         
-        # Initialize default ChromaDB persist directory if not provided
-        if chroma_persist_dir is None:
-            chroma_persist_dir = os.path.join(os.getcwd(), 'chroma_db')
+        # Get configuration values from parameters or config
+        db_path_to_use = db_path or self.config.database_path
+        chroma_persist_dir_to_use = chroma_persist_dir or self.config.chroma_default_persist_directory
+        chroma_collection_name_to_use = chroma_collection_name or self.config.chroma_default_collection_name
+        max_tokens_per_chunk_to_use = max_tokens_per_chunk or self.config.textprocessor_max_tokens_per_chunk
         
-        # Initialize components
-        self.eodhd_client = EODHDClient(api_key=self.eodhd_api_key)
-        self.article_manager = ArticleManager(db_path=db_path)
-        self.text_processor = TextProcessor(max_tokens_per_chunk=max_tokens_per_chunk)
-        self.embeddings_generator = EmbeddingsGenerator(api_key=self.gemini_api_key)
-        self.chroma_manager = ChromaDBManager(
-            persist_directory=chroma_persist_dir,
-            collection_name=chroma_collection_name,
-            embedding_dimension=self.embeddings_generator.embedding_dim,
+        # Initialize components with configuration
+        self.eodhd_client = EODHDClient(
+            api_key=self.eodhd_api_key,
+            api_url=self.config.eodhd_api_url,
+            default_timeout=self.config.eodhd_default_timeout,
+            default_max_retries=self.config.eodhd_default_max_retries,
+            default_backoff_factor=self.config.eodhd_default_backoff_factor,
+            default_limit=self.config.eodhd_default_limit
         )
-        self.reranker = ReRanker(api_key=self.gemini_api_key)
+        
+        self.article_manager = ArticleManager(db_path=db_path_to_use)
+        
+        self.text_processor = TextProcessor(max_tokens_per_chunk=max_tokens_per_chunk_to_use)
+        
+        self.embeddings_generator = EmbeddingsGenerator(
+            api_key=self.gemini_api_key,
+            model_name=self.config.embeddings_default_model,
+            model_dimensions=self.config.embeddings_model_dimensions,
+            task_type=self.config.embeddings_default_task_type
+        )
+        
+        self.chroma_manager = ChromaDBManager(
+            persist_directory=chroma_persist_dir_to_use,
+            collection_name=chroma_collection_name_to_use,
+            embedding_dimension=self.config.chroma_default_embedding_dimension,
+        )
+        
+        self.reranker = ReRanker(
+            api_key=self.gemini_api_key,
+            model_name=self.config.reranker_default_model
+        )
         
         logger.info("FinancialNewsRAG orchestrator initialized successfully")
     

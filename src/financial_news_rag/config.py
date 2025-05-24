@@ -1,157 +1,204 @@
 """
-Configuration management for the Financial News RAG module.
+Configuration Module
 
-This module handles loading environment variables, validating API keys,
-and providing access to configuration parameters.
+This module provides a centralized configuration management system for the Financial News RAG application.
+It loads configuration from environment variables and provides default values where appropriate.
 """
 
+import json
 import os
-from typing import Dict, Optional, Any
-
+from typing import Any, Dict, Optional
 from dotenv import load_dotenv
-
 
 class Config:
     """
-    Configuration manager for the Financial News RAG module.
+    Configuration manager for the Financial News RAG application.
     
-    Handles loading API keys from environment variables and validation.
+    This class loads environment variables from a .env file and provides
+    methods to access configuration values with appropriate defaults.
     """
     
-    # Required API keys
-    REQUIRED_KEYS = ["MARKETAUX_API_KEY", "GEMINI_API_KEY"]
-    
-    # Default configuration values
-    DEFAULT_VALUES = {
-        "MARKETAUX_RATE_LIMIT": 60,  # calls per minute
-        "REFRESH_DAYS_BACK": 3,       # default days to look back when refreshing
-        "RETRY_MAX_ATTEMPTS": 3,      # max retry attempts for API calls
-        "RETRY_BACKOFF_FACTOR": 1.5,  # exponential backoff factor
-    }
-    
-    def __init__(self, env_file: Optional[str] = None):
+    def __init__(self):
         """
-        Initialize configuration manager.
+        Initialize the configuration manager.
         
-        Args:
-            env_file: Optional path to .env file. If None, looks for .env in current directory.
+        Loads environment variables from .env file if it exists.
         """
-        # Load environment variables
-        if env_file:
-            load_dotenv(env_file)
-        else:
-            load_dotenv()
+        # Load environment variables from .env file
+        load_dotenv()
         
-        # Initialize configuration dictionary
-        self._config = {}
+        # EODHD API configuration
+        self._eodhd_api_key = self._get_required_env('EODHD_API_KEY')
+        self._eodhd_api_url = self._get_env('EODHD_API_URL_OVERRIDE', 'https://eodhd.com/api/news')
+        self._eodhd_default_timeout = int(self._get_env('EODHD_DEFAULT_TIMEOUT_OVERRIDE', '100'))
+        self._eodhd_default_max_retries = int(self._get_env('EODHD_DEFAULT_MAX_RETRIES_OVERRIDE', '3'))
+        self._eodhd_default_backoff_factor = float(self._get_env('EODHD_DEFAULT_BACKOFF_FACTOR_OVERRIDE', '1.5'))
+        self._eodhd_default_limit = int(self._get_env('EODHD_DEFAULT_LIMIT_OVERRIDE', '50'))
         
-        # Load values from environment
-        self._load_config()
-    
-    def _load_config(self) -> None:
-        """Load configuration values from environment variables."""
-        # Load required API keys
-        for key in self.REQUIRED_KEYS:
-            self._config[key] = os.getenv(key)
+        # Gemini API configuration
+        self._gemini_api_key = self._get_required_env('GEMINI_API_KEY')
         
-        # Load default values, override with environment variables if provided
-        for key, default_value in self.DEFAULT_VALUES.items():
-            env_value = os.getenv(key)
-            if env_value is not None:
-                # Convert to appropriate type based on default value
-                if isinstance(default_value, int):
-                    self._config[key] = int(env_value)
-                elif isinstance(default_value, float):
-                    self._config[key] = float(env_value)
-# Removed unreachable boolean conversion branch as there are no boolean defaults in DEFAULT_VALUES.
-                else:
-                    self._config[key] = env_value
+        # Embeddings configuration
+        self._embeddings_default_model = self._get_env('EMBEDDINGS_DEFAULT_MODEL', 'text-embedding-004')
+        self._embeddings_default_task_type = self._get_env('EMBEDDINGS_DEFAULT_TASK_TYPE', 'SEMANTIC_SIMILARITY')
+        
+        # ReRanker configuration
+        self._reranker_default_model = self._get_env('RERANKER_DEFAULT_MODEL', 'gemini-2.0-flash')
+        
+        # TextProcessor configuration
+        self._textprocessor_max_tokens_per_chunk = int(self._get_env('TEXTPROCESSOR_MAX_TOKENS_PER_CHUNK', '2048'))
+        
+        # Database configuration
+        self._database_path = self._get_env('DATABASE_PATH_OVERRIDE', os.path.join(os.getcwd(), 'financial_news.db'))
+        
+        # ChromaDB configuration
+        self._chroma_default_collection_name = self._get_env('CHROMA_DEFAULT_COLLECTION_NAME', 'financial_news_embeddings')
+        self._chroma_default_persist_directory = self._get_env('CHROMA_DEFAULT_PERSIST_DIRECTORY', os.path.join(os.getcwd(), 'chroma_db'))
+        
+        # Model dimensions as a dictionary with model names as keys and dimensions as values
+        default_dimensions = {'text-embedding-004': 768}
+        try:
+            # Try to load model dimensions from environment variable as JSON string
+            env_dimensions = self._get_env('EMBEDDINGS_MODEL_DIMENSIONS', '')
+            if env_dimensions:
+                custom_dimensions = json.loads(env_dimensions)
+                # Merge with default dimensions, custom values override defaults
+                self._embeddings_model_dimensions = {**default_dimensions, **custom_dimensions}
             else:
-                self._config[key] = default_value
+                self._embeddings_model_dimensions = default_dimensions
+        except json.JSONDecodeError:
+            # If JSON parsing fails, log a warning and use defaults
+            print(f"Warning: Failed to parse EMBEDDINGS_MODEL_DIMENSIONS as JSON. Using defaults.")
+            self._embeddings_model_dimensions = default_dimensions
     
-    def validate(self, raise_error: bool = True) -> bool:
+    def _get_required_env(self, key: str) -> str:
         """
-        Validate configuration, checking for required API keys.
+        Get a required environment variable.
         
         Args:
-            raise_error: If True, raises ValueError for missing values.
-                         If False, returns validation result as boolean.
-        
+            key: The name of the environment variable.
+            
         Returns:
-            True if configuration is valid, False otherwise (if raise_error=False).
+            The value of the environment variable.
             
         Raises:
-            ValueError: If raise_error=True and missing required API keys.
+            ValueError: If the environment variable is not set.
         """
-        missing_keys = []
-        
-        # Check for missing required keys
-        for key in self.REQUIRED_KEYS:
-            if not self._config.get(key):
-                missing_keys.append(key)
-        
-        if missing_keys:
-            if raise_error:
-                raise ValueError(
-                    f"Missing required API key(s): {', '.join(missing_keys)}. "
-                    f"Please set these in your environment or .env file."
-                )
-            return False
-        
-        return True
+        value = os.getenv(key)
+        if value is None:
+            raise ValueError(f"Required environment variable '{key}' is not set.")
+        return value
     
-    def get(self, key: str, default: Any = None) -> Any:
+    def _get_env(self, key: str, default: str) -> str:
         """
-        Get configuration value by key.
+        Get an environment variable with a default value.
         
         Args:
-            key: Configuration key to retrieve.
-            default: Default value if key not found.
+            key: The name of the environment variable.
+            default: The default value to use if the environment variable is not set.
             
         Returns:
-            Configuration value or default if not found.
+            The value of the environment variable or the default value.
         """
-        return self._config.get(key, default)
+        return os.getenv(key, default)
     
-    def get_all(self) -> Dict[str, Any]:
+    def get(self, key: str, default: Optional[Any] = None) -> Any:
         """
-        Get all configuration values.
-        
-        Returns:
-            Dictionary containing all configuration values.
-        """
-        return self._config.copy()
-    
-    def set(self, key: str, value: Any) -> None:
-        """
-        Set configuration value (for testing or runtime changes).
+        Get a configuration value by key.
         
         Args:
-            key: Configuration key to set.
-            value: Value to set.
+            key: The configuration key.
+            default: The default value to return if the key is not found.
+            
+        Returns:
+            The configuration value or the default value.
         """
-        self._config[key] = value
-
-
-# Create global config instance for module-level access
-config = Config()
-
-# Validate configuration on module import
-try:
-    config.validate()
-except ValueError:
-    # Do not raise here, allow app to continue but log warning
-    # Users will get more specific errors when they try to use functionality
-    # requiring the missing keys
-    import warnings
-    warnings.warn("Missing required API keys in configuration.", category=UserWarning)
-
-
-def get_config() -> Config:
-    """
-    Get the global configuration instance.
+        # Convert the key to the attribute name format
+        attr_name = f"_{key.lower()}"
+        
+        # Return the attribute if it exists, otherwise return the default
+        return getattr(self, attr_name, default)
     
-    Returns:
-        Global Config instance.
-    """
-    return config
+    @property
+    def eodhd_api_key(self) -> str:
+        """Get the EODHD API key."""
+        return self._eodhd_api_key
+    
+    @property
+    def eodhd_api_url(self) -> str:
+        """Get the EODHD API URL."""
+        return self._eodhd_api_url
+    
+    @property
+    def eodhd_default_timeout(self) -> int:
+        """Get the default timeout for EODHD API requests."""
+        return self._eodhd_default_timeout
+    
+    @property
+    def eodhd_default_max_retries(self) -> int:
+        """Get the default maximum number of retries for EODHD API requests."""
+        return self._eodhd_default_max_retries
+    
+    @property
+    def eodhd_default_backoff_factor(self) -> float:
+        """Get the default backoff factor for EODHD API requests."""
+        return self._eodhd_default_backoff_factor
+    
+    @property
+    def eodhd_default_limit(self) -> int:
+        """Get the default limit for EODHD API requests."""
+        return self._eodhd_default_limit
+    
+    @property
+    def gemini_api_key(self) -> str:
+        """Get the Gemini API key."""
+        return self._gemini_api_key
+    
+    @property
+    def embeddings_default_model(self) -> str:
+        """Get the default model for text embeddings."""
+        return self._embeddings_default_model
+    
+    @property
+    def embeddings_default_task_type(self) -> str:
+        """Get the default task type for text embeddings."""
+        return self._embeddings_default_task_type
+    
+    @property
+    def embeddings_model_dimensions(self) -> Dict[str, int]:
+        """Get the dimensions for each embedding model."""
+        return self._embeddings_model_dimensions
+    
+    @property
+    def reranker_default_model(self) -> str:
+        """Get the default model for the ReRanker."""
+        return self._reranker_default_model
+    
+    @property
+    def textprocessor_max_tokens_per_chunk(self) -> int:
+        """Get the maximum tokens per chunk for the TextProcessor."""
+        return self._textprocessor_max_tokens_per_chunk
+    
+    @property
+    def database_path(self) -> str:
+        """Get the path to the SQLite database file."""
+        return self._database_path
+        
+    @property
+    def chroma_default_collection_name(self) -> str:
+        """Get the default collection name for ChromaDB."""
+        return self._chroma_default_collection_name
+        
+    @property
+    def chroma_default_persist_directory(self) -> str:
+        """Get the default persistence directory for ChromaDB."""
+        return self._chroma_default_persist_directory
+    
+    @property
+    def chroma_default_embedding_dimension(self) -> int:
+        """Get the default embedding dimension for ChromaDB based on the default embedding model."""
+        return self._embeddings_model_dimensions.get(self.embeddings_default_model, 768)
+
+
+# Create a global config instance for easy import
+config = Config()

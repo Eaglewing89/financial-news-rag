@@ -21,8 +21,8 @@ class TestReRanker(unittest.TestCase):
     def setUp(self, mock_client):
         """Set up for the tests."""
         # Create a mock API key for testing
-        os.environ["GEMINI_API_KEY"] = "test_api_key"
-        self.reranker = ReRanker()
+        self.api_key = "test_api_key"
+        self.reranker = ReRanker(api_key=self.api_key)
         
         # Mock the client to avoid actual API calls
         self.mock_client = mock_client
@@ -55,22 +55,18 @@ class TestReRanker(unittest.TestCase):
         """Test that the ReRanker is initialized correctly."""
         self.assertEqual(self.reranker.model_name, "gemini-2.0-flash")
         
-        # Test with explicit API key
-        reranker = ReRanker(api_key="explicit_key")
-        self.assertEqual(reranker.model_name, "gemini-2.0-flash")
+        # Test with custom model name
+        custom_reranker = ReRanker(api_key="explicit_key", model_name="gemini-3.0-pro")
+        self.assertEqual(custom_reranker.model_name, "gemini-3.0-pro")
         
     @patch("financial_news_rag.reranker.genai.Client")
     def test_initialization_no_api_key(self, mock_client):
         """Test that an error is raised when no API key is provided."""
-        # Remove the environment variable
-        if "GEMINI_API_KEY" in os.environ:
-            del os.environ["GEMINI_API_KEY"]
-            
         # Mock the client's __init__ to raise ValueError when no API key is provided
         mock_client.side_effect = ValueError("API key is required")
             
         with self.assertRaises(ValueError):
-            ReRanker()
+            ReRanker(api_key=None)
 
     @patch("financial_news_rag.reranker.ReRanker._assess_article_relevance")
     def test_rerank_articles_successful(self, mock_assess):

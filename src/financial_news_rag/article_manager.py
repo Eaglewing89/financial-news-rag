@@ -77,23 +77,14 @@ class ArticleManager:
     )
     """
     
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: str):
         """
         Initialize the article manager.
         
         Args:
-            db_path: Path to SQLite database file. If None, uses DATABASE_PATH from config
+            db_path: Path to SQLite database file.
         """
-        if db_path is None:
-            # Try to import from config, fallback to default
-            try:
-                from .config import DATABASE_PATH
-                self.db_path = DATABASE_PATH
-            except (ImportError, AttributeError):
-                self.db_path = os.path.join(os.getcwd(), 'financial_news.db')
-        else:
-            self.db_path = db_path
-            
+        self.db_path = db_path
         self.conn = None
         
         # Initialize the database

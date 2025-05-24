@@ -50,7 +50,7 @@ class TextProcessor:
     - Content validation
     """
     
-    def __init__(self, max_tokens_per_chunk: int = 2048):
+    def __init__(self, max_tokens_per_chunk: int):
         """
         Initialize the text processor.
         
