@@ -2,10 +2,9 @@
 Tests for the embeddings generator module.
 
 These tests validate the functionality of the EmbeddingsGenerator class,
-including API key loading, error handling, and embedding generation.
+including error handling and embedding generation.
 """
 
-import os
 import unittest
 from unittest.mock import patch, MagicMock
 
@@ -20,12 +19,6 @@ class TestEmbeddingsGenerator(unittest.TestCase):
     
     def setUp(self):
         """Set up test environment."""
-        # Save original environment
-        self.orig_env = os.environ.copy()
-        
-        # Set mock API key for testing
-        os.environ['GEMINI_API_KEY'] = 'test_api_key_123'
-        
         # Sample test data
         self.test_chunks = [
             "This is the first test chunk for embedding generation.",
@@ -33,40 +26,54 @@ class TestEmbeddingsGenerator(unittest.TestCase):
             "And this is the third chunk with even more content to test embeddings generation."
         ]
         
+        # Test API key
+        self.test_api_key = "test_api_key_123"
+        
+        # Test model name
+        self.test_model_name = "text-embedding-004"
+        
+        # Test task type
+        self.test_task_type = "SEMANTIC_SIMILARITY"
+        
+        # Test model dimensions
+        self.test_model_dimensions = {"text-embedding-004": 768}
+        
         # Mock embedding vector (dimensions for text-embedding-004 = 768)
         self.mock_embedding = [0.01] * 768
     
-    def tearDown(self):
-        """Clean up after tests."""
-        # Restore original environment
-        os.environ.clear()
-        os.environ.update(self.orig_env)
-    
-    def test_initialization_with_env_var(self):
-        """Test initialization with API key from environment variable."""
-        generator = EmbeddingsGenerator()
-        self.assertEqual(generator.model_name, "text-embedding-004")
+    def test_initialization_with_params(self):
+        """Test initialization with API key and model parameters."""
+        generator = EmbeddingsGenerator(
+            api_key=self.test_api_key, 
+            model_name=self.test_model_name, 
+            model_dimensions=self.test_model_dimensions,
+            task_type=self.test_task_type
+        )
+        self.assertEqual(generator.model_name, self.test_model_name)
+        self.assertEqual(generator.default_task_type, self.test_task_type)
+        self.assertEqual(generator.embedding_dim, 768)
         # Can't directly check client config because it's private, but initialization
         # should complete without errors
     
-    def test_initialization_with_explicit_key(self):
-        """Test initialization with explicitly provided API key."""
-        generator = EmbeddingsGenerator(api_key="explicit_test_key")
-        self.assertEqual(generator.model_name, "text-embedding-004")
-        # Initialization should complete without errors
-    
-    @patch('financial_news_rag.embeddings.load_dotenv')
-    def test_missing_api_key(self, mock_load_dotenv):
-        """Test that ValueError is raised when API key is missing."""
-        # Mock load_dotenv to do nothing (not load from .env file)
-        mock_load_dotenv.return_value = None
-        
-        # Remove API key from environment
-        os.environ.pop('GEMINI_API_KEY', None)
-        
-        # Attempt to initialize without providing key
+    def test_missing_api_key(self):
+        """Test that ValueError is raised when API key is empty."""
+        # Attempt to initialize with empty API key
         with self.assertRaises(ValueError):
-            EmbeddingsGenerator()
+            EmbeddingsGenerator(
+                api_key="", 
+                model_name=self.test_model_name, 
+                model_dimensions=self.test_model_dimensions
+            )
+    
+    def test_unknown_model(self):
+        """Test that ValueError is raised when model is not in model_dimensions."""
+        # Attempt to initialize with unknown model
+        with self.assertRaises(ValueError):
+            EmbeddingsGenerator(
+                api_key=self.test_api_key, 
+                model_name="unknown-model", 
+                model_dimensions=self.test_model_dimensions
+            )
     
     @patch('financial_news_rag.embeddings.genai.Client')
     def test_generate_embeddings_success(self, mock_client_cls):
@@ -85,7 +92,11 @@ class TestEmbeddingsGenerator(unittest.TestCase):
         mock_client.models.embed_content.return_value = mock_result
         
         # Create generator and generate embeddings
-        generator = EmbeddingsGenerator()
+        generator = EmbeddingsGenerator(
+            api_key=self.test_api_key, 
+            model_name=self.test_model_name, 
+            model_dimensions=self.test_model_dimensions
+        )
         embeddings = generator.generate_embeddings(self.test_chunks)
         
         # Verify results
@@ -111,7 +122,11 @@ class TestEmbeddingsGenerator(unittest.TestCase):
         ]
         
         # Create generator and call the method that should trigger retry
-        generator = EmbeddingsGenerator()
+        generator = EmbeddingsGenerator(
+            api_key=self.test_api_key, 
+            model_name=self.test_model_name, 
+            model_dimensions=self.test_model_dimensions
+        )
         
         # Patch the retry decorator to only make 2 attempts (faster test)
         with patch('financial_news_rag.embeddings.stop_after_attempt', return_value=lambda f: f):
@@ -126,7 +141,11 @@ class TestEmbeddingsGenerator(unittest.TestCase):
     def test_empty_text_chunks(self, mock_client_cls):
         """Test handling of empty text chunks list."""
         # Create generator and call with empty list
-        generator = EmbeddingsGenerator()
+        generator = EmbeddingsGenerator(
+            api_key=self.test_api_key, 
+            model_name=self.test_model_name, 
+            model_dimensions=self.test_model_dimensions
+        )
         result = generator.generate_embeddings([])
         
         # Verify results
@@ -140,7 +159,11 @@ class TestEmbeddingsGenerator(unittest.TestCase):
     def test_empty_text_handling(self, mock_client_cls):
         """Test handling of empty text."""
         # Create generator
-        generator = EmbeddingsGenerator()
+        generator = EmbeddingsGenerator(
+            api_key=self.test_api_key, 
+            model_name=self.test_model_name, 
+            model_dimensions=self.test_model_dimensions
+        )
         
         # API should not be called for empty string
         with self.assertRaises(ValueError):
@@ -166,7 +189,11 @@ class TestEmbeddingsGenerator(unittest.TestCase):
         ]
         
         # Create generator and call with test chunks
-        generator = EmbeddingsGenerator()
+        generator = EmbeddingsGenerator(
+            api_key=self.test_api_key, 
+            model_name=self.test_model_name, 
+            model_dimensions=self.test_model_dimensions
+        )
         
         # Patch the retry decorator to avoid actual retries in test
         with patch('financial_news_rag.embeddings.retry', lambda **kwargs: lambda f: f):
@@ -197,7 +224,11 @@ class TestEmbeddingsGenerator(unittest.TestCase):
         mock_generate_embeddings.return_value = valid_embeddings
         
         # Create generator and call with test chunks
-        generator = EmbeddingsGenerator()
+        generator = EmbeddingsGenerator(
+            api_key=self.test_api_key, 
+            model_name=self.test_model_name, 
+            model_dimensions=self.test_model_dimensions
+        )
         result = generator.generate_and_verify_embeddings(self.test_chunks)
         
         # Verify results
@@ -205,7 +236,7 @@ class TestEmbeddingsGenerator(unittest.TestCase):
         self.assertTrue(result["all_valid"])
         
         # Verify generate_embeddings was called correctly
-        mock_generate_embeddings.assert_called_once_with(self.test_chunks, "SEMANTIC_SIMILARITY")
+        mock_generate_embeddings.assert_called_once_with(self.test_chunks, None)
     
     @patch('financial_news_rag.embeddings.EmbeddingsGenerator.generate_embeddings')
     def test_generate_and_verify_embeddings_partial_failure(self, mock_generate_embeddings):
@@ -221,7 +252,11 @@ class TestEmbeddingsGenerator(unittest.TestCase):
         mock_generate_embeddings.return_value = mixed_embeddings
         
         # Create generator and call with test chunks
-        generator = EmbeddingsGenerator()
+        generator = EmbeddingsGenerator(
+            api_key=self.test_api_key, 
+            model_name=self.test_model_name, 
+            model_dimensions=self.test_model_dimensions
+        )
         result = generator.generate_and_verify_embeddings(self.test_chunks)
         
         # Verify results
@@ -229,7 +264,7 @@ class TestEmbeddingsGenerator(unittest.TestCase):
         self.assertFalse(result["all_valid"])
         
         # Verify generate_embeddings was called correctly
-        mock_generate_embeddings.assert_called_once_with(self.test_chunks, "SEMANTIC_SIMILARITY")
+        mock_generate_embeddings.assert_called_once_with(self.test_chunks, None)
     
     @patch('financial_news_rag.embeddings.EmbeddingsGenerator.generate_embeddings')
     def test_generate_and_verify_embeddings_all_failed(self, mock_generate_embeddings):
@@ -244,7 +279,11 @@ class TestEmbeddingsGenerator(unittest.TestCase):
         mock_generate_embeddings.return_value = failed_embeddings
         
         # Create generator and call with test chunks
-        generator = EmbeddingsGenerator()
+        generator = EmbeddingsGenerator(
+            api_key=self.test_api_key, 
+            model_name=self.test_model_name, 
+            model_dimensions=self.test_model_dimensions
+        )
         result = generator.generate_and_verify_embeddings(self.test_chunks[:2])  # Use only 2 chunks
         
         # Verify results
@@ -252,7 +291,7 @@ class TestEmbeddingsGenerator(unittest.TestCase):
         self.assertFalse(result["all_valid"])
         
         # Verify generate_embeddings was called correctly
-        mock_generate_embeddings.assert_called_once_with(self.test_chunks[:2], "SEMANTIC_SIMILARITY")
+        mock_generate_embeddings.assert_called_once_with(self.test_chunks[:2], None)
     
     @patch('financial_news_rag.embeddings.EmbeddingsGenerator.generate_embeddings')
     def test_generate_and_verify_embeddings_empty_input(self, mock_generate_embeddings):
@@ -261,7 +300,11 @@ class TestEmbeddingsGenerator(unittest.TestCase):
         mock_generate_embeddings.return_value = []
         
         # Create generator and call with empty list
-        generator = EmbeddingsGenerator()
+        generator = EmbeddingsGenerator(
+            api_key=self.test_api_key, 
+            model_name=self.test_model_name, 
+            model_dimensions=self.test_model_dimensions
+        )
         result = generator.generate_and_verify_embeddings([])
         
         # Verify results
@@ -269,7 +312,19 @@ class TestEmbeddingsGenerator(unittest.TestCase):
         self.assertTrue(result["all_valid"])
         
         # Verify generate_embeddings was called correctly
-        mock_generate_embeddings.assert_called_once_with([], "SEMANTIC_SIMILARITY")
+        mock_generate_embeddings.assert_called_once_with([], None)
+    
+    def test_custom_task_type(self):
+        """Test initialization with custom task type."""
+        custom_task = "CUSTOM_TASK_TYPE"
+        generator = EmbeddingsGenerator(
+            api_key=self.test_api_key, 
+            model_name=self.test_model_name, 
+            model_dimensions=self.test_model_dimensions,
+            task_type=custom_task
+        )
+        
+        self.assertEqual(generator.default_task_type, custom_task)
 
 
 if __name__ == '__main__':

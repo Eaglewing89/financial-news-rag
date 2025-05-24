@@ -6,11 +6,9 @@ using Google's text-embedding-004 model via the Gemini API.
 """
 
 import logging
-import os
 import time
 from typing import List, Optional, Union, Dict, Any
 
-from dotenv import load_dotenv
 import numpy as np
 from google import genai
 from google.genai import types
@@ -31,52 +29,38 @@ class EmbeddingsGenerator:
     
     This class is responsible for:
     - Initializing a Gemini API client
-    - Loading the API key from environment variables
     - Generating embeddings for text chunks
     - Handling API errors gracefully with retry logic
     """
     
-    # Default model and task type for embeddings
-    DEFAULT_MODEL = "text-embedding-004"
-    DEFAULT_TASK_TYPE = "SEMANTIC_SIMILARITY"
-    # Known output dimensions for supported models
-    MODEL_DIMENSIONS = {
-        "text-embedding-004": 768
-        # Add other models and their dimensions here if needed
-    }
-    
-    def __init__(self, api_key: Optional[str] = None, model_name: str = DEFAULT_MODEL):
+    def __init__(self, api_key: str, model_name: str, model_dimensions: Dict[str, int], task_type: str = "SEMANTIC_SIMILARITY"):
         """
         Initialize the EmbeddingsGenerator with API key and model settings.
         
         Args:
-            api_key: The Gemini API key. If None, loads from GEMINI_API_KEY environment variable.
+            api_key: The Gemini API key.
             model_name: The name of the embedding model to use.
+            model_dimensions: Dictionary mapping model names to their output dimensions.
+            task_type: The default task type for embeddings.
         
         Raises:
-            ValueError: If the API key is not provided and not found in environment variables.
+            ValueError: If the API key is not provided or the model is not in model_dimensions.
         """
-        # Load API key from environment if not provided
-        if api_key is None:
-            load_dotenv()
-            api_key = os.getenv('GEMINI_API_KEY')
-            
         if not api_key:
-            raise ValueError(
-                "Gemini API key is required. Please provide it as an argument "
-                "or set the GEMINI_API_KEY environment variable."
-            )
+            raise ValueError("Gemini API key is required.")
             
         # Initialize Gemini client
         self.client = genai.Client(api_key=api_key)
         self.model_name = model_name
+        self.default_task_type = task_type
+        
         # Set embedding dimension based on model, fail if unknown
-        if model_name not in self.MODEL_DIMENSIONS:
+        if model_name not in model_dimensions:
             raise ValueError(
                 f"Embedding dimension for model '{model_name}' is not defined. "
-                f"Please add it to MODEL_DIMENSIONS in EmbeddingsGenerator."
+                f"Please add it to the model_dimensions configuration."
             )
-        self.embedding_dim = self.MODEL_DIMENSIONS[model_name]
+        self.embedding_dim = model_dimensions[model_name]
         logger.info(f"EmbeddingsGenerator initialized with model: {model_name} (dim={self.embedding_dim})")
     
     @retry(
@@ -85,7 +69,7 @@ class EmbeddingsGenerator:
         wait=wait_exponential(multiplier=1, min=2, max=60),
         reraise=True
     )
-    def _embed_single_text(self, text: str, task_type: str = DEFAULT_TASK_TYPE) -> List[float]:
+    def _embed_single_text(self, text: str, task_type: Optional[str] = None) -> List[float]:
         """
         Generate an embedding for a single text chunk.
         
@@ -102,6 +86,9 @@ class EmbeddingsGenerator:
         """
         if not text or not text.strip():
             raise ValueError("Cannot generate embedding for empty text")
+        
+        # Use provided task_type or default
+        task_type = task_type or self.default_task_type
         
         # Configure embedding request
         config = types.EmbedContentConfig(task_type=task_type)
@@ -140,7 +127,7 @@ class EmbeddingsGenerator:
     def generate_embeddings(
         self, 
         text_chunks: List[str], 
-        task_type: str = DEFAULT_TASK_TYPE
+        task_type: Optional[str] = None
     ) -> List[List[float]]:
         """
         Generate embeddings for a list of text chunks.
@@ -189,7 +176,7 @@ class EmbeddingsGenerator:
     def generate_and_verify_embeddings(
         self, 
         text_chunks: List[str], 
-        task_type: str = DEFAULT_TASK_TYPE
+        task_type: Optional[str] = None
     ) -> Dict[str, Union[List[List[float]], bool]]:
         """
         Generate embeddings for a list of text chunks and verify their validity.
