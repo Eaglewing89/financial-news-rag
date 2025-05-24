@@ -658,6 +658,100 @@ class TestFinancialNewsRAG:
         assert result[1]["url_hash"] == "hash1"
         assert "rerank_score" in result[0]
     
+    def test_search_articles_with_date_filters(self):
+        """Test searching for articles with date range filters."""
+        # Mock query embedding
+        mock_query_embedding = [0.1, 0.2, 0.3]
+        
+        # Mock ChromaDB results
+        mock_chroma_results = [
+            {
+                "chunk_id": "hash1_0",
+                "text": "Chunk text 1",
+                "distance": 0.1,
+                "metadata": {"article_url_hash": "hash1", "chunk_index": 0}
+            }
+        ]
+        
+        # Mock article
+        mock_article = {
+            "url_hash": "hash1",
+            "title": "Article 1",
+            "processed_content": "Processed content 1",
+            "url": "http://example.com/1"
+        }
+        
+        # Configure mocks
+        self.orchestrator.embeddings_generator.generate_embeddings.return_value = [mock_query_embedding]
+        self.orchestrator.chroma_manager.query_embeddings.return_value = mock_chroma_results
+        self.orchestrator.article_manager.get_article_by_hash.return_value = mock_article
+        
+        # Test 1: Search with from_date_str only
+        self.orchestrator.chroma_manager.query_embeddings.reset_mock()
+        from_date = "2023-01-01"
+        self.orchestrator.search_articles("test query", from_date_str=from_date)
+        
+        # Get the filter_metadata argument passed to query_embeddings
+        filter_metadata_from = self.orchestrator.chroma_manager.query_embeddings.call_args[1]["filter_metadata"]
+        
+        # Verify filter_metadata contains the correct date range filter
+        assert "published_at_timestamp" in filter_metadata_from
+        assert "$gte" in filter_metadata_from["published_at_timestamp"]
+        assert isinstance(filter_metadata_from["published_at_timestamp"]["$gte"], int)
+        
+        # Test 2: Search with to_date_str only
+        self.orchestrator.chroma_manager.query_embeddings.reset_mock()
+        to_date = "2023-12-31"
+        self.orchestrator.search_articles("test query", to_date_str=to_date)
+        
+        # Get the filter_metadata argument passed to query_embeddings
+        filter_metadata_to = self.orchestrator.chroma_manager.query_embeddings.call_args[1]["filter_metadata"]
+        
+        # Verify filter_metadata contains the correct date range filter
+        assert "published_at_timestamp" in filter_metadata_to
+        assert "$lte" in filter_metadata_to["published_at_timestamp"]
+        assert isinstance(filter_metadata_to["published_at_timestamp"]["$lte"], int)
+        
+        # Test 3: Search with both from_date_str and to_date_str
+        self.orchestrator.chroma_manager.query_embeddings.reset_mock()
+        self.orchestrator.search_articles("test query", from_date_str=from_date, to_date_str=to_date)
+        
+        # Get the filter_metadata argument passed to query_embeddings
+        filter_metadata_both = self.orchestrator.chroma_manager.query_embeddings.call_args[1]["filter_metadata"]
+        
+        # Verify filter_metadata contains the correct date range filter
+        assert "published_at_timestamp" in filter_metadata_both
+        assert "$gte" in filter_metadata_both["published_at_timestamp"]
+        assert "$lte" in filter_metadata_both["published_at_timestamp"]
+        assert isinstance(filter_metadata_both["published_at_timestamp"]["$gte"], int)
+        assert isinstance(filter_metadata_both["published_at_timestamp"]["$lte"], int)
+        
+        # Test 4: Search with invalid date strings
+        with unittest.mock.patch('financial_news_rag.orchestrator.logger') as mock_logger:
+            self.orchestrator.chroma_manager.query_embeddings.reset_mock()
+            self.orchestrator.search_articles("test query", from_date_str="invalid-date", to_date_str=to_date)
+            
+            # Verify that a warning was logged
+            assert any("Failed to parse from_date_str" in str(call) for call in mock_logger.warning.call_args_list)
+            
+            # Get the filter_metadata argument passed to query_embeddings
+            filter_metadata_invalid = self.orchestrator.chroma_manager.query_embeddings.call_args[1]["filter_metadata"]
+            
+            # Verify filter_metadata only contains the valid to_date filter
+            assert "published_at_timestamp" in filter_metadata_invalid
+            assert "$gte" not in filter_metadata_invalid["published_at_timestamp"]
+            assert "$lte" in filter_metadata_invalid["published_at_timestamp"]
+        
+        # Test 5: Search with no date strings
+        self.orchestrator.chroma_manager.query_embeddings.reset_mock()
+        self.orchestrator.search_articles("test query")
+        
+        # Get the filter_metadata argument passed to query_embeddings
+        filter_metadata_none = self.orchestrator.chroma_manager.query_embeddings.call_args[1]["filter_metadata"]
+        
+        # Verify filter_metadata is None
+        assert filter_metadata_none is None
+    
     def test_delete_article_data(self):
         """Test deleting an article and its embeddings."""
         # Configure mocks

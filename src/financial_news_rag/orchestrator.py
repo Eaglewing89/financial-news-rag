@@ -487,7 +487,9 @@ class FinancialNewsRAG:
         query: str,
         n_results: int = 5,
         sort_by_metadata: Optional[Dict[str, str]] = None,
-        rerank: bool = False
+        rerank: bool = False,
+        from_date_str: Optional[str] = None,
+        to_date_str: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Search for articles relevant to a query.
@@ -498,6 +500,10 @@ class FinancialNewsRAG:
             sort_by_metadata: Dictionary for filtering/sorting based on metadata
                 e.g., {"published_at_timestamp": "desc"}
             rerank: Whether to apply re-ranking with Gemini LLM
+            from_date_str: Optional ISO format string (YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)
+                for filtering articles published on or after this date
+            to_date_str: Optional ISO format string (YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)
+                for filtering articles published on or before this date
         
         Returns:
             List of article dictionaries with relevance scores
@@ -508,18 +514,51 @@ class FinancialNewsRAG:
             # Generate embedding for the query
             query_embedding = self.embeddings_generator.generate_embeddings([query])[0]
             
-            # Translate sort_by_metadata to ChromaDB filter if possible
-            filter_metadata = None
+            # Initialize filter_metadata
+            filter_metadata = {} if sort_by_metadata or from_date_str or to_date_str else None
+            
+            # Process sort_by_metadata
             if sort_by_metadata:
-                # This is a simplified implementation
-                # ChromaDB may have limited filtering capabilities
-                filter_metadata = {}
                 for key, value in sort_by_metadata.items():
                     # For timestamp ranges, could create a range filter
                     if key == "published_at_timestamp" and value.lower() in ["desc", "asc"]:
                         # This would need to be implemented properly with actual date ranges
                         pass
             
+            # Process date range filtering
+            if from_date_str or to_date_str:
+                timestamp_filter_conditions = {}
+                
+                # Parse from_date_str if provided
+                if from_date_str:
+                    try:
+                        # Try to parse the date string into a datetime object
+                        dt = datetime.fromisoformat(from_date_str.replace('Z', '+00:00'))
+                        from_timestamp = int(dt.timestamp())
+                        timestamp_filter_conditions["$gte"] = from_timestamp
+                        logger.info(f"Filtering articles published on or after {from_date_str} (timestamp {from_timestamp})")
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Failed to parse from_date_str '{from_date_str}': {e}")
+                
+                # Parse to_date_str if provided
+                if to_date_str:
+                    try:
+                        # Try to parse the date string into a datetime object
+                        dt = datetime.fromisoformat(to_date_str.replace('Z', '+00:00'))
+                        to_timestamp = int(dt.timestamp())
+                        timestamp_filter_conditions["$lte"] = to_timestamp
+                        logger.info(f"Filtering articles published on or before {to_date_str} (timestamp {to_timestamp})")
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Failed to parse to_date_str '{to_date_str}': {e}")
+                
+                # Add timestamp filter conditions to filter_metadata if any were successfully parsed
+                if timestamp_filter_conditions:
+                    filter_metadata["published_at_timestamp"] = timestamp_filter_conditions
+            
+            # If filter_metadata is empty, set it to None
+            if filter_metadata is not None and not filter_metadata:
+                filter_metadata = None
+                
             # Query the vector database
             chroma_results = self.chroma_manager.query_embeddings(
                 query_embedding=query_embedding,
