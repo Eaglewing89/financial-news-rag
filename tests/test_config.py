@@ -98,7 +98,8 @@ class TestConfig:
         "EMBEDDINGS_DEFAULT_MODEL": "custom-embedding-model",
         "EMBEDDINGS_DEFAULT_TASK_TYPE": "CUSTOM_TASK",
         "EMBEDDINGS_MODEL_DIMENSIONS": '{"custom-embedding-model": 1024, "text-embedding-004": 999}',
-        "RERANKER_DEFAULT_MODEL": "gemini-3.0-pro"
+        "RERANKER_DEFAULT_MODEL": "gemini-3.0-pro",
+        "TEXTPROCESSOR_MAX_TOKENS_PER_CHUNK": "3000"
     })
     def test_all_config_properties(self):
         """Test that all config properties return the correct values when environment variables are set."""
@@ -121,6 +122,9 @@ class TestConfig:
         }
         # Reranker properties
         assert config.reranker_default_model == "gemini-3.0-pro"
+        
+        # TextProcessor properties
+        assert config.textprocessor_max_tokens_per_chunk == 3000
     
     @patch('financial_news_rag.config.Config._get_required_env')
     def test_gemini_config_default_values(self, mock_get_required_env):
@@ -143,6 +147,9 @@ class TestConfig:
             
             # Check reranker default value
             assert config.reranker_default_model == "gemini-2.0-flash"
+            
+            # Check TextProcessor default value
+            assert config.textprocessor_max_tokens_per_chunk == 2048
     
     def test_embeddings_model_dimensions_json_error(self):
         """Test handling of invalid JSON in EMBEDDINGS_MODEL_DIMENSIONS."""

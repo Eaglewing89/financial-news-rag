@@ -45,6 +45,9 @@ class Config:
         # ReRanker configuration
         self._reranker_default_model = self._get_env('RERANKER_DEFAULT_MODEL', 'gemini-2.0-flash')
         
+        # TextProcessor configuration
+        self._textprocessor_max_tokens_per_chunk = int(self._get_env('TEXTPROCESSOR_MAX_TOKENS_PER_CHUNK', '2048'))
+        
         # Database configuration
         self._database_path = self._get_env('DATABASE_PATH_OVERRIDE', os.path.join(os.getcwd(), 'financial_news.db'))
         
@@ -166,6 +169,11 @@ class Config:
     def reranker_default_model(self) -> str:
         """Get the default model for the ReRanker."""
         return self._reranker_default_model
+    
+    @property
+    def textprocessor_max_tokens_per_chunk(self) -> int:
+        """Get the maximum tokens per chunk for the TextProcessor."""
+        return self._textprocessor_max_tokens_per_chunk
     
     @property
     def database_path(self) -> str:

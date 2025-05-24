@@ -16,8 +16,8 @@ class TestTextProcessor(unittest.TestCase):
     
     def setUp(self):
         """Set up a text processor instance."""
-        # Create processor with default settings
-        self.processor = TextProcessor()
+        # Create processor with default max tokens
+        self.processor = TextProcessor(max_tokens_per_chunk=2048)
         
     def test_text_cleaning(self):
         """Test the text cleaning functionality thoroughly."""
@@ -208,6 +208,12 @@ class TestTextProcessor(unittest.TestCase):
         self.assertEqual(result["status"], "SUCCESS")
         self.assertEqual(result["reason"], "")
         self.assertEqual(result["content"], "This is a test article")
+    
+    def test_initialization_with_custom_max_tokens(self):
+        """Test initialization with a custom max_tokens_per_chunk value."""
+        custom_tokens = 3000
+        processor = TextProcessor(max_tokens_per_chunk=custom_tokens)
+        self.assertEqual(processor.max_tokens_per_chunk, custom_tokens)
 
 
 if __name__ == '__main__':
