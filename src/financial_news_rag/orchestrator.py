@@ -9,7 +9,7 @@ storing, embedding, and searching financial news articles.
 import os
 import logging
 from typing import Dict, List, Optional, Any, Union
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 
@@ -637,6 +637,102 @@ class FinancialNewsRAG:
             logger.error(f"Error deleting article {article_url_hash}: {str(e)}")
             results["status"] = "FAILED"
             results["message"] = f"Error deleting article: {str(e)}"
+            results["errors"].append(str(e))
+        
+        return results
+    
+    def delete_articles_older_than(self, days: int = 180) -> Dict[str, Any]:
+        """
+        Delete articles older than the specified number of days.
+        
+        Args:
+            days: Number of days to use as the age threshold. Default is 180 (6 months).
+                 Articles older than this will be deleted.
+        
+        Returns:
+            Dict containing operation summary with counts and status:
+            - targeted_articles: Number of articles targeted for deletion
+            - deleted_from_sqlite: Number of articles successfully deleted from SQLite
+            - deleted_from_chroma: Number of articles successfully deleted from ChromaDB
+            - status: Overall operation status ('SUCCESS', 'PARTIAL_FAILURE', or 'FAILED')
+            - errors: List of error messages for specific articles that failed deletion
+        """
+        # Initialize results dictionary
+        results = {
+            "targeted_articles": 0,
+            "deleted_from_sqlite": 0,
+            "deleted_from_chroma": 0,
+            "status": "SUCCESS",
+            "errors": []
+        }
+        
+        try:
+            # Calculate cutoff timestamp (current UTC time minus the specified days)
+            current_time = datetime.now(timezone.utc)
+            cutoff_date = current_time - timedelta(days=days)
+            cutoff_timestamp = int(cutoff_date.timestamp())
+            
+            logger.info(f"Deleting articles older than {cutoff_date.isoformat()} ({days} days ago)")
+            
+            # Get article hashes older than the cutoff date
+            article_hashes = self.chroma_manager.get_article_hashes_by_date_range(older_than_timestamp=cutoff_timestamp)
+            results["targeted_articles"] = len(article_hashes)
+            
+            if not article_hashes:
+                logger.info(f"No articles found older than {days} days")
+                return results
+            
+            logger.info(f"Found {len(article_hashes)} articles older than {days} days that will be deleted")
+            
+            # Delete each article from both databases
+            for url_hash in article_hashes:
+                try:
+                    # Delete from ChromaDB first
+                    chroma_deleted = self.chroma_manager.delete_embeddings_by_article(url_hash)
+                    if chroma_deleted:
+                        results["deleted_from_chroma"] += 1
+                    
+                    # Delete from SQLite
+                    sqlite_deleted = self.article_manager.delete_article_by_hash(url_hash)
+                    if sqlite_deleted:
+                        results["deleted_from_sqlite"] += 1
+                    
+                    # Log the result for this article
+                    if chroma_deleted and sqlite_deleted:
+                        logger.info(f"Successfully deleted article {url_hash} from both databases")
+                    elif chroma_deleted:
+                        logger.warning(f"Deleted embeddings for article {url_hash} but article not found in SQLite")
+                        results["errors"].append(f"Article {url_hash} not found in SQLite")
+                    elif sqlite_deleted:
+                        logger.warning(f"Deleted article {url_hash} from SQLite but no embeddings found in ChromaDB")
+                    else:
+                        logger.warning(f"Article {url_hash} not found in either database")
+                        results["errors"].append(f"Article {url_hash} not found in either database")
+                    
+                except Exception as e:
+                    logger.error(f"Error deleting article {url_hash}: {str(e)}")
+                    results["errors"].append(f"Error deleting article {url_hash}: {str(e)}")
+            
+            # Set overall status based on deletion results
+            if results["deleted_from_sqlite"] == 0 and results["deleted_from_chroma"] == 0:
+                results["status"] = "FAILED"
+                logger.error("Failed to delete any articles")
+            elif results["errors"]:
+                results["status"] = "PARTIAL_FAILURE"
+                logger.warning(f"Partially failed to delete some articles. {len(results['errors'])} errors occurred.")
+            else:
+                results["status"] = "SUCCESS"
+            
+            # Log summary
+            logger.info(
+                f"Delete operation summary: {results['deleted_from_sqlite']} deleted from SQLite, "
+                f"{results['deleted_from_chroma']} deleted from ChromaDB, "
+                f"{len(results['errors'])} errors"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in delete_articles_older_than: {str(e)}")
+            results["status"] = "FAILED"
             results["errors"].append(str(e))
         
         return results
