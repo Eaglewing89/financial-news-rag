@@ -515,3 +515,245 @@ class TestChromaDBManager:
         finally:
             # Restore the original upsert method
             self.chroma_manager.collection.upsert = original_upsert
+    
+    def test_get_article_hashes_by_date_range_both_timestamps(self):
+        """Test get_article_hashes_by_date_range with both timestamp parameters."""
+        # Add article chunks with specific published_at timestamps
+        # First article: January 1, 2023
+        first_article_hash = "article_jan_2023"
+        first_timestamp = 1672531200  # 2023-01-01 00:00:00 UTC
+        self.chroma_manager.add_article_chunks(
+            first_article_hash,
+            ["January 2023 article content"],
+            [[0.1] * self.chroma_manager.embedding_dimension],
+            {"published_at": "2023-01-01T00:00:00Z"}
+        )
+        
+        # Second article: March 15, 2023
+        second_article_hash = "article_mar_2023"
+        second_timestamp = 1678838400  # 2023-03-15 00:00:00 UTC
+        self.chroma_manager.add_article_chunks(
+            second_article_hash,
+            ["March 2023 article content"],
+            [[0.2] * self.chroma_manager.embedding_dimension],
+            {"published_at": "2023-03-15T00:00:00Z"}
+        )
+        
+        # Third article: June 30, 2023
+        third_article_hash = "article_jun_2023"
+        third_timestamp = 1688083200  # 2023-06-30 00:00:00 UTC
+        self.chroma_manager.add_article_chunks(
+            third_article_hash,
+            ["June 2023 article content"],
+            [[0.3] * self.chroma_manager.embedding_dimension],
+            {"published_at": "2023-06-30T00:00:00Z"}
+        )
+        
+        # Query for articles between February 1 and June 1
+        newer_than = 1675209600  # 2023-02-01 00:00:00 UTC
+        older_than = 1685577600  # 2023-06-01 00:00:00 UTC
+        
+        results = self.chroma_manager.get_article_hashes_by_date_range(
+            older_than_timestamp=older_than,
+            newer_than_timestamp=newer_than
+        )
+        
+        # Should return only the March article
+        assert len(results) == 1
+        assert second_article_hash in results
+        assert first_article_hash not in results
+        assert third_article_hash not in results
+    
+    def test_get_article_hashes_by_date_range_older_than_only(self):
+        """Test get_article_hashes_by_date_range with only older_than_timestamp."""
+        # We can reuse the setup from the previous test
+        # Add article chunks with specific published_at timestamps if they don't exist
+        if self.chroma_manager.get_collection_status()["total_chunks"] == 0:
+            # First article: January 1, 2023
+            first_article_hash = "article_jan_2023"
+            self.chroma_manager.add_article_chunks(
+                first_article_hash,
+                ["January 2023 article content"],
+                [[0.1] * self.chroma_manager.embedding_dimension],
+                {"published_at": "2023-01-01T00:00:00Z"}
+            )
+            
+            # Second article: March 15, 2023
+            second_article_hash = "article_mar_2023"
+            self.chroma_manager.add_article_chunks(
+                second_article_hash,
+                ["March 2023 article content"],
+                [[0.2] * self.chroma_manager.embedding_dimension],
+                {"published_at": "2023-03-15T00:00:00Z"}
+            )
+            
+            # Third article: June 30, 2023
+            third_article_hash = "article_jun_2023"
+            self.chroma_manager.add_article_chunks(
+                third_article_hash,
+                ["June 2023 article content"],
+                [[0.3] * self.chroma_manager.embedding_dimension],
+                {"published_at": "2023-06-30T00:00:00Z"}
+            )
+        
+        # Query for articles older than or equal to April 1
+        older_than = 1680307200  # 2023-04-01 00:00:00 UTC
+        
+        results = self.chroma_manager.get_article_hashes_by_date_range(
+            older_than_timestamp=older_than
+        )
+        
+        # Should return January and March articles
+        assert len(results) == 2
+        assert "article_jan_2023" in results
+        assert "article_mar_2023" in results
+        assert "article_jun_2023" not in results
+    
+    def test_get_article_hashes_by_date_range_newer_than_only(self):
+        """Test get_article_hashes_by_date_range with only newer_than_timestamp."""
+        # We can reuse the setup from the previous test
+        # Add article chunks with specific published_at timestamps if they don't exist
+        if self.chroma_manager.get_collection_status()["total_chunks"] == 0:
+            # First article: January 1, 2023
+            first_article_hash = "article_jan_2023"
+            self.chroma_manager.add_article_chunks(
+                first_article_hash,
+                ["January 2023 article content"],
+                [[0.1] * self.chroma_manager.embedding_dimension],
+                {"published_at": "2023-01-01T00:00:00Z"}
+            )
+            
+            # Second article: March 15, 2023
+            second_article_hash = "article_mar_2023"
+            self.chroma_manager.add_article_chunks(
+                second_article_hash,
+                ["March 2023 article content"],
+                [[0.2] * self.chroma_manager.embedding_dimension],
+                {"published_at": "2023-03-15T00:00:00Z"}
+            )
+            
+            # Third article: June 30, 2023
+            third_article_hash = "article_jun_2023"
+            self.chroma_manager.add_article_chunks(
+                third_article_hash,
+                ["June 2023 article content"],
+                [[0.3] * self.chroma_manager.embedding_dimension],
+                {"published_at": "2023-06-30T00:00:00Z"}
+            )
+        
+        # Query for articles newer than or equal to March 1
+        newer_than = 1677628800  # 2023-03-01 00:00:00 UTC
+        
+        results = self.chroma_manager.get_article_hashes_by_date_range(
+            newer_than_timestamp=newer_than
+        )
+        
+        # Should return March and June articles
+        assert len(results) == 2
+        assert "article_jan_2023" not in results
+        assert "article_mar_2023" in results
+        assert "article_jun_2023" in results
+    
+    def test_get_article_hashes_by_date_range_no_matching_results(self):
+        """Test get_article_hashes_by_date_range with a range that yields no results."""
+        # We can reuse the setup from the previous tests
+        # Add article chunks with specific published_at timestamps if they don't exist
+        if self.chroma_manager.get_collection_status()["total_chunks"] == 0:
+            # First article: January 1, 2023
+            first_article_hash = "article_jan_2023"
+            self.chroma_manager.add_article_chunks(
+                first_article_hash,
+                ["January 2023 article content"],
+                [[0.1] * self.chroma_manager.embedding_dimension],
+                {"published_at": "2023-01-01T00:00:00Z"}
+            )
+            
+            # Second article: March 15, 2023
+            second_article_hash = "article_mar_2023"
+            self.chroma_manager.add_article_chunks(
+                second_article_hash,
+                ["March 2023 article content"],
+                [[0.2] * self.chroma_manager.embedding_dimension],
+                {"published_at": "2023-03-15T00:00:00Z"}
+            )
+            
+            # Third article: June 30, 2023
+            third_article_hash = "article_jun_2023"
+            self.chroma_manager.add_article_chunks(
+                third_article_hash,
+                ["June 2023 article content"],
+                [[0.3] * self.chroma_manager.embedding_dimension],
+                {"published_at": "2023-06-30T00:00:00Z"}
+            )
+        
+        # Query for articles between July and August 2023
+        newer_than = 1688169600  # 2023-07-01 00:00:00 UTC
+        older_than = 1693526400  # 2023-09-01 00:00:00 UTC
+        
+        results = self.chroma_manager.get_article_hashes_by_date_range(
+            older_than_timestamp=older_than,
+            newer_than_timestamp=newer_than
+        )
+        
+        # Should return empty list
+        assert isinstance(results, list)
+        assert len(results) == 0
+    
+    def test_get_article_hashes_by_date_range_multiple_chunks_per_article(self):
+        """Test get_article_hashes_by_date_range with multiple chunks per article."""
+        # Create an article with multiple chunks
+        multi_chunk_hash = "article_multi_chunk"
+        multi_chunk_texts = ["This is chunk 1", "This is chunk 2", "This is chunk 3"]
+        multi_chunk_vectors = [
+            [0.5] * self.chroma_manager.embedding_dimension,
+            [0.6] * self.chroma_manager.embedding_dimension,
+            [0.7] * self.chroma_manager.embedding_dimension
+        ]
+        
+        self.chroma_manager.add_article_chunks(
+            multi_chunk_hash,
+            multi_chunk_texts,
+            multi_chunk_vectors,
+            {"published_at": "2023-05-01T00:00:00Z"}  # May 1, 2023
+        )
+        
+        # Query for articles in May 2023
+        newer_than = 1682899200  # 2023-05-01 00:00:00 UTC
+        older_than = 1685577600  # 2023-06-01 00:00:00 UTC
+        
+        results = self.chroma_manager.get_article_hashes_by_date_range(
+            older_than_timestamp=older_than,
+            newer_than_timestamp=newer_than
+        )
+        
+        # Should return exactly one unique article hash even though it has multiple chunks
+        assert len(results) == 1
+        assert multi_chunk_hash in results
+    
+    def test_get_article_hashes_by_date_range_no_params(self):
+        """Test get_article_hashes_by_date_range with no timestamp parameters."""
+        # Call method with no parameters
+        results = self.chroma_manager.get_article_hashes_by_date_range()
+        
+        # Should return empty list and log a warning
+        assert isinstance(results, list)
+        assert len(results) == 0
+    
+    def test_get_article_hashes_by_date_range_exception_handling(self):
+        """Test exception handling in get_article_hashes_by_date_range method."""
+        # Mock the collection.get method to raise an exception
+        original_get = self.chroma_manager.collection.get
+        self.chroma_manager.collection.get = MagicMock(side_effect=Exception("Test exception"))
+        
+        try:
+            # Call method with valid parameters that would otherwise succeed
+            results = self.chroma_manager.get_article_hashes_by_date_range(
+                older_than_timestamp=1685577600  # 2023-06-01 00:00:00 UTC
+            )
+            
+            # Should return empty list when exception occurs
+            assert isinstance(results, list)
+            assert len(results) == 0
+        finally:
+            # Restore the original get method
+            self.chroma_manager.collection.get = original_get

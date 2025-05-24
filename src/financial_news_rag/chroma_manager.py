@@ -309,3 +309,61 @@ class ChromaDBManager:
         except Exception as e:
             logger.error(f"Error upserting embeddings for article {article_url_hash}: {e}")
             return False
+        
+    def get_article_hashes_by_date_range(self, older_than_timestamp: Optional[int] = None, newer_than_timestamp: Optional[int] = None) -> List[str]:
+        """
+        Retrieve article hashes based on published_at_timestamp within a specified date range.
+        
+        Args:
+            older_than_timestamp: Optional upper bound timestamp (inclusive).
+                Will filter for published_at_timestamp <= older_than_timestamp
+            newer_than_timestamp: Optional lower bound timestamp (inclusive).
+                Will filter for published_at_timestamp >= newer_than_timestamp
+                
+        Returns:
+            List[str]: A list of unique article_url_hash values that match the criteria.
+                Returns an empty list if no criteria are specified or if an error occurs.
+        """
+        try:
+            # Check if at least one timestamp filter is provided
+            if older_than_timestamp is None and newer_than_timestamp is None:
+                logger.warning("No timestamp criteria provided for get_article_hashes_by_date_range. Returning empty list.")
+                return []
+            
+            # Construct where clause based on provided parameters
+            where_clause = {}
+            
+            # ChromaDB requires separate where conditions for multiple operators on the same field
+            if older_than_timestamp is not None and newer_than_timestamp is not None:
+                # Both timestamps provided - need to use $and operator for multiple conditions
+                where_clause = {"$and": [
+                    {"published_at_timestamp": {"$lte": older_than_timestamp}},
+                    {"published_at_timestamp": {"$gte": newer_than_timestamp}}
+                ]}
+            elif older_than_timestamp is not None:
+                # Only older_than provided
+                where_clause = {"published_at_timestamp": {"$lte": older_than_timestamp}}
+            elif newer_than_timestamp is not None:
+                # Only newer_than provided
+                where_clause = {"published_at_timestamp": {"$gte": newer_than_timestamp}}
+            
+            # Query ChromaDB with the where clause
+            results = self.collection.get(
+                where=where_clause, 
+                include=["metadatas"]
+            )
+            
+            # Extract unique article_url_hash values from metadata
+            unique_article_hashes = set()
+            
+            if results and 'metadatas' in results and results['metadatas']:
+                for metadata in results['metadatas']:
+                    article_hash = metadata.get('article_url_hash')
+                    if article_hash:
+                        unique_article_hashes.add(article_hash)
+            
+            return list(unique_article_hashes)
+            
+        except Exception as e:
+            logger.error(f"Error retrieving article hashes by date range: {e}")
+            return []
