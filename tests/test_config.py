@@ -221,3 +221,57 @@ class TestConfig:
                 # Test that the property getter returns the same value as the internal attribute
                 assert config.database_path == config._database_path
                 assert config.database_path == custom_db_path
+                
+    @patch('financial_news_rag.config.Config._get_required_env')
+    @patch('financial_news_rag.config.os.getcwd')
+    @patch('financial_news_rag.config.load_dotenv')
+    def test_chroma_default_persist_directory(self, mock_load_dotenv, mock_getcwd, mock_get_required_env):
+        """Test that the chroma_default_persist_directory uses the default value when no override is provided."""
+        # Configure the mocks
+        mock_getcwd.return_value = "/test/current/directory"
+        mock_get_required_env.side_effect = lambda key: {
+            'EODHD_API_KEY': 'test_eodhd_api_key',
+            'GEMINI_API_KEY': 'test_gemini_api_key'
+        }[key]
+        
+        with patch.dict(os.environ, clear=True):
+            config = Config()
+            # The default ChromaDB directory should be in the current working directory
+            expected_path = os.path.join("/test/current/directory", "chroma_db")
+            assert config.chroma_default_persist_directory == expected_path
+    
+    def test_chroma_default_collection_name(self):
+        """Test that the chroma_default_collection_name uses the default value when no override is provided."""
+        with patch('financial_news_rag.config.Config._get_required_env') as mock_get_required_env:
+            mock_get_required_env.side_effect = lambda key: {
+                'EODHD_API_KEY': 'test_eodhd_api_key',
+                'GEMINI_API_KEY': 'test_gemini_api_key'
+            }[key]
+            
+            with patch('financial_news_rag.config.load_dotenv'), patch.dict(os.environ, clear=True):
+                config = Config()
+                # Test default value
+                assert config.chroma_default_collection_name == "financial_news_embeddings"
+    
+    def test_chroma_default_embedding_dimension(self):
+        """Test that the chroma_default_embedding_dimension returns the dimension of the default embedding model."""
+        with patch('financial_news_rag.config.Config._get_required_env') as mock_get_required_env:
+            mock_get_required_env.side_effect = lambda key: {
+                'EODHD_API_KEY': 'test_eodhd_api_key',
+                'GEMINI_API_KEY': 'test_gemini_api_key'
+            }[key]
+            
+            # Test with default model
+            with patch('financial_news_rag.config.load_dotenv'), patch.dict(os.environ, clear=True):
+                config = Config()
+                # The dimension for text-embedding-004 should be 768
+                assert config.chroma_default_embedding_dimension == 768
+            
+            # Test with custom model and dimensions
+            with patch('financial_news_rag.config.load_dotenv'), patch.dict(os.environ, {
+                "EMBEDDINGS_DEFAULT_MODEL": "custom-model", 
+                "EMBEDDINGS_MODEL_DIMENSIONS": '{"custom-model": 1024}'
+            }):
+                config = Config()
+                # The dimension for the custom model should be 1024
+                assert config.chroma_default_embedding_dimension == 1024

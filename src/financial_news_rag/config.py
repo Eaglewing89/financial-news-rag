@@ -51,6 +51,10 @@ class Config:
         # Database configuration
         self._database_path = self._get_env('DATABASE_PATH_OVERRIDE', os.path.join(os.getcwd(), 'financial_news.db'))
         
+        # ChromaDB configuration
+        self._chroma_default_collection_name = self._get_env('CHROMA_DEFAULT_COLLECTION_NAME', 'financial_news_embeddings')
+        self._chroma_default_persist_directory = self._get_env('CHROMA_DEFAULT_PERSIST_DIRECTORY', os.path.join(os.getcwd(), 'chroma_db'))
+        
         # Model dimensions as a dictionary with model names as keys and dimensions as values
         default_dimensions = {'text-embedding-004': 768}
         try:
@@ -179,6 +183,21 @@ class Config:
     def database_path(self) -> str:
         """Get the path to the SQLite database file."""
         return self._database_path
+        
+    @property
+    def chroma_default_collection_name(self) -> str:
+        """Get the default collection name for ChromaDB."""
+        return self._chroma_default_collection_name
+        
+    @property
+    def chroma_default_persist_directory(self) -> str:
+        """Get the default persistence directory for ChromaDB."""
+        return self._chroma_default_persist_directory
+    
+    @property
+    def chroma_default_embedding_dimension(self) -> int:
+        """Get the default embedding dimension for ChromaDB based on the default embedding model."""
+        return self._embeddings_model_dimensions.get(self.embeddings_default_model, 768)
 
 
 # Create a global config instance for easy import

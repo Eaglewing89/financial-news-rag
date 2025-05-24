@@ -35,10 +35,14 @@ class TestChromaDBManager:
         # Generate a unique collection name for each test to avoid state sharing
         self.test_collection_name = f"test_collection_{id(self)}"
         
+        # Default embedding dimension for testing
+        self.test_embedding_dimension = 768
+        
         # Create ChromaDBManager with in-memory mode for faster testing
         self.chroma_manager = ChromaDBManager(
             persist_directory=self.temp_dir.name,
             collection_name=self.test_collection_name,
+            embedding_dimension=self.test_embedding_dimension,
             in_memory=True  # Use in-memory mode for tests
         )
         
@@ -54,12 +58,35 @@ class TestChromaDBManager:
         """Test successful initialization and collection creation."""
         # Check if ChromaDBManager was initialized correctly
         assert self.chroma_manager.collection_name == self.test_collection_name
-        assert self.chroma_manager.embedding_dimension == 768
+        assert self.chroma_manager.embedding_dimension == self.test_embedding_dimension
         
         # Check if collection was created
         collection_status = self.chroma_manager.get_collection_status()
         assert collection_status["collection_name"] == self.test_collection_name
         assert collection_status["is_empty"] is True
+    
+    def test_initialization_required_parameters(self):
+        """Test that initialization requires the mandatory parameters."""
+        # Test that initialization fails without persist_directory
+        with pytest.raises(TypeError):
+            ChromaDBManager(
+                collection_name=self.test_collection_name,
+                embedding_dimension=self.test_embedding_dimension
+            )
+        
+        # Test that initialization fails without collection_name
+        with pytest.raises(TypeError):
+            ChromaDBManager(
+                persist_directory=self.temp_dir.name,
+                embedding_dimension=self.test_embedding_dimension
+            )
+        
+        # Test that initialization fails without embedding_dimension
+        with pytest.raises(TypeError):
+            ChromaDBManager(
+                persist_directory=self.temp_dir.name,
+                collection_name=self.test_collection_name
+            )
     
     # Tests for add_embeddings method have been removed since the method was removed from the implementation
     
@@ -69,7 +96,7 @@ class TestChromaDBManager:
         article_url_hash = self.sample_article_hash
         chunk_texts = ["This is test chunk 0 for the article."]
         # Create a normalized random vector for the embedding
-        embedding = np.random.rand(768)
+        embedding = np.random.rand(self.test_embedding_dimension)
         embedding = embedding / np.linalg.norm(embedding)
         chunk_vector = embedding.tolist()
         article_data = {
@@ -122,7 +149,7 @@ class TestChromaDBManager:
         # Set up test data for first article
         first_article_hash = self.sample_article_hash
         first_chunk_texts = ["This is test chunk 0 for the article."]
-        first_chunk_vector = np.random.rand(768).tolist()
+        first_chunk_vector = np.random.rand(self.test_embedding_dimension).tolist()
         first_article_data = {
             "published_at": "2023-05-15T14:30:00Z",
             "source_query_tag": "TECHNOLOGY"
@@ -139,7 +166,7 @@ class TestChromaDBManager:
         # Set up test data for second article
         second_article_hash = "test_article_456"
         second_chunk_texts = ["This is test chunk 0 for another article."]
-        second_chunk_vector = np.random.rand(768).tolist()
+        second_chunk_vector = np.random.rand(self.test_embedding_dimension).tolist()
         second_article_data = {
             "published_at": "2023-06-20T10:45:00Z",
             "source_query_tag": "FINANCE"
@@ -154,7 +181,7 @@ class TestChromaDBManager:
         )
         
         # Create a query embedding
-        query_embedding = np.random.rand(768)
+        query_embedding = np.random.rand(self.test_embedding_dimension)
         query_embedding = query_embedding / np.linalg.norm(query_embedding)
         
         # Query with filter for first article
@@ -192,7 +219,7 @@ class TestChromaDBManager:
         # Add chunk using add_article_chunks
         article_url_hash = self.sample_article_hash
         chunk_texts = ["This is test chunk 0 for the article."]
-        chunk_vector = np.random.rand(768).tolist()
+        chunk_vector = np.random.rand(self.test_embedding_dimension).tolist()
         article_data = {
             "published_at": "2023-05-15T14:30:00Z",
             "source_query_tag": "TECHNOLOGY"
@@ -216,7 +243,7 @@ class TestChromaDBManager:
         # Add first article's chunks
         first_article_hash = self.sample_article_hash
         first_chunk_texts = ["This is test chunk 0 for the article."]
-        first_chunk_vector = np.random.rand(768).tolist()
+        first_chunk_vector = np.random.rand(self.test_embedding_dimension).tolist()
         first_article_data = {
             "published_at": "2023-05-15T14:30:00Z",
             "source_query_tag": "TECHNOLOGY"
@@ -232,7 +259,7 @@ class TestChromaDBManager:
         # Add second article's chunks
         second_article_hash = "test_article_456"
         second_chunk_texts = ["This is test chunk 0 for another article."]
-        second_chunk_vector = np.random.rand(768).tolist()
+        second_chunk_vector = np.random.rand(self.test_embedding_dimension).tolist()
         second_article_data = {
             "published_at": "2023-06-20T10:45:00Z",
             "source_query_tag": "FINANCE"
@@ -261,7 +288,7 @@ class TestChromaDBManager:
         
         # Verify only the correct embeddings were deleted
         # Query for deleted article
-        query_embedding = np.random.rand(768)
+        query_embedding = np.random.rand(self.test_embedding_dimension)
         query_embedding = query_embedding / np.linalg.norm(query_embedding)
         
         results = self.chroma_manager.query_embeddings(

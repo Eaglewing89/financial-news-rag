@@ -37,20 +37,16 @@ class ChromaDBManager:
     - Status reporting and error handling
     """
     
-    DEFAULT_COLLECTION_NAME = "financial_news_embeddings"
-    DEFAULT_EMBEDDING_DIMENSION = 768  # text-embedding-004 dimension
-    
     def __init__(self, 
-                 persist_directory: Optional[str] = None,
-                 collection_name: str = DEFAULT_COLLECTION_NAME,
-                 embedding_dimension: int = DEFAULT_EMBEDDING_DIMENSION,
+                 persist_directory: str,
+                 collection_name: str,
+                 embedding_dimension: int,
                  in_memory: bool = False):
         """
         Initialize the ChromaDBManager with connection parameters.
         
         Args:
             persist_directory: Path for persistent storage of embeddings.
-                If None and not in_memory, uses './chroma_db' in current directory.
             collection_name: Name of the ChromaDB collection to use.
             embedding_dimension: Dimension of the embedding vectors.
             in_memory: Whether to use an in-memory ChromaDB instance (for testing).
@@ -64,9 +60,6 @@ class ChromaDBManager:
             persist_directory = None
             logger.info("Initializing in-memory ChromaDB instance")
         else:
-            if not persist_directory:
-                # Use default directory relative to current working directory
-                persist_directory = os.path.join(os.getcwd(), 'chroma_db')
             # Ensure the directory exists
             os.makedirs(persist_directory, exist_ok=True)
             logger.info(f"Using ChromaDB persistence directory: {persist_directory}")
