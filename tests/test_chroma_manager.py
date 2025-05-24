@@ -757,3 +757,207 @@ class TestChromaDBManager:
         finally:
             # Restore the original get method
             self.chroma_manager.collection.get = original_get
+    
+    def test_query_embeddings_with_date_filters(self):
+        """Test querying embeddings with date string filters."""
+        # Set up test data for different dates
+        # Creating articles with different published dates
+        
+        # First article: 2023-01-15
+        first_article_hash = "test_article_jan15_2023"
+        first_chunk_texts = ["This is test chunk for January 15, 2023."]
+        first_chunk_vector = np.random.rand(768).tolist()
+        first_article_data = {
+            "published_at": "2023-01-15T10:30:00Z",
+            "source_query_tag": "FINANCE"
+        }
+        
+        # Second article: 2023-05-20
+        second_article_hash = "test_article_may20_2023"
+        second_chunk_texts = ["This is test chunk for May 20, 2023."]
+        second_chunk_vector = np.random.rand(768).tolist()
+        second_article_data = {
+            "published_at": "2023-05-20T14:45:00Z",
+            "source_query_tag": "TECHNOLOGY"
+        }
+        
+        # Third article: 2023-09-10
+        third_article_hash = "test_article_sep10_2023"
+        third_chunk_texts = ["This is test chunk for September 10, 2023."]
+        third_chunk_vector = np.random.rand(768).tolist()
+        third_article_data = {
+            "published_at": "2023-09-10T09:15:00Z",
+            "source_query_tag": "HEALTH"
+        }
+        
+        # Add articles to ChromaDB
+        self.chroma_manager.add_article_chunks(
+            first_article_hash,
+            first_chunk_texts,
+            [first_chunk_vector],
+            first_article_data
+        )
+        
+        self.chroma_manager.add_article_chunks(
+            second_article_hash,
+            second_chunk_texts,
+            [second_chunk_vector],
+            second_article_data
+        )
+        
+        self.chroma_manager.add_article_chunks(
+            third_article_hash,
+            third_chunk_texts,
+            [third_chunk_vector],
+            third_article_data
+        )
+        
+        # Create a query embedding
+        query_embedding = np.random.rand(768)
+        query_embedding = query_embedding / np.linalg.norm(query_embedding)
+        
+        # Test 1: Query with from_date_str only
+        results = self.chroma_manager.query_embeddings(
+            query_embedding=query_embedding.tolist(),
+            n_results=10,
+            from_date_str="2023-03-01"  # Should return May and September articles
+        )
+        
+        # Verify results
+        assert len(results) == 2
+        article_hashes = {result["metadata"]["article_url_hash"] for result in results}
+        assert second_article_hash in article_hashes
+        assert third_article_hash in article_hashes
+        assert first_article_hash not in article_hashes
+        
+        # Test 2: Query with to_date_str only
+        results = self.chroma_manager.query_embeddings(
+            query_embedding=query_embedding.tolist(),
+            n_results=10,
+            to_date_str="2023-06-01"  # Should return January and May articles
+        )
+        
+        # Verify results
+        assert len(results) == 2
+        article_hashes = {result["metadata"]["article_url_hash"] for result in results}
+        assert first_article_hash in article_hashes
+        assert second_article_hash in article_hashes
+        assert third_article_hash not in article_hashes
+        
+        # Test 3: Query with both from_date_str and to_date_str
+        results = self.chroma_manager.query_embeddings(
+            query_embedding=query_embedding.tolist(),
+            n_results=10,
+            from_date_str="2023-01-20",
+            to_date_str="2023-08-01"  # Should return only May article
+        )
+        
+        # Verify results
+        assert len(results) == 1
+        assert results[0]["metadata"]["article_url_hash"] == second_article_hash
+    
+    def test_query_embeddings_with_invalid_date_strings(self):
+        """Test querying embeddings with invalid date strings."""
+        # Set up test data
+        article_hash = self.sample_article_hash
+        chunk_texts = ["This is test chunk for date string testing."]
+        chunk_vector = np.random.rand(768).tolist()
+        article_data = {
+            "published_at": "2023-05-15T14:30:00Z",
+            "source_query_tag": "TECHNOLOGY"
+        }
+        
+        # Add article to ChromaDB
+        self.chroma_manager.add_article_chunks(
+            article_hash,
+            chunk_texts,
+            [chunk_vector],
+            article_data
+        )
+        
+        # Create a query embedding
+        query_embedding = np.random.rand(768)
+        query_embedding = query_embedding / np.linalg.norm(query_embedding)
+        
+        # Test with invalid from_date_str
+        # Test logs a warning instead of emitting a UserWarning, so we don't need to capture it
+        results = self.chroma_manager.query_embeddings(
+            query_embedding=query_embedding.tolist(),
+            n_results=5,
+            from_date_str="invalid-date",
+            to_date_str="2023-12-31"
+        )
+            
+        # Verify results (should use only the valid to_date_str)
+        assert len(results) == 1
+        assert results[0]["metadata"]["article_url_hash"] == article_hash
+    
+    def test_query_embeddings_with_filter_metadata_and_date_strings(self):
+        """Test querying embeddings with both filter_metadata and date strings."""
+        # Set up test data for different tags and dates
+        
+        # Finance article from January
+        finance_article_hash = "test_finance_jan_2023"
+        finance_chunk_texts = ["This is a finance article from January 2023."]
+        finance_chunk_vector = np.random.rand(768).tolist()
+        finance_article_data = {
+            "published_at": "2023-01-15T10:30:00Z",
+            "source_query_tag": "FINANCE"
+        }
+        
+        # Technology article from May
+        tech_article_hash = "test_tech_may_2023"
+        tech_chunk_texts = ["This is a technology article from May 2023."]
+        tech_chunk_vector = np.random.rand(768).tolist()
+        tech_article_data = {
+            "published_at": "2023-05-20T14:45:00Z",
+            "source_query_tag": "TECHNOLOGY"
+        }
+        
+        # Finance article from September
+        finance2_article_hash = "test_finance_sep_2023"
+        finance2_chunk_texts = ["This is another finance article from September 2023."]
+        finance2_chunk_vector = np.random.rand(768).tolist()
+        finance2_article_data = {
+            "published_at": "2023-09-10T09:15:00Z",
+            "source_query_tag": "FINANCE"
+        }
+        
+        # Add articles to ChromaDB
+        self.chroma_manager.add_article_chunks(
+            finance_article_hash,
+            finance_chunk_texts,
+            [finance_chunk_vector],
+            finance_article_data
+        )
+        
+        self.chroma_manager.add_article_chunks(
+            tech_article_hash,
+            tech_chunk_texts,
+            [tech_chunk_vector],
+            tech_article_data
+        )
+        
+        self.chroma_manager.add_article_chunks(
+            finance2_article_hash,
+            finance2_chunk_texts,
+            [finance2_chunk_vector],
+            finance2_article_data
+        )
+        
+        # Create a query embedding
+        query_embedding = np.random.rand(768)
+        query_embedding = query_embedding / np.linalg.norm(query_embedding)
+        
+        # Test: Query with both filter_metadata (by tag) and date filters
+        results = self.chroma_manager.query_embeddings(
+            query_embedding=query_embedding.tolist(),
+            n_results=10,
+            filter_metadata={"source_query_tag": "FINANCE"},
+            from_date_str="2023-03-01"  # Should return only the September finance article
+        )
+        
+        # Verify results
+        assert len(results) == 1
+        assert results[0]["metadata"]["article_url_hash"] == finance2_article_hash
+        assert results[0]["metadata"]["source_query_tag"] == "FINANCE"

@@ -515,7 +515,7 @@ class FinancialNewsRAG:
             query_embedding = self.embeddings_generator.generate_embeddings([query])[0]
             
             # Initialize filter_metadata
-            filter_metadata = {} if sort_by_metadata or from_date_str or to_date_str else None
+            filter_metadata = {} if sort_by_metadata else None
             
             # Process sort_by_metadata
             if sort_by_metadata:
@@ -525,45 +525,13 @@ class FinancialNewsRAG:
                         # This would need to be implemented properly with actual date ranges
                         pass
             
-            # Process date range filtering
-            if from_date_str or to_date_str:
-                timestamp_filter_conditions = {}
-                
-                # Parse from_date_str if provided
-                if from_date_str:
-                    try:
-                        # Try to parse the date string into a datetime object
-                        dt = datetime.fromisoformat(from_date_str.replace('Z', '+00:00'))
-                        from_timestamp = int(dt.timestamp())
-                        timestamp_filter_conditions["$gte"] = from_timestamp
-                        logger.info(f"Filtering articles published on or after {from_date_str} (timestamp {from_timestamp})")
-                    except (ValueError, TypeError) as e:
-                        logger.warning(f"Failed to parse from_date_str '{from_date_str}': {e}")
-                
-                # Parse to_date_str if provided
-                if to_date_str:
-                    try:
-                        # Try to parse the date string into a datetime object
-                        dt = datetime.fromisoformat(to_date_str.replace('Z', '+00:00'))
-                        to_timestamp = int(dt.timestamp())
-                        timestamp_filter_conditions["$lte"] = to_timestamp
-                        logger.info(f"Filtering articles published on or before {to_date_str} (timestamp {to_timestamp})")
-                    except (ValueError, TypeError) as e:
-                        logger.warning(f"Failed to parse to_date_str '{to_date_str}': {e}")
-                
-                # Add timestamp filter conditions to filter_metadata if any were successfully parsed
-                if timestamp_filter_conditions:
-                    filter_metadata["published_at_timestamp"] = timestamp_filter_conditions
-            
-            # If filter_metadata is empty, set it to None
-            if filter_metadata is not None and not filter_metadata:
-                filter_metadata = None
-                
             # Query the vector database
             chroma_results = self.chroma_manager.query_embeddings(
                 query_embedding=query_embedding,
                 n_results=n_results if not rerank else max(n_results * 2, 10),  # Get more results for reranking
-                filter_metadata=filter_metadata
+                filter_metadata=filter_metadata,
+                from_date_str=from_date_str,
+                to_date_str=to_date_str
             )
             
             if not chroma_results:

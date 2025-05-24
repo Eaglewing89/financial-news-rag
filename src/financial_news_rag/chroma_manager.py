@@ -109,7 +109,9 @@ class ChromaDBManager:
         self, 
         query_embedding: List[float], 
         n_results: int = 5, 
-        filter_metadata: Optional[Dict[str, Any]] = None
+        filter_metadata: Optional[Dict[str, Any]] = None,
+        from_date_str: Optional[str] = None,
+        to_date_str: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Query ChromaDB for the most similar embeddings to the query embedding.
@@ -119,6 +121,10 @@ class ChromaDBManager:
             n_results: Number of similar embeddings to retrieve.
             filter_metadata: Optional dictionary for metadata filtering
                 (e.g., {"article_url_hash": "some_hash"})
+            from_date_str: Optional ISO format string (YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)
+                for filtering articles published on or after this date
+            to_date_str: Optional ISO format string (YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)
+                for filtering articles published on or before this date
             
         Returns:
             List of results, each including chunk_id, distance/score, metadata, and text
@@ -131,11 +137,63 @@ class ChromaDBManager:
                 "include": ["metadatas", "documents", "distances"]
             }
             
-            # Add metadata filter if provided
-            if filter_metadata:
-                where_clause = {}
-                for key, value in filter_metadata.items():
+            # Process from_date_str and to_date_str
+            timestamp_filter_conditions = {}
+            
+            # Parse from_date_str if provided
+            if from_date_str:
+                try:
+                    from datetime import datetime
+                    # Try to parse the date string into a datetime object
+                    dt = datetime.fromisoformat(from_date_str.replace('Z', '+00:00'))
+                    from_timestamp = int(dt.timestamp())
+                    timestamp_filter_conditions["$gte"] = from_timestamp
+                    logger.info(f"Filtering articles published on or after {from_date_str} (timestamp {from_timestamp})")
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Failed to parse from_date_str '{from_date_str}': {e}")
+            
+            # Parse to_date_str if provided
+            if to_date_str:
+                try:
+                    from datetime import datetime
+                    # Try to parse the date string into a datetime object
+                    dt = datetime.fromisoformat(to_date_str.replace('Z', '+00:00'))
+                    to_timestamp = int(dt.timestamp())
+                    timestamp_filter_conditions["$lte"] = to_timestamp
+                    logger.info(f"Filtering articles published on or before {to_date_str} (timestamp {to_timestamp})")
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Failed to parse to_date_str '{to_date_str}': {e}")
+            
+            # Initialize where_clause 
+            where_clause = {}
+            
+            # Process filter_metadata and timestamp filters together
+            if filter_metadata or timestamp_filter_conditions:
+                # When we have multiple conditions with different fields, we need to use $and
+                and_conditions = []
+                
+                # Add metadata filter conditions
+                if filter_metadata:
+                    for key, value in filter_metadata.items():
+                        # Skip published_at_timestamp as it will be handled separately
+                        if key != 'published_at_timestamp':
+                            and_conditions.append({key: value})
+                
+                # Add timestamp filter conditions
+                if timestamp_filter_conditions:
+                    for op, val in timestamp_filter_conditions.items():
+                        and_conditions.append({"published_at_timestamp": {op: val}})
+                
+                # If we have more than one condition, use $and
+                if len(and_conditions) > 1:
+                    where_clause["$and"] = and_conditions
+                elif len(and_conditions) == 1:
+                    # If only one condition, add it directly
+                    key, value = next(iter(and_conditions[0].items()))
                     where_clause[key] = value
+            
+            # Add where clause to query params if not empty
+            if where_clause:
                 query_params["where"] = where_clause
             
             # Execute query
