@@ -8,6 +8,7 @@ example_data/
 *.sqlite3
 *.db
 chroma_db/
+chroma_db_example/
 
 # Python cache and build
 __pycache__/
