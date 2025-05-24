@@ -9,6 +9,7 @@ from unittest.mock import patch, MagicMock
 from datetime import datetime
 
 from financial_news_rag.eodhd import EODHDClient, EODHDApiError
+from financial_news_rag.config import Config
 
 # Sample response data for mocking
 SAMPLE_ARTICLE = {
@@ -40,15 +41,29 @@ class TestEODHDClient:
         client = EODHDClient(api_key="explicit_key")
         assert client.api_key == "explicit_key"
     
-    @patch.dict(os.environ, {"EODHD_API_KEY": "env_key"})
-    def test_init_with_env_api_key(self):
-        """Test initialization with an API key from environment variables."""
-        client = EODHDClient()
+    @patch('financial_news_rag.config.Config._get_required_env', return_value="env_key")
+    def test_init_with_config(self, mock_get_required_env):
+        """Test initialization with a Config object."""
+        config = Config()
+        client = EODHDClient(
+            api_key=config.eodhd_api_key,
+            api_url=config.eodhd_api_url,
+            timeout=config.eodhd_default_timeout,
+            max_retries=config.eodhd_default_max_retries,
+            backoff_factor=config.eodhd_default_backoff_factor,
+            default_limit=config.eodhd_default_limit
+        )
         assert client.api_key == "env_key"
+        assert client.api_url == config.eodhd_api_url
+        assert client.timeout == config.eodhd_default_timeout
+        assert client.max_retries == config.eodhd_default_max_retries
+        assert client.backoff_factor == config.eodhd_default_backoff_factor
+        assert client.default_limit == config.eodhd_default_limit
     
     def test_init_without_api_key(self):
         """Test initialization without an API key raises ValueError."""
-        with patch.dict(os.environ, clear=True):
+        with pytest.raises(ValueError, match="EODHD API key is required"):
+            EODHDClient(api_key="")
             with pytest.raises(ValueError):
                 EODHDClient()
     
