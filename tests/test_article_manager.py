@@ -14,6 +14,7 @@ import unittest
 from unittest import mock
 
 from financial_news_rag.article_manager import ArticleManager
+from financial_news_rag.utils import generate_url_hash
 
 
 class TestArticleManager(unittest.TestCase):
@@ -75,7 +76,7 @@ class TestArticleManager(unittest.TestCase):
         self.assertEqual(len(pending_articles), 1)
         
         # The URL hash should be generated from the URL
-        expected_url_hash = self.article_manager.generate_url_hash(self.test_article['url'])
+        expected_url_hash = generate_url_hash(self.test_article['url'])
         self.assertEqual(pending_articles[0]['url_hash'], expected_url_hash)
         
         # Test get_article_by_hash
@@ -90,7 +91,7 @@ class TestArticleManager(unittest.TestCase):
         self.article_manager.store_articles([self.test_article])
         
         # Get the URL hash
-        url_hash = ArticleManager.generate_url_hash(self.test_article['url'])
+        url_hash = generate_url_hash(self.test_article['url'])
         
         # Modify the article
         modified_article = self.test_article.copy()
@@ -116,7 +117,7 @@ class TestArticleManager(unittest.TestCase):
         self.article_manager.store_articles([self.test_article])
         
         # Get the URL hash
-        url_hash = ArticleManager.generate_url_hash(self.test_article['url'])
+        url_hash = generate_url_hash(self.test_article['url'])
         
         # Update processing status
         self.article_manager.update_article_processing_status(
@@ -136,7 +137,7 @@ class TestArticleManager(unittest.TestCase):
         self.article_manager.store_articles([self.test_article])
         
         # Get the URL hash
-        url_hash = ArticleManager.generate_url_hash(self.test_article['url'])
+        url_hash = generate_url_hash(self.test_article['url'])
         
         # Update embedding status
         self.article_manager.update_article_embedding_status(
@@ -156,7 +157,7 @@ class TestArticleManager(unittest.TestCase):
         self.article_manager.store_articles([self.test_article])
         
         # Get the URL hash
-        url_hash = ArticleManager.generate_url_hash(self.test_article['url'])
+        url_hash = generate_url_hash(self.test_article['url'])
         
         # Update processing status to SUCCESS
         self.article_manager.update_article_processing_status(
@@ -302,21 +303,21 @@ class TestArticleManager(unittest.TestCase):
         """Test the URL hash generation."""
         # Test with a normal URL
         url = 'https://example.com/test-article'
-        url_hash = ArticleManager.generate_url_hash(url)
+        url_hash = generate_url_hash(url)
         
         # Verify hash is generated correctly
         self.assertEqual(len(url_hash), 64)  # SHA-256 produces 64 hex characters
         
         # Verify consistent hash for same URL
-        url_hash2 = ArticleManager.generate_url_hash(url)
+        url_hash2 = generate_url_hash(url)
         self.assertEqual(url_hash, url_hash2)
         
         # Test with empty URL
-        empty_url_hash = ArticleManager.generate_url_hash('')
+        empty_url_hash = generate_url_hash('')
         self.assertEqual(empty_url_hash, '')
         
         # Test with None URL
-        none_url_hash = ArticleManager.generate_url_hash(None)
+        none_url_hash = generate_url_hash(None)
         self.assertEqual(none_url_hash, '')
     
     def test_get_articles_by_processing_status(self):
@@ -335,9 +336,9 @@ class TestArticleManager(unittest.TestCase):
         self.article_manager.store_articles([article1, article2, article3])
         
         # Get URL hashes
-        hash1 = ArticleManager.generate_url_hash(article1['url'])
-        hash2 = ArticleManager.generate_url_hash(article2['url'])
-        hash3 = ArticleManager.generate_url_hash(article3['url'])
+        hash1 = generate_url_hash(article1['url'])
+        hash2 = generate_url_hash(article2['url'])
+        hash3 = generate_url_hash(article3['url'])
         
         # Update processing status for articles
         self.article_manager.update_article_processing_status(
@@ -418,8 +419,8 @@ class TestArticleManager(unittest.TestCase):
         self.article_manager.store_articles([article1, article2, article3])
         
         # Get URL hashes
-        hash1 = ArticleManager.generate_url_hash(article1['url'])
-        hash2 = ArticleManager.generate_url_hash(article2['url'])
+        hash1 = generate_url_hash(article1['url'])
+        hash2 = generate_url_hash(article2['url'])
         
         # Update processing status for articles
         self.article_manager.update_article_processing_status(
@@ -533,7 +534,7 @@ class TestArticleManager(unittest.TestCase):
         self.article_manager.store_articles([self.test_article])
         
         # Get the URL hash
-        url_hash = ArticleManager.generate_url_hash(self.test_article['url'])
+        url_hash = generate_url_hash(self.test_article['url'])
         
         # Verify article exists before deletion
         article = self.article_manager.get_article_by_hash(url_hash)
@@ -552,7 +553,7 @@ class TestArticleManager(unittest.TestCase):
     def test_delete_article_by_hash_nonexistent(self):
         """Test deletion of a non-existent article."""
         # Generate a hash for a URL that doesn't exist in the database
-        nonexistent_hash = ArticleManager.generate_url_hash("https://example.com/nonexistent")
+        nonexistent_hash = generate_url_hash("https://example.com/nonexistent")
         
         # Try to delete the non-existent article
         result = self.article_manager.delete_article_by_hash(nonexistent_hash)
@@ -566,7 +567,7 @@ class TestArticleManager(unittest.TestCase):
         self.article_manager.store_articles([self.test_article])
         
         # Get the URL hash
-        url_hash = ArticleManager.generate_url_hash(self.test_article['url'])
+        url_hash = generate_url_hash(self.test_article['url'])
         
         # Mock the database connection to simulate an error
         with mock.patch.object(self.article_manager, 'conn') as mock_conn:
