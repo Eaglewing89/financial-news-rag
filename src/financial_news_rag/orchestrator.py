@@ -18,6 +18,7 @@ from financial_news_rag.embeddings import EmbeddingsGenerator
 from financial_news_rag.chroma_manager import ChromaDBManager
 from financial_news_rag.reranker import ReRanker
 from financial_news_rag.config import Config
+from financial_news_rag import utils
 
 # Configure logging
 # logging.basicConfig(
@@ -666,9 +667,9 @@ class FinancialNewsRAG:
         }
         
         try:
-            # Calculate cutoff timestamp (current UTC time minus the specified days)
-            current_time = datetime.now(timezone.utc)
-            cutoff_date = current_time - timedelta(days=days)
+            # Calculate cutoff timestamp using utility functions
+            current_time = utils.get_utc_now()
+            cutoff_date = utils.get_cutoff_datetime(days)
             cutoff_timestamp = int(cutoff_date.timestamp())
             
             logger.info(f"Deleting articles older than {cutoff_date.isoformat()} ({days} days ago)")

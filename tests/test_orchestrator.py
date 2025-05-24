@@ -8,7 +8,7 @@ all components of the financial-news-rag system.
 import os
 import unittest
 from unittest.mock import MagicMock, patch
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -732,94 +732,149 @@ class TestFinancialNewsRAG:
     def test_delete_articles_older_than(self):
         """Test deleting articles older than a specified number of days."""
         # Configure mocks
-        # Mock articles older than cutoff
-        mock_article_hashes = ["older_hash1", "older_hash2", "older_hash3"]
-        self.orchestrator.chroma_manager.get_article_hashes_by_date_range.return_value = mock_article_hashes
-        
-        # Mock successful deletion for all articles
-        self.orchestrator.chroma_manager.delete_embeddings_by_article.return_value = True
-        self.orchestrator.article_manager.delete_article_by_hash.return_value = True
-        
-        # Call the method
-        result = self.orchestrator.delete_articles_older_than(days=90)
-        
-        # Verify that cutoff timestamp was calculated correctly
-        # Since time will differ in tests, we just verify the method was called with any timestamp
-        self.orchestrator.chroma_manager.get_article_hashes_by_date_range.assert_called_once()
-        assert "older_than_timestamp" in self.orchestrator.chroma_manager.get_article_hashes_by_date_range.call_args[1]
-        
-        # Verify that delete methods were called for each article
-        assert self.orchestrator.chroma_manager.delete_embeddings_by_article.call_count == 3
-        assert self.orchestrator.article_manager.delete_article_by_hash.call_count == 3
-        
-        # Check result
-        assert result["status"] == "SUCCESS"
-        assert result["targeted_articles"] == 3
-        assert result["deleted_from_sqlite"] == 3
-        assert result["deleted_from_chroma"] == 3
-        assert not result["errors"]
+        # Mock the utility functions
+        with patch('financial_news_rag.utils.get_utc_now') as mock_get_utc_now, \
+             patch('financial_news_rag.utils.get_cutoff_datetime') as mock_get_cutoff_datetime:
+            
+            # Setup mock return values
+            mock_now = datetime(2023, 1, 1, tzinfo=timezone.utc)
+            mock_cutoff = datetime(2022, 10, 3, tzinfo=timezone.utc)
+            mock_get_utc_now.return_value = mock_now
+            mock_get_cutoff_datetime.return_value = mock_cutoff
+            
+            # Mock articles older than cutoff
+            mock_article_hashes = ["older_hash1", "older_hash2", "older_hash3"]
+            self.orchestrator.chroma_manager.get_article_hashes_by_date_range.return_value = mock_article_hashes
+            
+            # Mock successful deletion for all articles
+            self.orchestrator.chroma_manager.delete_embeddings_by_article.return_value = True
+            self.orchestrator.article_manager.delete_article_by_hash.return_value = True
+            
+            # Call the method
+            result = self.orchestrator.delete_articles_older_than(days=90)
+            
+            # Verify that the utility functions were called
+            mock_get_utc_now.assert_called_once()
+            mock_get_cutoff_datetime.assert_called_once_with(90)
+            
+            # Verify that cutoff timestamp was calculated correctly
+            self.orchestrator.chroma_manager.get_article_hashes_by_date_range.assert_called_once()
+            assert "older_than_timestamp" in self.orchestrator.chroma_manager.get_article_hashes_by_date_range.call_args[1]
+            
+            # Verify that delete methods were called for each article
+            assert self.orchestrator.chroma_manager.delete_embeddings_by_article.call_count == 3
+            assert self.orchestrator.article_manager.delete_article_by_hash.call_count == 3
+            
+            # Check result
+            assert result["status"] == "SUCCESS"
+            assert result["targeted_articles"] == 3
+            assert result["deleted_from_sqlite"] == 3
+            assert result["deleted_from_chroma"] == 3
+            assert not result["errors"]
         
     def test_delete_articles_older_than_no_articles(self):
         """Test deleting articles when no articles are found."""
-        # Mock empty list of articles (none older than cutoff)
-        self.orchestrator.chroma_manager.get_article_hashes_by_date_range.return_value = []
-        
-        # Call the method
-        result = self.orchestrator.delete_articles_older_than(days=30)
-        
-        # Verify that delete methods were not called
-        self.orchestrator.chroma_manager.delete_embeddings_by_article.assert_not_called()
-        self.orchestrator.article_manager.delete_article_by_hash.assert_not_called()
-        
-        # Check result
-        assert result["status"] == "SUCCESS"
-        assert result["targeted_articles"] == 0
-        assert result["deleted_from_sqlite"] == 0
-        assert result["deleted_from_chroma"] == 0
-        assert not result["errors"]
+        # Mock the utility functions
+        with patch('financial_news_rag.utils.get_utc_now') as mock_get_utc_now, \
+             patch('financial_news_rag.utils.get_cutoff_datetime') as mock_get_cutoff_datetime:
+            
+            # Setup mock return values
+            mock_now = datetime(2023, 1, 1, tzinfo=timezone.utc)
+            mock_cutoff = datetime(2022, 12, 2, tzinfo=timezone.utc)
+            mock_get_utc_now.return_value = mock_now
+            mock_get_cutoff_datetime.return_value = mock_cutoff
+            
+            # Mock empty list of articles (none older than cutoff)
+            self.orchestrator.chroma_manager.get_article_hashes_by_date_range.return_value = []
+            
+            # Call the method
+            result = self.orchestrator.delete_articles_older_than(days=30)
+            
+            # Verify that the utility functions were called
+            mock_get_utc_now.assert_called_once()
+            mock_get_cutoff_datetime.assert_called_once_with(30)
+            
+            # Verify that delete methods were not called
+            self.orchestrator.chroma_manager.delete_embeddings_by_article.assert_not_called()
+            self.orchestrator.article_manager.delete_article_by_hash.assert_not_called()
+            
+            # Check result
+            assert result["status"] == "SUCCESS"
+            assert result["targeted_articles"] == 0
+            assert result["deleted_from_sqlite"] == 0
+            assert result["deleted_from_chroma"] == 0
+            assert not result["errors"]
         
     def test_delete_articles_older_than_partial_failure(self):
         """Test deleting articles with some failures."""
-        # Mock articles older than cutoff
-        mock_article_hashes = ["success_hash", "chroma_only_hash", "sqlite_only_hash", "fail_hash"]
-        self.orchestrator.chroma_manager.get_article_hashes_by_date_range.return_value = mock_article_hashes
-        
-        # Configure different outcomes for different articles
-        def mock_delete_from_chroma(url_hash):
-            return url_hash in ["success_hash", "chroma_only_hash"]
+        # Mock the utility functions
+        with patch('financial_news_rag.utils.get_utc_now') as mock_get_utc_now, \
+             patch('financial_news_rag.utils.get_cutoff_datetime') as mock_get_cutoff_datetime:
             
-        def mock_delete_from_sqlite(url_hash):
-            return url_hash in ["success_hash", "sqlite_only_hash"]
-        
-        self.orchestrator.chroma_manager.delete_embeddings_by_article.side_effect = mock_delete_from_chroma
-        self.orchestrator.article_manager.delete_article_by_hash.side_effect = mock_delete_from_sqlite
-        
-        # Call the method
-        result = self.orchestrator.delete_articles_older_than(days=180)
-        
-        # Verify that delete methods were called for each article
-        assert self.orchestrator.chroma_manager.delete_embeddings_by_article.call_count == 4
-        assert self.orchestrator.article_manager.delete_article_by_hash.call_count == 4
-        
-        # Check result
-        assert result["status"] == "PARTIAL_FAILURE"
-        assert result["targeted_articles"] == 4
-        assert result["deleted_from_sqlite"] == 2
-        assert result["deleted_from_chroma"] == 2
-        assert len(result["errors"]) > 0
+            # Setup mock return values
+            mock_now = datetime(2023, 1, 1, tzinfo=timezone.utc)
+            mock_cutoff = datetime(2022, 7, 5, tzinfo=timezone.utc)
+            mock_get_utc_now.return_value = mock_now
+            mock_get_cutoff_datetime.return_value = mock_cutoff
+            
+            # Mock articles older than cutoff
+            mock_article_hashes = ["success_hash", "chroma_only_hash", "sqlite_only_hash", "fail_hash"]
+            self.orchestrator.chroma_manager.get_article_hashes_by_date_range.return_value = mock_article_hashes
+            
+            # Configure different outcomes for different articles
+            def mock_delete_from_chroma(url_hash):
+                return url_hash in ["success_hash", "chroma_only_hash"]
+                
+            def mock_delete_from_sqlite(url_hash):
+                return url_hash in ["success_hash", "sqlite_only_hash"]
+            
+            self.orchestrator.chroma_manager.delete_embeddings_by_article.side_effect = mock_delete_from_chroma
+            self.orchestrator.article_manager.delete_article_by_hash.side_effect = mock_delete_from_sqlite
+            
+            # Call the method
+            result = self.orchestrator.delete_articles_older_than(days=180)
+            
+            # Verify that the utility functions were called
+            mock_get_utc_now.assert_called_once()
+            mock_get_cutoff_datetime.assert_called_once_with(180)
+            
+            # Verify that delete methods were called for each article
+            assert self.orchestrator.chroma_manager.delete_embeddings_by_article.call_count == 4
+            assert self.orchestrator.article_manager.delete_article_by_hash.call_count == 4
+            
+            # Check result
+            assert result["status"] == "PARTIAL_FAILURE"
+            assert result["targeted_articles"] == 4
+            assert result["deleted_from_sqlite"] == 2
+            assert result["deleted_from_chroma"] == 2
+            assert len(result["errors"]) > 0
         
     def test_delete_articles_older_than_exception(self):
         """Test handling exceptions in delete_articles_older_than method."""
-        # Configure mock to raise an exception
-        self.orchestrator.chroma_manager.get_article_hashes_by_date_range.side_effect = Exception("Test exception")
-        
-        # Call the method
-        result = self.orchestrator.delete_articles_older_than(days=90)
-        
-        # Check result
-        assert result["status"] == "FAILED"
-        assert len(result["errors"]) == 1
-        assert "Test exception" in result["errors"][0]
+        # Mock the utility functions
+        with patch('financial_news_rag.utils.get_utc_now') as mock_get_utc_now, \
+             patch('financial_news_rag.utils.get_cutoff_datetime') as mock_get_cutoff_datetime:
+            
+            # Setup mock return values
+            mock_now = datetime(2023, 1, 1, tzinfo=timezone.utc)
+            mock_cutoff = datetime(2022, 10, 3, tzinfo=timezone.utc)
+            mock_get_utc_now.return_value = mock_now
+            mock_get_cutoff_datetime.return_value = mock_cutoff
+            
+            # Configure mock to raise an exception
+            self.orchestrator.chroma_manager.get_article_hashes_by_date_range.side_effect = Exception("Test exception")
+            
+            # Call the method
+            result = self.orchestrator.delete_articles_older_than(days=90)
+            
+            # Verify that the utility functions were called
+            mock_get_utc_now.assert_called_once()
+            mock_get_cutoff_datetime.assert_called_once_with(90)
+            
+            # Check result
+            assert result["status"] == "FAILED"
+            assert len(result["errors"]) == 1
+            assert "Test exception" in result["errors"][0]
     
     def test_close(self):
         """Test closing database connections."""
