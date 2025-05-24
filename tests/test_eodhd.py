@@ -58,10 +58,11 @@ class TestEODHDClient:
         # Set up the mock
         mock_response = MagicMock()
         mock_response.json.return_value = SAMPLE_RESPONSE
+        mock_response.status_code = 200
         mock_get.return_value = mock_response
         
         # Call the method
-        articles = self.client.fetch_news(tag="HOSPITALITY")
+        result = self.client.fetch_news(tag="HOSPITALITY")
         
         # Check the call parameters
         mock_get.assert_called_once()
@@ -70,10 +71,19 @@ class TestEODHDClient:
         assert kwargs["params"]["api_token"] == self.api_key
         
         # Check the response processing
-        assert len(articles) == 1
-        assert articles[0]["title"] == SAMPLE_ARTICLE["title"]
-        assert articles[0]["source_api"] == "EODHD"
-        assert articles[0]["tags"] == SAMPLE_ARTICLE["tags"]
+        assert isinstance(result, dict)
+        assert "articles" in result
+        assert "status_code" in result
+        assert "success" in result
+        assert "error_message" in result
+        
+        assert len(result["articles"]) == 1
+        assert result["articles"][0]["title"] == SAMPLE_ARTICLE["title"]
+        assert result["articles"][0]["source_api"] == "EODHD"
+        assert result["articles"][0]["tags"] == SAMPLE_ARTICLE["tags"]
+        assert result["status_code"] == 200
+        assert result["success"] is True
+        assert result["error_message"] is None
     
     @patch("requests.get")
     def test_fetch_news_with_symbol(self, mock_get):
@@ -81,15 +91,26 @@ class TestEODHDClient:
         # Set up the mock
         mock_response = MagicMock()
         mock_response.json.return_value = SAMPLE_RESPONSE
+        mock_response.status_code = 200
         mock_get.return_value = mock_response
         
         # Call the method with a single valid symbol
-        articles = self.client.fetch_news(symbol="AAPL.US")
+        result = self.client.fetch_news(symbol="AAPL.US")
         
         # Check the call parameters
         mock_get.assert_called_once()
         args, kwargs = mock_get.call_args
         assert kwargs["params"]["s"] == "AAPL.US"
+        
+        # Check return structure
+        assert isinstance(result, dict)
+        assert "articles" in result
+        assert "status_code" in result
+        assert "success" in result
+        assert "error_message" in result
+        assert result["status_code"] == 200
+        assert result["success"] is True
+        assert result["error_message"] is None
     
     @patch("requests.get")
     def test_fetch_news_with_none_symbol(self, mock_get):
@@ -215,11 +236,19 @@ class TestEODHDClient:
         # Set up the mock
         mock_response = MagicMock()
         mock_response.json.return_value = SAMPLE_RESPONSE
+        mock_response.status_code = 200
         mock_get.return_value = mock_response
         
         # Call the method
-        articles = self.client.fetch_news(tag="HOSPITALITY")
-        normalized = articles[0]
+        result = self.client.fetch_news(tag="HOSPITALITY")
+        
+        # Check that result is a dictionary with expected structure
+        assert isinstance(result, dict)
+        assert "articles" in result
+        assert len(result["articles"]) == 1
+        
+        # Get the normalized article from the result
+        normalized = result["articles"][0]
         
         # Check the normalization
         assert "url_hash" not in normalized
@@ -241,11 +270,19 @@ class TestEODHDClient:
         # Set up the mock
         mock_response = MagicMock()
         mock_response.json.return_value = SAMPLE_RESPONSE
+        mock_response.status_code = 200
         mock_get.return_value = mock_response
         
         # Call the method
-        articles = self.client.fetch_news(symbol="AAPL")
-        normalized = articles[0]
+        result = self.client.fetch_news(symbol="AAPL")
+        
+        # Check that result is a dictionary with expected structure
+        assert isinstance(result, dict)
+        assert "articles" in result
+        assert len(result["articles"]) == 1
+        
+        # Get the normalized article from the result
+        normalized = result["articles"][0]
         
         # Check source query symbol
         assert "source_query_symbol" in normalized
@@ -258,6 +295,7 @@ class TestEODHDClient:
         # Create a successful mock response for the third attempt
         mock_response = MagicMock()
         mock_response.json.return_value = SAMPLE_RESPONSE
+        mock_response.status_code = 200
         
         # Set up the mock to raise exceptions for the first two attempts
         # and return the successful response on the third attempt
@@ -269,51 +307,100 @@ class TestEODHDClient:
         
         # Call the method with minimal retry settings for faster tests
         with patch("time.sleep"):  # Mock sleep to speed up test
-            articles = self.client.fetch_news(
+            result = self.client.fetch_news(
                 tag="HOSPITALITY",
                 max_retries=3,
                 backoff_factor=0.1
             )
         
         # Check that we got a response after retries
-        assert len(articles) == 1
-        assert articles[0]["title"] == SAMPLE_ARTICLE["title"]
+        assert isinstance(result, dict)
+        assert "articles" in result
+        assert "status_code" in result
+        assert "success" in result
+        assert "error_message" in result
+        
+        assert len(result["articles"]) == 1
+        assert result["articles"][0]["title"] == SAMPLE_ARTICLE["title"]
+        assert result["status_code"] == 200
+        assert result["success"] is True
+        # After successful retry, previous error messages are still preserved
+        assert "Timeout error" in result["error_message"]
         
         # Reset the mock and test complete failure
         mock_get.reset_mock()
         mock_get.side_effect = requests.exceptions.ConnectionError("Connection error")
         
-        # Should raise EODHDApiError after all retries fail
+        # Instead of raising an exception, the method should return a failure result
         with patch("time.sleep"):  # Mock sleep to speed up test
-            with pytest.raises(EODHDApiError):
-                self.client.fetch_news(
-                    tag="HOSPITALITY",
-                    max_retries=3,
-                    backoff_factor=0.1
-                )
+            result = self.client.fetch_news(
+                tag="HOSPITALITY",
+                max_retries=3,
+                backoff_factor=0.1
+            )
+        
+        # Check that the result contains the error information
+        assert isinstance(result, dict)
+        assert result["articles"] == []
+        assert result["success"] is False
+        assert "Connection error" in result["error_message"]
+    
+    @patch("requests.get")
+    def test_api_error_response(self, mock_get):
+        """Test handling of API error responses with different status codes."""
+        # Create a mock response with an error status code
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"message": "API rate limit exceeded"}
+        mock_response.status_code = 429
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("429 Client Error: Too Many Requests")
+        mock_get.return_value = mock_response
+        
+        # Call the method with minimal retry settings for faster tests
+        with patch("time.sleep"):  # Mock sleep to speed up test
+            result = self.client.fetch_news(
+                tag="HOSPITALITY",
+                max_retries=1,
+                backoff_factor=0.1
+            )
+        
+        # Check the result structure contains error information
+        assert isinstance(result, dict)
+        assert result["articles"] == []
+        assert result["status_code"] == 429
+        assert result["success"] is False
+        assert "429 Client Error" in result["error_message"]
     
     @patch("requests.get")
     def test_api_error_propagation(self, mock_get):
-        """Test that API errors are properly propagated to the caller."""
+        """Test that API errors are properly handled in the result dictionary."""
         # Create a mock response with an API error
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "code": "401",
             "message": "Invalid API key or access denied"
         }
+        mock_response.status_code = 401
         mock_get.return_value = mock_response
         
-        # Should raise EODHDApiError with the error message from the API
-        with pytest.raises(EODHDApiError) as exc_info:
-            self.client.fetch_news(symbol="AAPL")
+        # With the new implementation, API errors are returned in the result dictionary
+        # and not raised as exceptions
+        result = self.client.fetch_news(symbol="AAPL")
         
-        assert "Invalid API key or access denied" in str(exc_info.value)
+        # Check that the error information is correctly captured in the result
+        assert isinstance(result, dict)
+        assert result["articles"] == []
+        assert result["status_code"] == 401
+        assert result["success"] is False
+        assert "Invalid API key or access denied" in result["error_message"]
         
-        # Test HTTP error propagation
+        # Test HTTP error handling
         mock_get.reset_mock()
         mock_get.side_effect = requests.exceptions.HTTPError("404 Client Error")
         
-        with pytest.raises(EODHDApiError) as exc_info:
-            self.client.fetch_news(symbol="AAPL")
+        # HTTP errors should also be returned in the result dictionary
+        result = self.client.fetch_news(symbol="AAPL")
         
-        assert "404 Client Error" in str(exc_info.value)
+        assert isinstance(result, dict)
+        assert result["articles"] == []
+        assert result["success"] is False
+        assert "404 Client Error" in result["error_message"]

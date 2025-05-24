@@ -61,7 +61,6 @@ class TestArticleManager(unittest.TestCase):
         # Check expected tables
         self.assertIn('articles', tables)
         self.assertIn('api_call_log', tables)
-        self.assertIn('api_errors_log', tables)
         
         conn.close()
     

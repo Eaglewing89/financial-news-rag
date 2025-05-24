@@ -77,19 +77,6 @@ class ArticleManager:
     )
     """
     
-    API_ERRORS_LOG_TABLE_SQL = """
-    CREATE TABLE IF NOT EXISTS api_errors_log (
-        error_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp TEXT NOT NULL,
-        request_url TEXT,
-        request_params TEXT,
-        status_code INTEGER,
-        error_message TEXT,
-        response_text TEXT,
-        client_method TEXT
-    )
-    """
-    
     def __init__(self, db_path: str = None):
         """
         Initialize the article manager.
@@ -121,7 +108,6 @@ class ArticleManager:
             # Create tables if they don't exist
             cursor.execute(self.ARTICLES_TABLE_SQL)
             cursor.execute(self.API_CALL_LOG_TABLE_SQL)
-            cursor.execute(self.API_ERRORS_LOG_TABLE_SQL)
             
             # Create indices for faster lookups
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_status_text_processing ON articles(status_text_processing)")

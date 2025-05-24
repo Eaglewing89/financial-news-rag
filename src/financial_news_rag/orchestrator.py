@@ -143,30 +143,38 @@ class FinancialNewsRAG:
             # Fetch by tag
             if tag:
                 logger.info(f"Fetching articles with tag: {tag}")
-                fetched_articles = self.eodhd_client.fetch_news(
+                api_result = self.eodhd_client.fetch_news(
                     tag=tag,
                     from_date=from_date,
                     to_date=to_date,
                     limit=limit
                 )
                 
-                # Log the API call
-                if fetched_articles:
-                    self.article_manager.log_api_call(
-                        query_type='tag',
-                        query_value=tag,
-                        from_date=from_date,
-                        to_date=to_date,
-                        limit=limit,
-                        offset=0,
-                        articles_retrieved_count=len(fetched_articles),
-                        fetched_articles=fetched_articles,
-                        api_call_successful=True,
-                        http_status_code=200
-                    )
+                # Extract articles and status info from the result dictionary
+                fetched_articles = api_result["articles"]
+                status_code = api_result["status_code"]
+                success = api_result["success"]
+                error_message = api_result["error_message"]
                 
-                # Store articles
-                stored_count = self.article_manager.store_articles(fetched_articles)
+                # Log the API call with accurate status information
+                self.article_manager.log_api_call(
+                    query_type='tag',
+                    query_value=tag,
+                    from_date=from_date,
+                    to_date=to_date,
+                    limit=limit,
+                    offset=0,
+                    articles_retrieved_count=len(fetched_articles),
+                    fetched_articles=fetched_articles,
+                    api_call_successful=success,
+                    http_status_code=status_code,
+                    error_message=error_message
+                )
+                
+                # Only store articles if the API call was successful
+                stored_count = 0
+                if success and fetched_articles:
+                    stored_count = self.article_manager.store_articles(fetched_articles)
                 
                 # Update results
                 results["articles_fetched"] += len(fetched_articles)
@@ -176,30 +184,38 @@ class FinancialNewsRAG:
             elif symbol:
                 logger.info(f"Fetching articles for symbol: {symbol}")
                 try:
-                    fetched_articles = self.eodhd_client.fetch_news(
+                    api_result = self.eodhd_client.fetch_news(
                         symbol=symbol,
                         from_date=from_date,
                         to_date=to_date,
                         limit=limit
                     )
                     
-                    # Log the API call
-                    if fetched_articles:
-                        self.article_manager.log_api_call(
-                            query_type='symbol',
-                            query_value=symbol,
-                            from_date=from_date,
-                            to_date=to_date,
-                            limit=limit,
-                            offset=0,
-                            articles_retrieved_count=len(fetched_articles),
-                            fetched_articles=fetched_articles,
-                            api_call_successful=True,
-                            http_status_code=200
-                        )
+                    # Extract articles and status info from the result dictionary
+                    fetched_articles = api_result["articles"]
+                    status_code = api_result["status_code"]
+                    success = api_result["success"]
+                    error_message = api_result["error_message"]
                     
-                    # Store articles
-                    stored_count = self.article_manager.store_articles(fetched_articles)
+                    # Log the API call with accurate status information
+                    self.article_manager.log_api_call(
+                        query_type='symbol',
+                        query_value=symbol,
+                        from_date=from_date,
+                        to_date=to_date,
+                        limit=limit,
+                        offset=0,
+                        articles_retrieved_count=len(fetched_articles),
+                        fetched_articles=fetched_articles,
+                        api_call_successful=success,
+                        http_status_code=status_code,
+                        error_message=error_message
+                    )
+                    
+                    # Only store articles if the API call was successful
+                    stored_count = 0
+                    if success and fetched_articles:
+                        stored_count = self.article_manager.store_articles(fetched_articles)
                     
                     # Update results
                     results["articles_fetched"] += len(fetched_articles)
@@ -208,9 +224,6 @@ class FinancialNewsRAG:
                     logger.error(f"Error fetching news for symbol {symbol}: {str(e)}")
                     results["status"] = "FAILED"
                     results["errors"].append(f"Error fetching news for symbol {symbol}: {str(e)}")
-                    # TODO: Implement ArticleManager.log_api_error(...)
-                    # TODO: Call ArticleManager.log_api_error with details from the caught exception (e)
-                    # TODO: Decide on how to surface this failure to the user beyond the results dict
             
             logger.info(f"Fetched {results['articles_fetched']} articles, stored {results['articles_stored']}")
             

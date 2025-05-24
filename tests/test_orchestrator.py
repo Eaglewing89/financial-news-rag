@@ -88,8 +88,13 @@ class TestFinancialNewsRAG:
             }
         ]
         
-        # Configure mocks
-        self.orchestrator.eodhd_client.fetch_news.return_value = mock_articles
+        # Configure mocks with the new dictionary return structure
+        self.orchestrator.eodhd_client.fetch_news.return_value = {
+            "articles": mock_articles,
+            "status_code": 200,
+            "success": True,
+            "error_message": None
+        }
         self.orchestrator.article_manager.store_articles.return_value = 2
         
         # Call the method with a tag
@@ -142,8 +147,13 @@ class TestFinancialNewsRAG:
             }
         ]
         
-        # Configure mocks
-        self.orchestrator.eodhd_client.fetch_news.return_value = mock_articles
+        # Configure mocks with the new dictionary return structure
+        self.orchestrator.eodhd_client.fetch_news.return_value = {
+            "articles": mock_articles,
+            "status_code": 200,
+            "success": True,
+            "error_message": None
+        }
         self.orchestrator.article_manager.store_articles.return_value = 2
         
         # Call the method with a symbol
