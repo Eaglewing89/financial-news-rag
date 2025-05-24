@@ -7,11 +7,13 @@ It includes robust error handling, rate limiting, and normalization of API respo
 
 import time
 import logging
-from datetime import datetime, timezone
+from datetime import datetime # Keep datetime for strptime
+from financial_news_rag.utils import parse_iso_date_string, get_utc_now
 from typing import Dict, List, Optional
 
 import requests
 
+logger = logging.getLogger(__name__)
 
 class EODHDApiError(Exception):
     """Custom exception for EODHD API errors."""
@@ -263,14 +265,16 @@ class EODHDClient:
             Normalized article dictionary with consistent field names.
         """
         # Normalize date format
-        try:
-            # Parse the ISO 8601 date
-            published_at = datetime.fromisoformat(article['date'].replace('Z', '+00:00'))
-            # Store it in ISO format for consistent representation
-            published_at_iso = published_at.isoformat()
-        except (KeyError, ValueError):
-            # Fallback if date is missing or invalid
-            published_at_iso = datetime.now(timezone.utc).isoformat()
+        published_at_iso: Optional[str] = None
+        raw_date_str = article.get('date')
+        
+        parsed_dt = parse_iso_date_string(raw_date_str)
+        if parsed_dt:
+            published_at_iso = parsed_dt.isoformat()
+        else:
+            # Fallback if date is missing or invalid, or parsing failed
+            logger.warning(f"Could not parse date string: {raw_date_str}. Falling back to current UTC time.")
+            published_at_iso = get_utc_now().isoformat()
         
         # Build normalized article structure
         normalized = {

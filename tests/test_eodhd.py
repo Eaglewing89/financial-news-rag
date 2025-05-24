@@ -6,7 +6,7 @@ import os
 import pytest
 import requests
 from unittest.mock import patch, MagicMock
-from datetime import datetime
+from datetime import datetime, timezone  # MODIFIED: Added timezone
 
 from financial_news_rag.eodhd import EODHDClient, EODHDApiError
 from financial_news_rag.config import Config
@@ -304,6 +304,35 @@ class TestEODHDClient:
         assert normalized["source_query_symbol"] == "AAPL"
         assert "source_query_tag" not in normalized
     
+    @patch("financial_news_rag.eodhd.get_utc_now") # MODIFIED: Corrected patch target again
+    def test_normalize_article_missing_date(self, mock_get_utc_now):
+        """Test normalization when 'date' field is missing from the article."""
+        # Mock the current time for consistent testing
+        mock_now = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        mock_get_utc_now.return_value = mock_now
+        
+        # Create a new client instance for this test to ensure it uses the patched environment
+        client_for_test = EODHDClient(api_key="test_api_key_for_missing_date_test") 
+        
+        article_data_missing_date = {
+            "title": "Test Title Missing Date",
+            "content": "Test content.",
+            "link": "http://example.com/missing_date",
+            # "date" field is intentionally omitted
+            "symbols": ["TEST"],
+            "tags": ["TESTING"],
+            "sentiment": {"polarity": 0.5}
+        }
+        
+        # Call _normalize_article on the new client instance
+        normalized = client_for_test._normalize_article(article_data_missing_date)
+        
+        assert normalized is not None
+        assert normalized["published_at"] == mock_now.isoformat(), f"Expected '{mock_now.isoformat()}', but got '{normalized['published_at']}'" # MODIFIED: Corrected assertion message syntax
+        assert normalized["title"] == article_data_missing_date["title"]
+        
+        mock_get_utc_now.assert_called_once()
+
     @patch("requests.get")
     def test_error_handling(self, mock_get):
         """Test error handling and retry logic."""
@@ -383,7 +412,7 @@ class TestEODHDClient:
         assert result["articles"] == []
         assert result["status_code"] == 429
         assert result["success"] is False
-        assert "429 Client Error" in result["error_message"]
+        assert result["error_message"] == "429 Client Error: Too Many Requests"
     
     @patch("requests.get")
     def test_api_error_propagation(self, mock_get):
