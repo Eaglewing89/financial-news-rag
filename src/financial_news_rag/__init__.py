@@ -19,7 +19,7 @@ from financial_news_rag.data import (
 from financial_news_rag.embeddings import EmbeddingsGenerator
 from financial_news_rag.eodhd import EODHDClient, EODHDApiError
 from financial_news_rag.marketaux import MarketauxNewsFetcher, MarketauxRateLimiter, fetch_marketaux_with_retry
-from financial_news_rag.text_processor import TextProcessor, clean_text, split_text
+from financial_news_rag.text_processor import TextProcessor
 
 __all__ = [
     # EODHD API
@@ -45,8 +45,6 @@ __all__ = [
     # Text processing
     "TextProcessor",
     "ArticleManager",
-    "clean_text",
-    "split_text",
     
     # Embedding generation
     "EmbeddingsGenerator",

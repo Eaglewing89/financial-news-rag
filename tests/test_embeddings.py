@@ -182,6 +182,94 @@ class TestEmbeddingsGenerator(unittest.TestCase):
         
         # API should be called for all chunks
         self.assertEqual(mock_client.models.embed_content.call_count, 3)
+    
+    @patch('financial_news_rag.embeddings.EmbeddingsGenerator.generate_embeddings')
+    def test_generate_and_verify_embeddings_success(self, mock_generate_embeddings):
+        """Test successful verification of embeddings (no zero vectors)."""
+        # Create a list of valid embeddings (non-zero vectors)
+        valid_embeddings = [
+            [0.1, 0.2] * 384,  # Non-zero vector
+            [0.3, 0.4] * 384,  # Non-zero vector
+            [0.5, 0.6] * 384   # Non-zero vector
+        ]
+        
+        # Configure mock to return valid embeddings
+        mock_generate_embeddings.return_value = valid_embeddings
+        
+        # Create generator and call with test chunks
+        generator = EmbeddingsGenerator()
+        result = generator.generate_and_verify_embeddings(self.test_chunks)
+        
+        # Verify results
+        self.assertEqual(result["embeddings"], valid_embeddings)
+        self.assertTrue(result["all_valid"])
+        
+        # Verify generate_embeddings was called correctly
+        mock_generate_embeddings.assert_called_once_with(self.test_chunks, "SEMANTIC_SIMILARITY")
+    
+    @patch('financial_news_rag.embeddings.EmbeddingsGenerator.generate_embeddings')
+    def test_generate_and_verify_embeddings_partial_failure(self, mock_generate_embeddings):
+        """Test verification of embeddings with some zero vectors."""
+        # Create a list of embeddings with one zero vector
+        mixed_embeddings = [
+            [0.1, 0.2] * 384,          # Non-zero vector
+            [0.0] * 768,               # Zero vector (failure)
+            [0.5, 0.6] * 384           # Non-zero vector
+        ]
+        
+        # Configure mock to return mixed embeddings
+        mock_generate_embeddings.return_value = mixed_embeddings
+        
+        # Create generator and call with test chunks
+        generator = EmbeddingsGenerator()
+        result = generator.generate_and_verify_embeddings(self.test_chunks)
+        
+        # Verify results
+        self.assertEqual(result["embeddings"], mixed_embeddings)
+        self.assertFalse(result["all_valid"])
+        
+        # Verify generate_embeddings was called correctly
+        mock_generate_embeddings.assert_called_once_with(self.test_chunks, "SEMANTIC_SIMILARITY")
+    
+    @patch('financial_news_rag.embeddings.EmbeddingsGenerator.generate_embeddings')
+    def test_generate_and_verify_embeddings_all_failed(self, mock_generate_embeddings):
+        """Test verification of embeddings with all zero vectors."""
+        # Create a list of all zero vectors
+        failed_embeddings = [
+            [0.0] * 768,  # Zero vector
+            [0.0] * 768   # Zero vector
+        ]
+        
+        # Configure mock to return zero vectors
+        mock_generate_embeddings.return_value = failed_embeddings
+        
+        # Create generator and call with test chunks
+        generator = EmbeddingsGenerator()
+        result = generator.generate_and_verify_embeddings(self.test_chunks[:2])  # Use only 2 chunks
+        
+        # Verify results
+        self.assertEqual(result["embeddings"], failed_embeddings)
+        self.assertFalse(result["all_valid"])
+        
+        # Verify generate_embeddings was called correctly
+        mock_generate_embeddings.assert_called_once_with(self.test_chunks[:2], "SEMANTIC_SIMILARITY")
+    
+    @patch('financial_news_rag.embeddings.EmbeddingsGenerator.generate_embeddings')
+    def test_generate_and_verify_embeddings_empty_input(self, mock_generate_embeddings):
+        """Test verification of embeddings with empty input."""
+        # Configure mock to return empty list
+        mock_generate_embeddings.return_value = []
+        
+        # Create generator and call with empty list
+        generator = EmbeddingsGenerator()
+        result = generator.generate_and_verify_embeddings([])
+        
+        # Verify results
+        self.assertEqual(result["embeddings"], [])
+        self.assertTrue(result["all_valid"])
+        
+        # Verify generate_embeddings was called correctly
+        mock_generate_embeddings.assert_called_once_with([], "SEMANTIC_SIMILARITY")
 
 
 if __name__ == '__main__':

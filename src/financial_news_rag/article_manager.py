@@ -44,7 +44,7 @@ class ArticleManager:
         processed_content TEXT,
         url TEXT NOT NULL,
         published_at TEXT NOT NULL,
-        fetched_at TEXT NOT NULL,
+        added_at TEXT NOT NULL,
         source_api TEXT,
         symbols TEXT,
         tags TEXT,
@@ -74,19 +74,6 @@ class ArticleManager:
         api_call_successful INTEGER NOT NULL,
         http_status_code INTEGER,
         error_message TEXT
-    )
-    """
-    
-    API_ERRORS_LOG_TABLE_SQL = """
-    CREATE TABLE IF NOT EXISTS api_errors_log (
-        error_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp TEXT NOT NULL,
-        request_url TEXT,
-        request_params TEXT,
-        status_code INTEGER,
-        error_message TEXT,
-        response_text TEXT,
-        client_method TEXT
     )
     """
     
@@ -121,7 +108,6 @@ class ArticleManager:
             # Create tables if they don't exist
             cursor.execute(self.ARTICLES_TABLE_SQL)
             cursor.execute(self.API_CALL_LOG_TABLE_SQL)
-            cursor.execute(self.API_ERRORS_LOG_TABLE_SQL)
             
             # Create indices for faster lookups
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_status_text_processing ON articles(status_text_processing)")
@@ -159,50 +145,7 @@ class ArticleManager:
             logger.error(f"Query: {query}, Params: {params}")
             raise
     
-    def article_exists(self, url_hash: str) -> bool:
-        """
-        Check if an article with the given URL hash exists in the database.
-        
-        Args:
-            url_hash: SHA-256 hash of the article URL
-            
-        Returns:
-            bool: True if the article exists, False otherwise
-        """
-        query = "SELECT 1 FROM articles WHERE url_hash = ? LIMIT 1"
-        cursor = self._execute_query(query, (url_hash,))
-        return cursor.fetchone() is not None
-    
-    def get_article_status(self, url_hash: str) -> dict:
-        """
-        Get the processing status of an article.
-        
-        Args:
-            url_hash: SHA-256 hash of the article URL
-            
-        Returns:
-            dict: Article status information or None if not found
-        """
-        query = """
-        SELECT url_hash, status_text_processing, status_embedding, 
-               embedding_model, vector_db_id
-        FROM articles
-        WHERE url_hash = ?
-        """
-        cursor = self._execute_query(query, (url_hash,))
-        row = cursor.fetchone()
-        
-        if not row:
-            return None
-            
-        return {
-            'url_hash': row[0],
-            'status_text_processing': row[1],
-            'status_embedding': row[2],
-            'embedding_model': row[3],
-            'vector_db_id': row[4]
-        }
-    
+
     def get_article_by_hash(self, url_hash: str) -> dict:
         """
         Get complete article data by URL hash.
@@ -214,7 +157,7 @@ class ArticleManager:
             dict: Complete article data or None if not found
         """
         query = """
-        SELECT url_hash, title, raw_content, processed_content, url, published_at, 
+        SELECT url_hash, title, raw_content, processed_content, url, published_at, added_at,
                symbols, tags, sentiment, status_text_processing, status_embedding
         FROM articles
         WHERE url_hash = ?
@@ -232,66 +175,34 @@ class ArticleManager:
             'processed_content': row[3],
             'url': row[4],
             'published_at': row[5],
-            'symbols': json.loads(row[6]) if row[6] else [],
-            'tags': json.loads(row[7]) if row[7] else [],
-            'sentiment': json.loads(row[8]) if row[8] else {},
-            'status_text_processing': row[9],
-            'status_embedding': row[10]
+            'added_at': row[6],
+            'symbols': json.loads(row[7]) if row[7] else [],
+            'tags': json.loads(row[8]) if row[8] else [],
+            'sentiment': json.loads(row[9]) if row[9] else {},
+            'status_text_processing': row[10],
+            'status_embedding': row[11]
         }
     
-    def get_pending_articles(self, limit: int = 100) -> List[Dict]:
+    def get_processed_articles_for_embedding(self, status: str = 'PENDING', limit: int = 100) -> List[Dict]:
         """
-        Get articles pending text processing.
+        Get articles that have been processed and are ready for embedding,
+        or have a specific embedding status.
         
         Args:
-            limit: Maximum number of articles to retrieve
-            
-        Returns:
-            List of article dictionaries with raw content
-        """
-        query = """
-        SELECT url_hash, raw_content, title, url, published_at, 
-               symbols, tags, sentiment
-        FROM articles
-        WHERE status_text_processing = 'PENDING'
-        LIMIT ?
-        """
-        cursor = self._execute_query(query, (limit,))
-        articles = []
-        
-        for row in cursor.fetchall():
-            article = {
-                'url_hash': row[0],
-                'raw_content': row[1],
-                'title': row[2],
-                'url': row[3],
-                'published_at': row[4],
-                'symbols': json.loads(row[5]) if row[5] else [],
-                'tags': json.loads(row[6]) if row[6] else [],
-                'sentiment': json.loads(row[7]) if row[7] else {}
-            }
-            articles.append(article)
-            
-        return articles
-    
-    def get_processed_articles_for_embedding(self, limit: int = 100) -> List[Dict]:
-        """
-        Get articles that have been processed but not yet embedded.
-        
-        Args:
+            status: The embedding status to filter articles by (e.g., 'PENDING', 'FAILED').
             limit: Maximum number of articles to retrieve
             
         Returns:
             List of article dictionaries with processed content
         """
         query = """
-        SELECT url_hash, processed_content, title, url, published_at, 
+        SELECT url_hash, processed_content, title, url, published_at, added_at,
                symbols, tags, sentiment
         FROM articles
-        WHERE status_text_processing = 'SUCCESS' AND status_embedding = 'PENDING'
+        WHERE status_text_processing = 'SUCCESS' AND status_embedding = ?
         LIMIT ?
         """
-        cursor = self._execute_query(query, (limit,))
+        cursor = self._execute_query(query, (status, limit))
         articles = []
         
         for row in cursor.fetchall():
@@ -301,9 +212,10 @@ class ArticleManager:
                 'title': row[2],
                 'url': row[3],
                 'published_at': row[4],
-                'symbols': json.loads(row[5]) if row[5] else [],
-                'tags': json.loads(row[6]) if row[6] else [],
-                'sentiment': json.loads(row[7]) if row[7] else {}
+                'added_at': row[5],
+                'symbols': json.loads(row[6]) if row[6] else [],
+                'tags': json.loads(row[7]) if row[7] else [],
+                'sentiment': json.loads(row[8]) if row[8] else {}
             }
             articles.append(article)
             
@@ -400,7 +312,7 @@ class ArticleManager:
         if replace_existing:
             query = """
             INSERT OR REPLACE INTO articles (
-                url_hash, title, raw_content, url, published_at, fetched_at,
+                url_hash, title, raw_content, url, published_at, added_at,
                 source_api, symbols, tags, sentiment, 
                 source_query_tag, source_query_symbol,
                 status_text_processing, status_embedding
@@ -409,7 +321,7 @@ class ArticleManager:
         else:
             query = """
             INSERT OR IGNORE INTO articles (
-                url_hash, title, raw_content, url, published_at, fetched_at,
+                url_hash, title, raw_content, url, published_at, added_at,
                 source_api, symbols, tags, sentiment,
                 source_query_tag, source_query_symbol,
                 status_text_processing, status_embedding
@@ -420,11 +332,10 @@ class ArticleManager:
         
         try:
             for article in articles:
-                # Check required fields
-                required_fields = ['url_hash', 'url', 'published_at', 'fetched_at']
-                if not all(field in article for field in required_fields):
-                    logger.warning(f"Skipping article with missing required fields: {article.get('url_hash', 'unknown')}")
-                    continue
+                # Generate URL hash and added_at timestamp
+                url = article.get('url', '')
+                url_hash = ArticleManager.generate_url_hash(url)
+                added_at_timestamp = datetime.now(timezone.utc).isoformat()
                 
                 # Handle the case where raw_content is None
                 raw_content = article.get('raw_content', '')
@@ -441,12 +352,12 @@ class ArticleManager:
                 source_query_symbol = article.get('source_query_symbol')
                 
                 params = (
-                    article['url_hash'],
+                    url_hash,
                     article.get('title', ''),
                     raw_content,
-                    article['url'],
-                    article['published_at'],
-                    article['fetched_at'],
+                    url,
+                    article.get('published_at', ''),
+                    added_at_timestamp,
                     article.get('source_api', 'unknown'),
                     symbols_json,
                     tags_json,
@@ -475,8 +386,10 @@ class ArticleManager:
             url: Article URL
             
         Returns:
-            str: SHA-256 hash of the URL
+            str: SHA-256 hash of the URL, or an empty string if URL is empty.
         """
+        if not url:
+            return ''
         return sha256(url.encode('utf-8')).hexdigest()
 
     def log_api_call(
@@ -488,8 +401,7 @@ class ArticleManager:
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         articles_retrieved_count: int = 0,
-        oldest_article_date: Optional[str] = None,
-        newest_article_date: Optional[str] = None,
+        fetched_articles: Optional[List[Dict[str, Any]]] = None,
         api_call_successful: bool = True,
         http_status_code: Optional[int] = None,
         error_message: Optional[str] = None
@@ -505,8 +417,7 @@ class ArticleManager:
             limit: The limit parameter used in the API call
             offset: The offset parameter used in the API call
             articles_retrieved_count: Number of articles retrieved
-            oldest_article_date: Oldest publication date among retrieved articles
-            newest_article_date: Newest publication date among retrieved articles
+            fetched_articles: List of articles retrieved from the API
             api_call_successful: Whether the API call was successful
             http_status_code: HTTP status code of the response
             error_message: Error message if the API call failed
@@ -523,6 +434,20 @@ class ArticleManager:
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         
+        # Calculate oldest_article_date and newest_article_date from fetched_articles
+        oldest_article_date_val = None
+        newest_article_date_val = None
+        
+        if fetched_articles:
+            valid_dates = [
+                article['published_at']
+                for article in fetched_articles
+                if article.get('published_at') and isinstance(article.get('published_at'), str) and article.get('published_at').strip()
+            ]
+            if valid_dates:
+                oldest_article_date_val = min(valid_dates)
+                newest_article_date_val = max(valid_dates)
+        
         current_timestamp = datetime.now(timezone.utc).isoformat()
         api_call_successful_int = 1 if api_call_successful else 0
         
@@ -535,8 +460,8 @@ class ArticleManager:
             limit,
             offset,
             articles_retrieved_count,
-            oldest_article_date,
-            newest_article_date,
+            oldest_article_date_val,
+            newest_article_date_val,
             api_call_successful_int,
             http_status_code,
             error_message
@@ -550,3 +475,168 @@ class ArticleManager:
         except sqlite3.Error as e:
             logger.error(f"Error logging API call: {e}")
             return -1
+    
+    def get_articles_by_processing_status(self, status: str, limit: int = 100) -> List[Dict]:
+        """
+        Get articles by their text processing status.
+        
+        Args:
+            status: The status to filter articles by (e.g., 'FAILED', 'SUCCESS', 'PENDING')
+            limit: Maximum number of articles to retrieve
+            
+        Returns:
+            List of article dictionaries matching the specified status
+        """
+        query = """
+        SELECT url_hash, raw_content, title, url, published_at, added_at,
+               symbols, tags, sentiment, processed_content, status_text_processing, 
+               status_embedding, embedding_model, vector_db_id
+        FROM articles
+        WHERE status_text_processing = ?
+        LIMIT ?
+        """
+        cursor = self._execute_query(query, (status, limit))
+        articles = []
+        
+        for row in cursor.fetchall():
+            article = {
+                'url_hash': row[0],
+                'raw_content': row[1],
+                'title': row[2],
+                'url': row[3],
+                'published_at': row[4],
+                'added_at': row[5],
+                'symbols': json.loads(row[6]) if row[6] else [],
+                'tags': json.loads(row[7]) if row[7] else [],
+                'sentiment': json.loads(row[8]) if row[8] else {},
+                'processed_content': row[9],
+                'status_text_processing': row[10],
+                'status_embedding': row[11],
+                'embedding_model': row[12],
+                'vector_db_id': row[13]
+            }
+            articles.append(article)
+            
+        return articles
+    
+    def delete_article_by_hash(self, url_hash: str) -> bool:
+        """
+        Delete an article from the database by its URL hash.
+        
+        Args:
+            url_hash: SHA-256 hash of the article URL
+            
+        Returns:
+            bool: True if an article was successfully deleted, False otherwise
+                 (e.g., article not found or database error)
+        """
+        try:
+            query = "DELETE FROM articles WHERE url_hash = ?"
+            cursor = self._execute_query(query, (url_hash,), commit=True)
+            
+            # Check if any rows were affected (article was deleted)
+            return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            logger.error(f"Error deleting article with hash {url_hash}: {e}")
+            return False
+            
+    def get_database_statistics(self) -> Dict[str, Any]:
+        """
+        Get statistics about the article database.
+        
+        Returns:
+            Dict containing article database statistics including total counts,
+            processing statuses, embedding statuses, article tags, symbols, 
+            date ranges, and API call data.
+        """
+        try:
+            cursor = self.conn.cursor()
+            
+            # Get total article count
+            cursor.execute("SELECT COUNT(*) FROM articles")
+            total_articles = cursor.fetchone()[0]
+            
+            # Get counts by text processing status
+            cursor.execute(
+                """
+                SELECT status_text_processing, COUNT(*) 
+                FROM articles 
+                GROUP BY status_text_processing
+                """
+            )
+            text_processing_status = {status: count for status, count in cursor.fetchall()}
+            
+            # Get counts by embedding status
+            cursor.execute(
+                """
+                SELECT status_embedding, COUNT(*) 
+                FROM articles 
+                GROUP BY status_embedding
+                """
+            )
+            embedding_status = {status: count for status, count in cursor.fetchall()}
+            
+            # Get counts by source query tag
+            cursor.execute(
+                """
+                SELECT source_query_tag, COUNT(*) 
+                FROM articles 
+                WHERE source_query_tag IS NOT NULL
+                GROUP BY source_query_tag
+                """
+            )
+            tag_counts = {tag: count for tag, count in cursor.fetchall() if tag}
+            
+            # Get counts by source query symbol
+            cursor.execute(
+                """
+                SELECT source_query_symbol, COUNT(*) 
+                FROM articles 
+                WHERE source_query_symbol IS NOT NULL
+                GROUP BY source_query_symbol
+                """
+            )
+            symbol_counts = {symbol: count for symbol, count in cursor.fetchall() if symbol}
+            
+            # Get date range of articles
+            cursor.execute("SELECT MIN(published_at), MAX(published_at) FROM articles")
+            oldest_date, newest_date = cursor.fetchone()
+            
+            # Get API call statistics
+            cursor.execute("SELECT COUNT(*) FROM api_call_log")
+            total_api_calls = cursor.fetchone()[0]
+            
+            cursor.execute(
+                """
+                SELECT SUM(articles_retrieved_count) 
+                FROM api_call_log 
+                WHERE api_call_successful = 1
+                """
+            )
+            total_articles_retrieved = cursor.fetchone()[0] or 0
+            
+            status = {
+                "total_articles": total_articles,
+                "text_processing_status": text_processing_status,
+                "embedding_status": embedding_status,
+                "articles_by_tag": tag_counts,
+                "articles_by_symbol": symbol_counts,
+                "date_range": {
+                    "oldest_article": oldest_date,
+                    "newest_article": newest_date
+                },
+                "api_calls": {
+                    "total_calls": total_api_calls,
+                    "total_articles_retrieved": total_articles_retrieved
+                }
+            }
+            
+            logger.info(f"Article database status: {total_articles} total articles")
+            return status
+            
+        except sqlite3.Error as e:
+            logger.error(f"Error getting article database status: {str(e)}")
+            return {
+                "error": str(e),
+                "status": "FAILED"
+            }

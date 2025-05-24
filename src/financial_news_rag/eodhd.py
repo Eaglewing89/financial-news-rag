@@ -7,11 +7,9 @@ It includes robust error handling, rate limiting, and normalization of API respo
 
 import os
 import time
-import hashlib
-import warnings
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import requests
 from dotenv import load_dotenv
@@ -57,7 +55,7 @@ class EODHDClient:
     
     def fetch_news(
         self,
-        symbols: Optional[Union[str, List[str]]] = None,
+        symbol: Optional[str] = None,
         tag: Optional[str] = None,
         from_date: Optional[str] = None,
         to_date: Optional[str] = None,
@@ -65,14 +63,12 @@ class EODHDClient:
         offset: int = 0,
         max_retries: int = DEFAULT_MAX_RETRIES,
         backoff_factor: float = DEFAULT_BACKOFF_FACTOR
-    ) -> List[Dict]:
+    ) -> Dict:
         """
         Fetch financial news articles from EODHD API.
         
         Args:
-            symbols: Ticker symbol(s) to filter news for. Can be a string (single symbol), a comma-separated string, 
-                   or a list of symbols. If a list or a comma-separated string is provided, a warning will be triggered, 
-                   and only the first symbol will be used.
+            symbol: A single ticker symbol to filter news for (e.g., "AAPL.US").
             tag: Topic tag to filter news for (e.g., "mergers and acquisitions").
             from_date: Start date for filtering news (YYYY-MM-DD).
             to_date: End date for filtering news (YYYY-MM-DD).
@@ -82,7 +78,11 @@ class EODHDClient:
             backoff_factor: Backoff factor for retry timing (seconds = backoff_factor * (2 ** attempt)).
         
         Returns:
-            List of news article dictionaries with normalized fields.
+            Dictionary containing:
+            - "articles": List of normalized article dictionaries
+            - "status_code": HTTP status code of the API response
+            - "success": Boolean indicating if the API call was successful
+            - "error_message": Error message if the call failed, otherwise None
             
         Raises:
             ValueError: If neither symbols nor tag is provided.
@@ -109,27 +109,8 @@ class EODHDClient:
                 raise ValueError("'to_date' must be in YYYY-MM-DD format")
         
         # Construct parameters
-        if not symbols and not tag:
-            raise ValueError("Either 'symbols' or 'tag' must be provided.")
-        
-        # Handle symbols parameter
-        if isinstance(symbols, list):
-            if len(symbols) > 1:
-                warnings.warn(
-                    "EODHD API only supports a single symbol despite official documentation. "
-                    "Only the first symbol will be used. For multiple symbols, make separate API calls for each.",
-                    UserWarning
-                )
-                symbols = symbols[0]  # Take only the first symbol
-            else:
-                symbols = symbols[0] if symbols else None
-        elif symbols and ',' in symbols:
-            warnings.warn(
-                "EODHD API only supports a single symbol despite official documentation. "
-                "Only the first symbol will be used. For multiple symbols, make separate API calls for each.",
-                UserWarning
-            )
-            symbols = symbols.split(',')[0].strip()  # Take only the first symbol before any comma
+        if not symbol and not tag:
+            raise ValueError("Either 'symbol' or 'tag' must be provided.")
         
         params = {
             'api_token': self.api_key,
@@ -140,8 +121,8 @@ class EODHDClient:
         
         if tag:
             params['t'] = tag
-        elif symbols:
-            params['s'] = symbols
+        elif symbol:
+            params['s'] = symbol
         
         if from_date:
             params['from'] = from_date
@@ -152,9 +133,22 @@ class EODHDClient:
         raw_articles = self._fetch_with_retry(API_URL, params, max_retries, backoff_factor)
         
         # Normalize each article
-        normalized_articles = [self._normalize_article(article) for article in raw_articles]
+        normalized_articles = []
+        for article in raw_articles.get("articles", []):
+            # Pass query type and value based on the parameters used
+            if 't' in params:
+                normalized_article = self._normalize_article(article, query_type='tag', query_value=params['t'])
+            elif 's' in params:
+                normalized_article = self._normalize_article(article, query_type='symbol', query_value=params['s'])
+            else:
+                normalized_article = self._normalize_article(article)
+            
+            normalized_articles.append(normalized_article)
         
-        return normalized_articles
+        # Update the result dictionary with normalized articles
+        raw_articles["articles"] = normalized_articles
+        
+        return raw_articles
     
     def _fetch_with_retry(
         self, 
@@ -162,7 +156,7 @@ class EODHDClient:
         params: Dict, 
         max_retries: int = DEFAULT_MAX_RETRIES, 
         backoff_factor: float = DEFAULT_BACKOFF_FACTOR
-    ) -> List[Dict]:
+    ) -> Dict:
         """
         Fetch data from the API with retry logic and exponential backoff.
         
@@ -173,72 +167,90 @@ class EODHDClient:
             backoff_factor: Backoff factor for retry timing.
             
         Returns:
-            JSON response from the API as a list of dictionaries.
-            
-        Raises:
-            EODHDApiError: If all retry attempts fail.
+            Dictionary containing:
+            - "articles": List of article dictionaries (or empty list)
+            - "status_code": HTTP status code (int)
+            - "success": Boolean indicating if the API call was successful
+            - "error_message": Error message string or None if successful
         """
+        result = {
+            "articles": [],
+            "status_code": None,
+            "success": False,
+            "error_message": None
+        }
+        
         for attempt in range(max_retries):
             try:
                 response = requests.get(url, params=params, timeout=self.timeout)
+                
+                # Capture the status code
+                result["status_code"] = response.status_code
                 
                 # Check for HTTP errors
                 response.raise_for_status()
                 
                 # Check if response is empty
                 if not response.text.strip():
-                    raise ValueError("Empty response received from API")
-                
-                # Log response for debugging if needed
-                # print(f"Response text: {response.text[:100]}...")  # Uncomment for debugging
+                    error_msg = "Empty response received from API"
+                    result["error_message"] = error_msg
+                    raise ValueError(error_msg)
                 
                 # Parse JSON response
                 try:
                     data = response.json()
                 except requests.exceptions.JSONDecodeError as json_err:
                     # Additional error info for debugging JSON decode issues
-                    raise ValueError(f"JSON decode error: {str(json_err)}. Response content: {response.text[:100]}...")
+                    error_msg = f"JSON decode error: {str(json_err)}. Response content: {response.text[:100]}..."
+                    result["error_message"] = error_msg
+                    raise ValueError(error_msg)
                 
                 # Check if the response is an error message
                 if isinstance(data, dict) and 'code' in data and 'message' in data:
-                    raise EODHDApiError(f"EODHD API Error: {data['message']} (Code: {data['code']})")
+                    result["error_message"] = f"EODHD API Error: {data['message']} (Code: {data['code']})"
+                    result["success"] = False
+                    return result
                 
                 # If we received an empty list, it's valid but means no articles found
                 if data == [] and 's' in params:
                     logging.info(f"No articles found for symbols: {params['s']}")
                 
-                return data if isinstance(data, list) else []
+                result["articles"] = data if isinstance(data, list) else []
+                result["success"] = True
+                return result
                 
             except (requests.exceptions.RequestException, ValueError) as e:
                 # Log the error with attempt information
                 error_msg = f"Attempt {attempt + 1}/{max_retries} failed: {str(e)}"
                 logging.error(error_msg)  # Log the error message
                 
-                # If this was the last attempt, raise the error
+                # Keep track of the latest error message
+                result["error_message"] = str(e)
+                
+                # If this was the last attempt, return the failed result
                 if attempt == max_retries - 1:
-                    raise EODHDApiError(f"Failed after {max_retries} attempts: {str(e)}")
+                    return result
                 
                 # Exponential backoff before next attempt
                 sleep_time = backoff_factor * (2 ** attempt)
                 time.sleep(sleep_time)
         
-        # This should not be reached if max_retries > 0
-        raise EODHDApiError("Failed to fetch data from EODHD API.")
+        # This should not be reached if max_retries > 0, but included for safety
+        result["error_message"] = "Failed to fetch data from EODHD API."
+        return result
     
-    def _normalize_article(self, article: Dict) -> Dict:
+    def _normalize_article(self, article: Dict, query_type: Optional[str] = None, query_value: Optional[str] = None) -> Dict:
         """
         Normalize an article from the EODHD API response.
         
         Args:
             article: Raw article dictionary from the API response.
+            query_type: Type of query used to fetch the article ('tag' or 'symbol').
+            query_value: Value of the query used to fetch the article.
             
         Returns:
             Normalized article dictionary with consistent field names.
         """
-        # Generate a hash of the URL to create a unique identifier
-        url = article.get('link', '')
-        url_hash = hashlib.sha256(url.encode()).hexdigest() if url else ''
-        
         # Normalize date format
         try:
             # Parse the ISO 8601 date
@@ -251,16 +263,20 @@ class EODHDClient:
         
         # Build normalized article structure
         normalized = {
-            'url_hash': url_hash,
             'title': article.get('title', ''),
-            'content': article.get('content', ''),
+            'raw_content': article.get('content', ''),
             'url': article.get('link', ''),
             'published_at': published_at_iso,
-            'fetched_at': datetime.now(timezone.utc).isoformat(),
             'source_api': 'EODHD',
             'symbols': article.get('symbols', []),
             'tags': article.get('tags', []),
             'sentiment': article.get('sentiment', {})
         }
+        
+        # Add source query information based on query type
+        if query_type == 'tag' and query_value:
+            normalized['source_query_tag'] = query_value
+        elif query_type == 'symbol' and query_value:
+            normalized['source_query_symbol'] = query_value
         
         return normalized

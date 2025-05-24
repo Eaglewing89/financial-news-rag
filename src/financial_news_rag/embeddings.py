@@ -185,3 +185,37 @@ class EmbeddingsGenerator:
         if errors > 0:
             logger.warning(f"Failed to generate embeddings for {errors} chunks")
         return embeddings
+    
+    def generate_and_verify_embeddings(
+        self, 
+        text_chunks: List[str], 
+        task_type: str = DEFAULT_TASK_TYPE
+    ) -> Dict[str, Union[List[List[float]], bool]]:
+        """
+        Generate embeddings for a list of text chunks and verify their validity.
+        
+        Args:
+            text_chunks: List of text chunks to embed
+            task_type: The type of task for which the embeddings will be used
+            
+        Returns:
+            A dictionary containing:
+                - "embeddings": List of embedding vectors (including any zero vectors for failures)
+                - "all_valid": Boolean indicating if all embeddings are valid (not zero vectors)
+                  True if no zero vectors are present or if chunk_embeddings is empty
+        """
+        # Generate embeddings using the existing method
+        chunk_embeddings = self.generate_embeddings(text_chunks, task_type)
+        
+        # Check if any embedding is a zero vector (all elements are 0.0)
+        all_valid = True
+        if chunk_embeddings:  # Only check if we have embeddings
+            all_valid = not any(all(val == 0.0 for val in emb) for emb in chunk_embeddings)
+            
+            if not all_valid:
+                logger.warning("One or more embeddings are zero vectors, indicating failures")
+        
+        return {
+            "embeddings": chunk_embeddings,
+            "all_valid": all_valid
+        }
