@@ -42,6 +42,9 @@ class Config:
         self._embeddings_default_model = self._get_env('EMBEDDINGS_DEFAULT_MODEL', 'text-embedding-004')
         self._embeddings_default_task_type = self._get_env('EMBEDDINGS_DEFAULT_TASK_TYPE', 'SEMANTIC_SIMILARITY')
         
+        # ReRanker configuration
+        self._reranker_default_model = self._get_env('RERANKER_DEFAULT_MODEL', 'gemini-2.0-flash')
+        
         # Model dimensions as a dictionary with model names as keys and dimensions as values
         default_dimensions = {'text-embedding-004': 768}
         try:
@@ -155,6 +158,11 @@ class Config:
     def embeddings_model_dimensions(self) -> Dict[str, int]:
         """Get the dimensions for each embedding model."""
         return self._embeddings_model_dimensions
+    
+    @property
+    def reranker_default_model(self) -> str:
+        """Get the default model for the ReRanker."""
+        return self._reranker_default_model
 
 
 # Create a global config instance for easy import

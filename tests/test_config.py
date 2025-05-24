@@ -97,7 +97,8 @@ class TestConfig:
         "GEMINI_API_KEY": "test_gemini_api_key",
         "EMBEDDINGS_DEFAULT_MODEL": "custom-embedding-model",
         "EMBEDDINGS_DEFAULT_TASK_TYPE": "CUSTOM_TASK",
-        "EMBEDDINGS_MODEL_DIMENSIONS": '{"custom-embedding-model": 1024, "text-embedding-004": 999}'
+        "EMBEDDINGS_MODEL_DIMENSIONS": '{"custom-embedding-model": 1024, "text-embedding-004": 999}',
+        "RERANKER_DEFAULT_MODEL": "gemini-3.0-pro"
     })
     def test_all_config_properties(self):
         """Test that all config properties return the correct values when environment variables are set."""
@@ -118,6 +119,8 @@ class TestConfig:
             "custom-embedding-model": 1024,
             "text-embedding-004": 999
         }
+        # Reranker properties
+        assert config.reranker_default_model == "gemini-3.0-pro"
     
     @patch('financial_news_rag.config.Config._get_required_env')
     def test_gemini_config_default_values(self, mock_get_required_env):
@@ -137,6 +140,9 @@ class TestConfig:
             assert config.embeddings_default_model == "text-embedding-004"
             assert config.embeddings_default_task_type == "SEMANTIC_SIMILARITY"
             assert config.embeddings_model_dimensions == {"text-embedding-004": 768}
+            
+            # Check reranker default value
+            assert config.reranker_default_model == "gemini-2.0-flash"
     
     def test_embeddings_model_dimensions_json_error(self):
         """Test handling of invalid JSON in EMBEDDINGS_MODEL_DIMENSIONS."""
