@@ -255,12 +255,17 @@ class TestEmbeddingsGeneratorErrorHandling:
             task_type='SEMANTIC_SIMILARITY'
         )
         
-        # Mock API error
+        # Mock the _embed_single_text method to raise an error and immediately fail
         from google.api_core.exceptions import GoogleAPIError
-        mock_client.models.embed_content.side_effect = GoogleAPIError("API quota exceeded")
         
-        # Should handle the error gracefully and return zero vectors
-        embeddings = generator.generate_embeddings(test_chunks)
+        def mock_embed_single_text(text, task_type=None):
+            raise GoogleAPIError("API quota exceeded")
+        
+        # Patch the method to avoid retry delays
+        with patch.object(generator, '_embed_single_text', side_effect=mock_embed_single_text):
+            # Should handle the error gracefully and return zero vectors
+            embeddings = generator.generate_embeddings(test_chunks)
+            
         assert len(embeddings) == len(test_chunks)
         # Check that zero vectors are returned for failed embeddings
         assert all(emb == [0.0] * 768 for emb in embeddings)
@@ -279,12 +284,17 @@ class TestEmbeddingsGeneratorErrorHandling:
             task_type='SEMANTIC_SIMILARITY'
         )
         
-        # Mock service unavailable error
+        # Mock the _embed_single_text method to raise an error and immediately fail
         from google.api_core.exceptions import ServiceUnavailable
-        mock_client.models.embed_content.side_effect = ServiceUnavailable("Service temporarily unavailable")
         
-        # Should handle the error gracefully and return zero vectors
-        embeddings = generator.generate_embeddings(test_chunks)
+        def mock_embed_single_text(text, task_type=None):
+            raise ServiceUnavailable("Service temporarily unavailable")
+        
+        # Patch the method to avoid retry delays
+        with patch.object(generator, '_embed_single_text', side_effect=mock_embed_single_text):
+            # Should handle the error gracefully and return zero vectors
+            embeddings = generator.generate_embeddings(test_chunks)
+            
         assert len(embeddings) == len(test_chunks)
         # Check that zero vectors are returned for failed embeddings
         assert all(emb == [0.0] * 768 for emb in embeddings)
