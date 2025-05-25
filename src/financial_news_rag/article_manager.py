@@ -12,9 +12,8 @@ import json
 import logging
 import os
 import sqlite3
-from hashlib import sha256
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timezone
+from financial_news_rag.utils import generate_url_hash, get_utc_now
 
 # Configure logging
 logging.basicConfig(
@@ -325,8 +324,8 @@ class ArticleManager:
             for article in articles:
                 # Generate URL hash and added_at timestamp
                 url = article.get('url', '')
-                url_hash = ArticleManager.generate_url_hash(url)
-                added_at_timestamp = datetime.now(timezone.utc).isoformat()
+                url_hash = generate_url_hash(url) # Changed: Use imported function
+                added_at_timestamp = get_utc_now().isoformat() # Changed: Use imported function
                 
                 # Handle the case where raw_content is None
                 raw_content = article.get('raw_content', '')
@@ -367,21 +366,6 @@ class ArticleManager:
             conn.rollback()
             logger.error(f"Error storing articles: {e}")
             raise
-
-    @staticmethod
-    def generate_url_hash(url: str) -> str:
-        """
-        Generate a SHA-256 hash from a URL for use as a unique identifier.
-        
-        Args:
-            url: Article URL
-            
-        Returns:
-            str: SHA-256 hash of the URL, or an empty string if URL is empty.
-        """
-        if not url:
-            return ''
-        return sha256(url.encode('utf-8')).hexdigest()
 
     def log_api_call(
         self,
@@ -439,7 +423,7 @@ class ArticleManager:
                 oldest_article_date_val = min(valid_dates)
                 newest_article_date_val = max(valid_dates)
         
-        current_timestamp = datetime.now(timezone.utc).isoformat()
+        current_timestamp = get_utc_now().isoformat() # Changed: Use imported function
         api_call_successful_int = 1 if api_call_successful else 0
         
         params = (

@@ -17,6 +17,8 @@ from chromadb.utils import embedding_functions
 from chromadb.config import Settings
 import chromadb
 
+from financial_news_rag.utils import parse_iso_date_string, convert_iso_to_timestamp
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -139,26 +141,26 @@ class ChromaDBManager:
             # Parse from_date_str if provided
             if from_date_str:
                 try:
-                    from datetime import datetime
-                    # Try to parse the date string into a datetime object
-                    dt = datetime.fromisoformat(from_date_str.replace('Z', '+00:00'))
-                    from_timestamp = int(dt.timestamp())
-                    timestamp_filter_conditions["$gte"] = from_timestamp
-                    logger.info(f"Filtering articles published on or after {from_date_str} (timestamp {from_timestamp})")
-                except (ValueError, TypeError) as e:
-                    logger.warning(f"Failed to parse from_date_str '{from_date_str}': {e}")
+                    from_timestamp = convert_iso_to_timestamp(from_date_str)
+                    if from_timestamp is not None:
+                        timestamp_filter_conditions["$gte"] = from_timestamp
+                        logger.info(f"Filtering articles published on or after {from_date_str} (timestamp {from_timestamp})")
+                    else:
+                        logger.warning(f"Failed to parse from_date_str '{from_date_str}'")
+                except Exception as e:
+                    logger.warning(f"Error processing from_date_str '{from_date_str}': {e}")
             
             # Parse to_date_str if provided
             if to_date_str:
                 try:
-                    from datetime import datetime
-                    # Try to parse the date string into a datetime object
-                    dt = datetime.fromisoformat(to_date_str.replace('Z', '+00:00'))
-                    to_timestamp = int(dt.timestamp())
-                    timestamp_filter_conditions["$lte"] = to_timestamp
-                    logger.info(f"Filtering articles published on or before {to_date_str} (timestamp {to_timestamp})")
-                except (ValueError, TypeError) as e:
-                    logger.warning(f"Failed to parse to_date_str '{to_date_str}': {e}")
+                    to_timestamp = convert_iso_to_timestamp(to_date_str)
+                    if to_timestamp is not None:
+                        timestamp_filter_conditions["$lte"] = to_timestamp
+                        logger.info(f"Filtering articles published on or before {to_date_str} (timestamp {to_timestamp})")
+                    else:
+                        logger.warning(f"Failed to parse to_date_str '{to_date_str}'")
+                except Exception as e:
+                    logger.warning(f"Error processing to_date_str '{to_date_str}': {e}")
             
             # Initialize where_clause 
             where_clause = {}
@@ -332,12 +334,10 @@ class ChromaDBManager:
                 published_at_str = article_data.get('published_at')
                 if published_at_str is not None:
                     try:
-                        from datetime import datetime
-                        # Convert ISO format to UNIX timestamp
-                        dt = datetime.fromisoformat(published_at_str.replace('Z', '+00:00'))
-                        timestamp = int(dt.timestamp())
-                        current_metadata["published_at_timestamp"] = timestamp
-                    except (ValueError, AttributeError, TypeError) as e:
+                        timestamp = convert_iso_to_timestamp(published_at_str)
+                        if timestamp:
+                            current_metadata["published_at_timestamp"] = timestamp
+                    except Exception as e:
                         logger.warning(f"Failed to convert published_at date '{published_at_str}' to timestamp: {e}")
                 
                 # Add additional metadata if available
