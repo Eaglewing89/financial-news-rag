@@ -9,9 +9,6 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List
 import random
 
-# Note: This uses the factory_boy library for more advanced factories
-# Install with: pip install factory_boy
-
 try:
     import factory
     import factory.fuzzy
