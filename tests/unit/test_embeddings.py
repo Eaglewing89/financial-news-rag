@@ -17,36 +17,26 @@ from tests.fixtures.sample_data import ChunkFactory
 class TestEmbeddingsGeneratorInitialization:
     """Test suite for EmbeddingsGenerator initialization."""
     
-    @pytest.fixture
-    def test_config(self):
-        """Create test configuration parameters."""
-        return {
-            'api_key': 'test_gemini_api_key',
-            'model_name': 'text-embedding-004',
-            'model_dimensions': {'text-embedding-004': 768},
-            'task_type': 'SEMANTIC_SIMILARITY'
-        }
-    
     def test_init_with_valid_parameters(self, test_config):
         """Test initialization with valid parameters."""
         generator = EmbeddingsGenerator(
-            api_key=test_config['api_key'],
-            model_name=test_config['model_name'],
-            model_dimensions=test_config['model_dimensions'],
-            task_type=test_config['task_type']
+            api_key=test_config.gemini_api_key,
+            model_name=test_config.embeddings_default_model,
+            model_dimensions=test_config.embeddings_model_dimensions,
+            task_type=test_config.embeddings_default_task_type
         )
         
-        assert generator.model_name == test_config['model_name']
-        assert generator.default_task_type == test_config['task_type']
+        assert generator.model_name == test_config.embeddings_default_model
+        assert generator.default_task_type == test_config.embeddings_default_task_type
         assert generator.embedding_dim == 768
         assert hasattr(generator, 'client')
     
     def test_init_with_default_task_type(self, test_config):
         """Test initialization with default task type."""
         generator = EmbeddingsGenerator(
-            api_key=test_config['api_key'],
-            model_name=test_config['model_name'],
-            model_dimensions=test_config['model_dimensions']
+            api_key=test_config.gemini_api_key,
+            model_name=test_config.embeddings_default_model,
+            model_dimensions=test_config.embeddings_model_dimensions
         )
         
         # Should use default task type
@@ -58,24 +48,24 @@ class TestEmbeddingsGeneratorInitialization:
         with pytest.raises(ValueError, match="API key is required"):
             EmbeddingsGenerator(
                 api_key="",
-                model_name=test_config['model_name'],
-                model_dimensions=test_config['model_dimensions']
+                model_name=test_config.embeddings_default_model,
+                model_dimensions=test_config.embeddings_model_dimensions
             )
         
         with pytest.raises(ValueError, match="API key is required"):
             EmbeddingsGenerator(
                 api_key=None,
-                model_name=test_config['model_name'],
-                model_dimensions=test_config['model_dimensions']
+                model_name=test_config.embeddings_default_model,
+                model_dimensions=test_config.embeddings_model_dimensions
             )
     
     def test_init_unknown_model_raises_error(self, test_config):
         """Test that initialization with unknown model raises ValueError."""
         with pytest.raises(ValueError, match="Embedding dimension.*is not defined"):
             EmbeddingsGenerator(
-                api_key=test_config['api_key'],
+                api_key=test_config.gemini_api_key,
                 model_name="unknown-model-name",
-                model_dimensions=test_config['model_dimensions']
+                model_dimensions=test_config.embeddings_model_dimensions
             )
     
     def test_init_missing_model_dimensions_raises_error(self, test_config):
@@ -84,8 +74,8 @@ class TestEmbeddingsGeneratorInitialization:
         
         with pytest.raises(ValueError, match="Embedding dimension.*is not defined"):
             EmbeddingsGenerator(
-                api_key=test_config['api_key'],
-                model_name=test_config['model_name'],
+                api_key=test_config.gemini_api_key,
+                model_name=test_config.embeddings_default_model,
                 model_dimensions=incomplete_dimensions
             )
 
@@ -94,13 +84,13 @@ class TestEmbeddingsGeneratorEmbeddingGeneration:
     """Test suite for embedding generation functionality."""
     
     @pytest.fixture
-    def generator(self):
+    def generator(self, test_config):
         """Create a test EmbeddingsGenerator instance."""
         return EmbeddingsGenerator(
-            api_key='test_api_key',
-            model_name='text-embedding-004',
-            model_dimensions={'text-embedding-004': 768},
-            task_type='SEMANTIC_SIMILARITY'
+            api_key=test_config.gemini_api_key,
+            model_name=test_config.embeddings_default_model,
+            model_dimensions=test_config.embeddings_model_dimensions,
+            task_type=test_config.embeddings_default_task_type
         )
     
     @pytest.fixture
@@ -148,11 +138,11 @@ class TestEmbeddingsGeneratorEmbeddingGeneration:
         assert mock_client.models.embed_content.call_count == len(test_chunks)
         # Verify the last call used the correct model
         call_args = mock_client.models.embed_content.call_args
-        assert call_args[1]['model'] == 'text-embedding-004'
+        assert call_args[1]['model'] == test_config.embeddings_default_model
         # Since chunks are processed individually, verify the last chunk was processed
         assert call_args[1]['contents'] == test_chunks[-1]
         # Verify task type is passed correctly in config
-        assert call_args[1]['config'].task_type == 'SEMANTIC_SIMILARITY'
+        assert call_args[1]['config'].task_type == test_config.embeddings_default_task_type
     
     @patch('financial_news_rag.embeddings.genai.Client')
     def test_generate_embeddings_single_chunk(self, mock_client_cls, generator, mock_embedding_vector):
@@ -176,17 +166,17 @@ class TestEmbeddingsGeneratorEmbeddingGeneration:
         assert isinstance(embeddings[0], list)
     
     @patch('financial_news_rag.embeddings.genai.Client')
-    def test_generate_embeddings_custom_task_type(self, mock_client_cls, mock_embedding_vector, test_chunks):
+    def test_generate_embeddings_custom_task_type(self, mock_client_cls, test_config, mock_embedding_vector, test_chunks):
         """Test embedding generation with custom task type."""
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         
         # Create generator after mocking
         generator = EmbeddingsGenerator(
-            api_key='test_api_key',
-            model_name='text-embedding-004',
-            model_dimensions={'text-embedding-004': 768},
-            task_type='SEMANTIC_SIMILARITY'
+            api_key=test_config.gemini_api_key,
+            model_name=test_config.embeddings_default_model,
+            model_dimensions=test_config.embeddings_model_dimensions,
+            task_type=test_config.embeddings_default_task_type
         )
         
         mock_embedding_obj = MagicMock()
@@ -228,12 +218,12 @@ class TestEmbeddingsGeneratorErrorHandling:
     """Test suite for error handling in embedding generation."""
     
     @pytest.fixture
-    def generator(self):
+    def generator(self, test_config):
         """Create a test EmbeddingsGenerator instance."""
         return EmbeddingsGenerator(
-            api_key='test_api_key',
-            model_name='text-embedding-004',
-            model_dimensions={'text-embedding-004': 768}
+            api_key=test_config.gemini_api_key,
+            model_name=test_config.embeddings_default_model,
+            model_dimensions=test_config.embeddings_model_dimensions
         )
     
     @pytest.fixture
@@ -242,17 +232,17 @@ class TestEmbeddingsGeneratorErrorHandling:
         return ["Test chunk 1", "Test chunk 2"]
     
     @patch('financial_news_rag.embeddings.genai.Client')
-    def test_api_error_handling(self, mock_client_cls, test_chunks):
+    def test_api_error_handling(self, mock_client_cls, test_config, test_chunks):
         """Test handling of Google API errors."""
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         
         # Create generator after mocking
         generator = EmbeddingsGenerator(
-            api_key='test_api_key',
-            model_name='text-embedding-004',
-            model_dimensions={'text-embedding-004': 768},
-            task_type='SEMANTIC_SIMILARITY'
+            api_key=test_config.gemini_api_key,
+            model_name=test_config.embeddings_default_model,
+            model_dimensions=test_config.embeddings_model_dimensions,
+            task_type=test_config.embeddings_default_task_type
         )
         
         # Mock the _embed_single_text method to raise an error and immediately fail
@@ -271,17 +261,17 @@ class TestEmbeddingsGeneratorErrorHandling:
         assert all(emb == [0.0] * 768 for emb in embeddings)
     
     @patch('financial_news_rag.embeddings.genai.Client')
-    def test_service_unavailable_handling(self, mock_client_cls, test_chunks):
+    def test_service_unavailable_handling(self, mock_client_cls, test_config, test_chunks):
         """Test handling of service unavailable errors."""
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         
         # Create generator after mocking
         generator = EmbeddingsGenerator(
-            api_key='test_api_key',
-            model_name='text-embedding-004',
-            model_dimensions={'text-embedding-004': 768},
-            task_type='SEMANTIC_SIMILARITY'
+            api_key=test_config.gemini_api_key,
+            model_name=test_config.embeddings_default_model,
+            model_dimensions=test_config.embeddings_model_dimensions,
+            task_type=test_config.embeddings_default_task_type
         )
         
         # Mock the _embed_single_text method to raise an error and immediately fail
@@ -300,17 +290,17 @@ class TestEmbeddingsGeneratorErrorHandling:
         assert all(emb == [0.0] * 768 for emb in embeddings)
     
     @patch('financial_news_rag.embeddings.genai.Client')
-    def test_invalid_response_handling(self, mock_client_cls, test_chunks):
+    def test_invalid_response_handling(self, mock_client_cls, test_config, test_chunks):
         """Test handling of invalid API responses."""
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         
         # Create generator after mocking
         generator = EmbeddingsGenerator(
-            api_key='test_api_key',
-            model_name='text-embedding-004',
-            model_dimensions={'text-embedding-004': 768},
-            task_type='SEMANTIC_SIMILARITY'
+            api_key=test_config.gemini_api_key,
+            model_name=test_config.embeddings_default_model,
+            model_dimensions=test_config.embeddings_model_dimensions,
+            task_type=test_config.embeddings_default_task_type
         )
         
         # Mock invalid response (missing embeddings)
@@ -325,17 +315,17 @@ class TestEmbeddingsGeneratorErrorHandling:
         assert all(emb == [0.0] * 768 for emb in embeddings)
     
     @patch('financial_news_rag.embeddings.genai.Client')
-    def test_mismatched_embedding_count(self, mock_client_cls, test_chunks):
+    def test_mismatched_embedding_count(self, mock_client_cls, test_config, test_chunks):
         """Test handling when API returns wrong number of embeddings."""
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         
         # Create generator after mocking
         generator = EmbeddingsGenerator(
-            api_key='test_api_key',
-            model_name='text-embedding-004',
-            model_dimensions={'text-embedding-004': 768},
-            task_type='SEMANTIC_SIMILARITY'
+            api_key=test_config.gemini_api_key,
+            model_name=test_config.embeddings_default_model,
+            model_dimensions=test_config.embeddings_model_dimensions,
+            task_type=test_config.embeddings_default_task_type
         )
         
         # Mock response with wrong number of embeddings
@@ -353,17 +343,17 @@ class TestEmbeddingsGeneratorErrorHandling:
         assert all(len(emb) == 768 for emb in embeddings)
     
     @patch('financial_news_rag.embeddings.genai.Client')
-    def test_invalid_embedding_dimensions(self, mock_client_cls, test_chunks):
+    def test_invalid_embedding_dimensions(self, mock_client_cls, test_config, test_chunks):
         """Test handling of embeddings with wrong dimensions."""
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         
         # Create generator after mocking
         generator = EmbeddingsGenerator(
-            api_key='test_api_key',
-            model_name='text-embedding-004',
-            model_dimensions={'text-embedding-004': 768},
-            task_type='SEMANTIC_SIMILARITY'
+            api_key=test_config.gemini_api_key,
+            model_name=test_config.embeddings_default_model,
+            model_dimensions=test_config.embeddings_model_dimensions,
+            task_type=test_config.embeddings_default_task_type
         )
         
         # Mock embedding with wrong dimensions
@@ -385,29 +375,34 @@ class TestEmbeddingsGeneratorBatchProcessing:
     """Test suite for batch processing capabilities."""
     
     @pytest.fixture
-    def generator(self):
+    def generator(self, test_config):
         """Create a test EmbeddingsGenerator instance."""
         return EmbeddingsGenerator(
-            api_key='test_api_key',
-            model_name='text-embedding-004',
-            model_dimensions={'text-embedding-004': 768}
+            api_key=test_config.gemini_api_key,
+            model_name=test_config.embeddings_default_model,
+            model_dimensions=test_config.embeddings_model_dimensions
         )
     
     @patch('financial_news_rag.embeddings.genai.Client')
-    def test_large_batch_processing(self, mock_client_cls):
+    @patch('financial_news_rag.embeddings.time.sleep')
+    def test_large_batch_processing(self, mock_sleep, mock_client_cls, test_config):
         """Test processing of large batches of text chunks."""
+        # Mock time.sleep to eliminate waiting time
+        mock_sleep.return_value = None
+        
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         
         # Create generator after mocking
         generator = EmbeddingsGenerator(
-            api_key='test_api_key',
-            model_name='text-embedding-004',
-            model_dimensions={'text-embedding-004': 768}
+            api_key=test_config.gemini_api_key,
+            model_name=test_config.embeddings_default_model,
+            model_dimensions=test_config.embeddings_model_dimensions
         )
         
-        # Create large batch
-        large_batch = [f"Test chunk number {i} with various content." for i in range(50)]
+        # Create large batch - reduced from 50 to 20 chunks
+        # Still tests batch processing but reduces execution time
+        large_batch = [f"Test chunk number {i} with various content." for i in range(20)]
         
         # Mock response for large batch
         mock_embedding_obj = MagicMock()
@@ -419,20 +414,24 @@ class TestEmbeddingsGeneratorBatchProcessing:
         
         embeddings = generator.generate_embeddings(large_batch)
         
-        assert len(embeddings) == 50
+        # Ensure sleep was called the right number of times
+        assert mock_sleep.call_count == len(large_batch) - 1
+        
+        # Verify test still validates proper batch processing
+        assert len(embeddings) == 20
         assert all(len(emb) == 768 for emb in embeddings)
     
     @patch('financial_news_rag.embeddings.genai.Client')
-    def test_financial_content_embedding(self, mock_client_cls):
+    def test_financial_content_embedding(self, mock_client_cls, test_config):
         """Test embedding generation for financial content."""
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         
         # Create generator after mocking
         generator = EmbeddingsGenerator(
-            api_key='test_api_key',
-            model_name='text-embedding-004',
-            model_dimensions={'text-embedding-004': 768}
+            api_key=test_config.gemini_api_key,
+            model_name=test_config.embeddings_default_model,
+            model_dimensions=test_config.embeddings_model_dimensions
         )
         
         # Financial content chunks
@@ -461,7 +460,7 @@ class TestEmbeddingsGeneratorBatchProcessing:
 class TestEmbeddingsGeneratorModelConfiguration:
     """Test suite for different model configurations."""
     
-    def test_different_model_dimensions(self):
+    def test_different_model_dimensions(self, test_config):
         """Test initialization with different model dimensions."""
         # Test with different model
         custom_dimensions = {
@@ -470,7 +469,7 @@ class TestEmbeddingsGeneratorModelConfiguration:
         }
         
         generator = EmbeddingsGenerator(
-            api_key='test_api_key',
+            api_key=test_config.gemini_api_key,
             model_name='custom-model',
             model_dimensions=custom_dimensions
         )
@@ -478,30 +477,30 @@ class TestEmbeddingsGeneratorModelConfiguration:
         assert generator.embedding_dim == 1024
         assert generator.model_name == 'custom-model'
     
-    def test_model_name_formatting(self):
+    def test_model_name_formatting(self, test_config):
         """Test that model names are properly formatted for API calls."""
         generator = EmbeddingsGenerator(
-            api_key='test_api_key',
-            model_name='text-embedding-004',
-            model_dimensions={'text-embedding-004': 768}
+            api_key=test_config.gemini_api_key,
+            model_name=test_config.embeddings_default_model,
+            model_dimensions=test_config.embeddings_model_dimensions
         )
         
         # The implementation should handle model name formatting
-        assert generator.model_name == 'text-embedding-004'
+        assert generator.model_name == test_config.embeddings_default_model
     
     @pytest.mark.parametrize("task_type", [
         "SEMANTIC_SIMILARITY",
-        "RETRIEVAL_DOCUMENT",
+        "RETRIEVAL_DOCUMENT", 
         "RETRIEVAL_QUERY",
         "CLASSIFICATION",
         "CLUSTERING"
     ])
-    def test_different_task_types(self, task_type):
+    def test_different_task_types(self, test_config, task_type):
         """Test initialization with different task types."""
         generator = EmbeddingsGenerator(
-            api_key='test_api_key',
-            model_name='text-embedding-004',
-            model_dimensions={'text-embedding-004': 768},
+            api_key=test_config.gemini_api_key,
+            model_name=test_config.embeddings_default_model,
+            model_dimensions=test_config.embeddings_model_dimensions,
             task_type=task_type
         )
         
@@ -512,12 +511,12 @@ class TestEmbeddingsGeneratorUtilityMethods:
     """Test suite for utility methods."""
     
     @pytest.fixture
-    def generator(self):
+    def generator(self, test_config):
         """Create a test EmbeddingsGenerator instance."""
         return EmbeddingsGenerator(
-            api_key='test_api_key',
-            model_name='text-embedding-004',
-            model_dimensions={'text-embedding-004': 768}
+            api_key=test_config.gemini_api_key,
+            model_name=test_config.embeddings_default_model,
+            model_dimensions=test_config.embeddings_model_dimensions
         )
     
     def test_embedding_dimensions_property(self, generator):
@@ -525,9 +524,9 @@ class TestEmbeddingsGeneratorUtilityMethods:
         assert generator.embedding_dim == 768
         assert isinstance(generator.embedding_dim, int)
     
-    def test_model_name_property(self, generator):
+    def test_model_name_property(self, generator, test_config):
         """Test that model name is correctly exposed."""
-        assert generator.model_name == 'text-embedding-004'
+        assert generator.model_name == test_config.embeddings_default_model
         assert isinstance(generator.model_name, str)
     
 
