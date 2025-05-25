@@ -45,15 +45,15 @@ class TestTextProcessorCleaning:
         """Create a TextProcessor instance for testing."""
         return TextProcessor(max_tokens_per_chunk=2048)
     
-    def test_clean_html_tags(self, processor):
+    def test_clean_html_tags(self, processor, sample_html_content):
         """Test removal of HTML tags from text."""
-        # Basic HTML tags
-        raw_text = '<p>This is a <b>test</b> article</p>'
+        # Use test data from factory
+        raw_text = sample_html_content["with_basic_tags"]
         cleaned = processor.clean_article_text(raw_text)
         assert cleaned == 'This is a test article'
         
         # Complex HTML with attributes
-        raw_text = '<div class="content"><p>Content with <a href="link">link</a></p></div>'
+        raw_text = sample_html_content["with_complex_tags"]
         cleaned = processor.clean_article_text(raw_text)
         assert cleaned == 'Content with link'
         assert '<' not in cleaned and '>' not in cleaned
@@ -152,6 +152,67 @@ class TestTextProcessorCleaning:
         assert 'résumé' in cleaned
 
 
+class TestTextProcessorValidation:
+    """Test suite for content validation functionality."""
+    
+    @pytest.fixture
+    def processor(self):
+        """Create a TextProcessor instance for testing."""
+        return TextProcessor(max_tokens_per_chunk=512)
+    
+    def test_process_and_validate_content_none_input(self, processor):
+        """Test process_and_validate_content with None input."""
+        result = processor.process_and_validate_content(None)
+        
+        assert result["status"] == "FAILED"
+        assert result["reason"] == "Empty raw content"
+        assert result["content"] == ""
+    
+    def test_process_and_validate_content_empty_string(self, processor):
+        """Test process_and_validate_content with empty string input."""
+        result = processor.process_and_validate_content("")
+        
+        assert result["status"] == "FAILED"
+        assert result["reason"] == "Empty raw content"
+        assert result["content"] == ""
+    
+    def test_process_and_validate_content_whitespace_only(self, processor):
+        """Test process_and_validate_content with whitespace-only input."""
+        result = processor.process_and_validate_content("   \n\t  ")
+        
+        assert result["status"] == "FAILED"
+        assert result["reason"] == "Empty raw content"
+        assert result["content"] == ""
+    
+    def test_process_and_validate_content_cleaned_to_empty(self, processor):
+        """Test process_and_validate_content with input that becomes empty after cleaning."""
+        # Mock clean_article_text to return empty string
+        with patch.object(processor, 'clean_article_text', return_value=""):
+            result = processor.process_and_validate_content("Click here to read more.")
+            
+            assert result["status"] == "FAILED"
+            assert result["reason"] == "No content after cleaning"
+            assert result["content"] == ""
+    
+    def test_process_and_validate_content_success(self, processor):
+        """Test process_and_validate_content with valid input."""
+        raw_text = "<p>This is a <b>test</b> article</p>"
+        result = processor.process_and_validate_content(raw_text)
+        
+        assert result["status"] == "SUCCESS"
+        assert result["reason"] == ""
+        assert result["content"] == "This is a test article"
+    
+    def test_process_and_validate_content_success_with_mock(self, processor):
+        """Test process_and_validate_content with mocked cleaning."""
+        with patch.object(processor, 'clean_article_text', return_value="Cleaned content"):
+            result = processor.process_and_validate_content("Raw content")
+            
+            assert result["status"] == "SUCCESS"
+            assert result["reason"] == ""
+            assert result["content"] == "Cleaned content"
+
+
 class TestTextProcessorChunking:
     """Test suite for text chunking functionality."""
     
@@ -160,7 +221,20 @@ class TestTextProcessorChunking:
         """Create a TextProcessor with reasonable chunk size for testing."""
         return TextProcessor(max_tokens_per_chunk=512)
     
-    def test_chunk_short_text_single_chunk(self, processor):
+    @pytest.fixture
+    def mock_nltk_tokenize(self):
+        """Mock NLTK sentence tokenization for reliable testing."""
+        with patch('financial_news_rag.text_processor.sent_tokenize') as mock_tokenize:
+            # Realistic behavior: split on sentence-ending punctuation followed by space
+            def side_effect(text):
+                import re
+                # Split on sentence boundaries but preserve the punctuation
+                sentences = re.split(r'(?<=[.!?])\s+', text)
+                return [s.strip() for s in sentences if s.strip()]
+            mock_tokenize.side_effect = side_effect
+            yield mock_tokenize
+    
+    def test_chunk_short_text_single_chunk(self, processor, mock_nltk_tokenize):
         """Test that short text results in a single chunk."""
         short_text = 'This is a short text that should fit in one chunk.'
         chunks = processor.split_into_chunks(short_text)
@@ -168,11 +242,10 @@ class TestTextProcessorChunking:
         assert len(chunks) == 1
         assert chunks[0] == short_text
     
-    def test_chunk_long_text_multiple_chunks(self, processor):
+    def test_chunk_long_text_multiple_chunks(self, processor, mock_nltk_tokenize, long_test_sentences):
         """Test that long text is split into multiple chunks."""
-        # Create long text with many sentences
-        sentences = [f'This is test sentence number {i}.' for i in range(100)]
-        long_text = ' '.join(sentences)
+        # Use test data from factory
+        long_text = ' '.join(long_test_sentences)
         
         # Use smaller chunk size to force splitting
         small_processor = TextProcessor(max_tokens_per_chunk=200)
@@ -187,16 +260,10 @@ class TestTextProcessorChunking:
             estimated_tokens = len(chunk) // 4
             assert estimated_tokens <= 250  # Allow some margin for sentence boundaries
     
-    def test_chunk_respects_sentence_boundaries(self, processor):
+    def test_chunk_respects_sentence_boundaries(self, processor, mock_nltk_tokenize, financial_test_sentences):
         """Test that chunking respects sentence boundaries when possible."""
-        # Create text with clear sentence boundaries
-        sentences = [
-            'First sentence about financial markets.',
-            'Second sentence discusses market volatility.',
-            'Third sentence covers investment strategies.',
-            'Fourth sentence analyzes economic trends.'
-        ]
-        text = ' '.join(sentences)
+        # Use test data from factory
+        text = ' '.join(financial_test_sentences)
         
         # Use chunk size that should fit 2-3 sentences
         small_processor = TextProcessor(max_tokens_per_chunk=150)
@@ -206,7 +273,7 @@ class TestTextProcessorChunking:
         for chunk in chunks[:-1]:  # All chunks except last
             assert chunk.endswith('.') or chunk.endswith('!') or chunk.endswith('?')
     
-    def test_chunk_very_long_sentence(self, processor):
+    def test_chunk_very_long_sentence(self, processor, mock_nltk_tokenize):
         """Test chunking of very long sentences that exceed token limits."""
         # Create a single very long sentence
         long_sentence = ' '.join([f'word{i}' for i in range(200)])
@@ -223,13 +290,13 @@ class TestTextProcessorChunking:
             estimated_tokens = len(chunk) // 4
             assert estimated_tokens <= 200  # Increased margin for word boundaries and splitting behavior
     
-    def test_chunk_empty_input(self, processor):
+    def test_chunk_empty_input(self, processor, mock_nltk_tokenize):
         """Test chunking with empty input."""
         assert processor.split_into_chunks('') == []
         assert processor.split_into_chunks(None) == []
         assert processor.split_into_chunks('   ') == []
     
-    def test_chunk_preserves_content(self, processor):
+    def test_chunk_preserves_content(self, processor, mock_nltk_tokenize):
         """Test that chunking preserves all content."""
         # Create text with specific content to track
         text = 'Apple Inc. reported strong Q4 earnings. Revenue increased 15% to $10 billion. The company announced a new product line. Analysts are optimistic about future growth.'
@@ -247,7 +314,7 @@ class TestTextProcessorChunking:
         assert 'new product line' in reconstructed
         assert 'Analysts' in reconstructed
     
-    def test_chunk_financial_content(self, processor):
+    def test_chunk_financial_content(self, processor, mock_nltk_tokenize):
         """Test chunking of typical financial news content."""
         financial_text = """
         Apple Inc. (NASDAQ: AAPL) reported quarterly earnings that exceeded expectations.
@@ -280,16 +347,20 @@ class TestTextProcessorIntegration:
         """Create a TextProcessor instance for integration testing."""
         return TextProcessor(max_tokens_per_chunk=300)
     
-    def test_clean_and_chunk_html_content(self, processor):
+    @pytest.fixture
+    def mock_nltk_tokenize(self):
+        """Mock NLTK sentence tokenization for integration tests."""
+        with patch('financial_news_rag.text_processor.sent_tokenize') as mock_tokenize:
+            def side_effect(text):
+                import re
+                sentences = re.split(r'(?<=[.!?])\s+', text)
+                return [s.strip() for s in sentences if s.strip()]
+            mock_tokenize.side_effect = side_effect
+            yield mock_tokenize
+    
+    def test_clean_and_chunk_html_content(self, processor, mock_nltk_tokenize, sample_html_content):
         """Test cleaning HTML content and then chunking it."""
-        html_content = """
-        <div class="article">
-            <p>This is the first paragraph with <b>bold text</b>.</p>
-            <p>This is the second paragraph with <a href="link">a link</a>.</p>
-            <p>This contains financial data: AAPL $150.50 (+2.5%).</p>
-            <p>Click here to read more about this topic.</p>
-        </div>
-        """
+        html_content = sample_html_content["realistic_article"]
         
         # Clean the content
         cleaned = processor.clean_article_text(html_content)
@@ -311,21 +382,9 @@ class TestTextProcessorIntegration:
         all_content = ' '.join(chunks)
         assert 'AAPL $150.50 (+2.5%)' in all_content
     
-    def test_process_realistic_financial_article(self, processor):
+    def test_process_realistic_financial_article(self, processor, mock_nltk_tokenize, sample_financial_article):
         """Test processing of a realistic financial news article."""
-        article_content = """
-        <p>Apple Inc. (NASDAQ:AAPL) shares gained 3.2% in pre-market trading following the company's Q4 2023 earnings report.</p>
-        
-        <p>The tech giant reported revenue of $89.5 billion, slightly below the consensus estimate of $89.9 billion but representing steady performance in a challenging economic environment.</p>
-        
-        <p>iPhone revenue came in at $43.8 billion, down 3% year-over-year but better than feared amid concerns about consumer spending on premium devices.</p>
-        
-        <p>The Services segment continued its strong growth trajectory, posting revenue of $22.3 billion, up 16% from the prior year period. This includes revenue from the App Store, Apple Music, and iCloud services.</p>
-        
-        <p>CEO Tim Cook noted during the earnings call that the company sees "continued strength in emerging markets" and expects Services growth to remain robust.</p>
-        
-        <p>Click here to read the full earnings report. Source: Apple Inc. Investor Relations</p>
-        """
+        article_content = sample_financial_article
         
         # Process the article
         cleaned = processor.clean_article_text(article_content)
@@ -353,3 +412,27 @@ class TestTextProcessorIntegration:
             # Use same token estimation as the implementation (1 token ≈ 4 characters)
             estimated_tokens = len(chunk) // 4
             assert estimated_tokens <= processor.max_tokens_per_chunk * 1.1  # Allow 10% margin
+
+
+class TestTextProcessorNLTKFallback:
+    """Test suite for NLTK fallback behavior."""
+    
+    @pytest.fixture
+    def processor(self):
+        """Create a TextProcessor instance for testing."""
+        return TextProcessor(max_tokens_per_chunk=512)
+    
+    def test_nltk_tokenize_fallback(self, processor):
+        """Test fallback mechanism when NLTK tokenizer fails."""
+        text = "First sentence. Second sentence! Third sentence?"
+        
+        # Mock NLTK to raise an exception
+        with patch('financial_news_rag.text_processor.sent_tokenize', side_effect=Exception("NLTK error")):
+            chunks = processor.split_into_chunks(text)
+            
+            # Should still work with fallback regex splitting
+            assert len(chunks) >= 1
+            all_content = ' '.join(chunks)
+            assert 'First sentence' in all_content
+            assert 'Second sentence' in all_content  
+            assert 'Third sentence' in all_content

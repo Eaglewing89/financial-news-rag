@@ -352,6 +352,64 @@ def sample_chroma_results():
 
 
 # =============================================================================
+# Test Data Fixtures for Text Processing
+# =============================================================================
+
+@pytest.fixture
+def sample_html_content():
+    """Provide sample HTML content for testing text cleaning."""
+    return {
+        "with_basic_tags": '<p>This is a <b>test</b> article</p>',
+        "with_complex_tags": '<div class="content"><p>Content with <a href="link">link</a></p></div>',
+        "with_boilerplate": 'This is an article. Click here to read more.',
+        "with_financial_data": '<p>AAPL stock price is $150.50, up 2.5% from yesterday.</p>',
+        "realistic_article": '''
+        <div class="article">
+            <p>This is the first paragraph with <b>bold text</b>.</p>
+            <p>This is the second paragraph with <a href="link">a link</a>.</p>
+            <p>This contains financial data: AAPL $150.50 (+2.5%).</p>
+            <p>Click here to read more about this topic.</p>
+        </div>
+        '''
+    }
+
+
+@pytest.fixture 
+def long_test_sentences():
+    """Provide a list of test sentences for chunking tests."""
+    return [f'This is test sentence number {i}.' for i in range(100)]
+
+
+@pytest.fixture
+def financial_test_sentences():
+    """Provide financial-specific test sentences."""
+    return [
+        'First sentence about financial markets.',
+        'Second sentence discusses market volatility.',
+        'Third sentence covers investment strategies.',
+        'Fourth sentence analyzes economic trends.'
+    ]
+
+
+@pytest.fixture
+def sample_financial_article():
+    """Provide a realistic financial article with HTML content."""
+    return '''
+    <p>Apple Inc. (NASDAQ:AAPL) shares gained 3.2% in pre-market trading following the company's Q4 2023 earnings report.</p>
+    
+    <p>The tech giant reported revenue of $89.5 billion, slightly below the consensus estimate of $89.9 billion but representing steady performance in a challenging economic environment.</p>
+    
+    <p>iPhone revenue came in at $43.8 billion, down 3% year-over-year but better than feared amid concerns about consumer spending on premium devices.</p>
+    
+    <p>The Services segment continued its strong growth trajectory, posting revenue of $22.3 billion, up 16% from the prior year period. This includes revenue from the App Store, Apple Music, and iCloud services.</p>
+    
+    <p>CEO Tim Cook noted during the earnings call that the company sees "continued strength in emerging markets" and expects Services growth to remain robust.</p>
+    
+    <p>Click here to read the full earnings report. Source: Apple Inc. Investor Relations</p>
+    '''
+
+
+# =============================================================================
 # Parameterized Test Data
 # =============================================================================
 
