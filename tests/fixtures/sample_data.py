@@ -458,6 +458,71 @@ class ChromaResultsFactory:
         return results
 
 
+class EmbeddingFactory:
+    """Factory for creating test embeddings with various configurations."""
+    
+    @classmethod
+    def create_normalized_embedding(cls, dimension: int = 768) -> np.ndarray:
+        """
+        Create a normalized random embedding vector for testing.
+        
+        Args:
+            dimension: Embedding dimension
+            
+        Returns:
+            Normalized numpy array
+        """
+        embedding = np.random.rand(dimension)
+        return embedding / np.linalg.norm(embedding)
+    
+    @classmethod
+    def create_normalized_embeddings(cls, count: int, dimension: int = 768) -> List[np.ndarray]:
+        """
+        Create multiple normalized embedding vectors for testing.
+        
+        Args:
+            count: Number of embeddings to create
+            dimension: Embedding dimension
+            
+        Returns:
+            List of normalized numpy arrays
+        """
+        return [cls.create_normalized_embedding(dimension) for _ in range(count)]
+    
+    @classmethod
+    def create_similar_embeddings(
+        cls, 
+        base_embedding: Optional[np.ndarray] = None, 
+        count: int = 3, 
+        dimension: int = 768,
+        noise_factor: float = 0.1
+    ) -> List[np.ndarray]:
+        """
+        Create embeddings that are similar to a base embedding for testing similarity searches.
+        
+        Args:
+            base_embedding: Base embedding to create similar ones from
+            count: Number of similar embeddings to create
+            dimension: Embedding dimension
+            noise_factor: Amount of noise to add (0.0 = identical, 1.0 = completely random)
+            
+        Returns:
+            List of similar normalized numpy arrays
+        """
+        if base_embedding is None:
+            base_embedding = cls.create_normalized_embedding(dimension)
+        
+        similar_embeddings = []
+        for _ in range(count):
+            # Add small random noise to the base embedding
+            noise = np.random.rand(dimension) * noise_factor
+            similar = base_embedding + noise
+            # Normalize the result
+            similar_embeddings.append(similar / np.linalg.norm(similar))
+        
+        return similar_embeddings
+
+
 # Convenience functions for quick data creation
 def create_test_article(**kwargs) -> Dict[str, Any]:
     """Quick function to create a test article."""
@@ -477,3 +542,33 @@ def create_test_chunks(count: int = 3) -> List[str]:
 def create_test_embeddings(count: int = 3, dimension: int = 768) -> List[List[float]]:
     """Quick function to create test embeddings."""
     return ChunkFactory.create_embeddings(count, dimension)
+
+
+def create_test_article_with_hash(**kwargs) -> Dict[str, Any]:
+    """
+    Create a test article with url_hash field included.
+    
+    This is a convenience function that creates an article and automatically
+    generates the url_hash field using the article's URL.
+    
+    Args:
+        **kwargs: Arguments to pass to ArticleFactory.create_article()
+        
+    Returns:
+        Article dictionary with url_hash field included
+    """
+    from financial_news_rag.utils import generate_url_hash
+    
+    article = ArticleFactory.create_article(**kwargs)
+    article['url_hash'] = generate_url_hash(article['url'])
+    return article
+
+
+def create_test_normalized_embedding(dimension: int = 768) -> np.ndarray:
+    """Quick function to create a normalized embedding."""
+    return EmbeddingFactory.create_normalized_embedding(dimension)
+
+
+def create_test_normalized_embeddings(count: int, dimension: int = 768) -> List[np.ndarray]:
+    """Quick function to create multiple normalized embeddings."""
+    return EmbeddingFactory.create_normalized_embeddings(count, dimension)

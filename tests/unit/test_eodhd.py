@@ -9,9 +9,8 @@ All external API calls are mocked for isolated testing.
 import pytest
 import requests
 from unittest.mock import patch, MagicMock
-from datetime import datetime, timezone
 
-from financial_news_rag.eodhd import EODHDClient, EODHDApiError
+from financial_news_rag.eodhd import EODHDClient
 from financial_news_rag.config import Config
 from tests.fixtures.sample_data import EODHDResponseFactory
 

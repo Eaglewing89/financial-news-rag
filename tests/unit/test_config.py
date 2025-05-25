@@ -12,8 +12,8 @@ from unittest.mock import patch
 from financial_news_rag.config import Config
 
 
-class TestConfig:
-    """Tests for the Config class."""
+class TestConfigInitialization:
+    """Test suite for Config class initialization and basic functionality."""
 
     def test_init_loads_environment_variables(self):
         """Test that initialization loads environment variables."""
@@ -22,45 +22,66 @@ class TestConfig:
                 Config()
             mock_load_dotenv.assert_called_once()
     
-    def test_get_required_env_success(self):
+    def test_init_with_test_config_fixture(self, test_config):
+        """Test that test_config fixture provides valid configuration."""
+        assert test_config.eodhd_api_key == "test_eodhd_api_key"
+        assert test_config.gemini_api_key == "test_gemini_api_key"
+        assert test_config.embeddings_default_model == "text-embedding-004"
+
+
+class TestConfigEnvironmentVariableHandling:
+    """Test suite for environment variable handling methods."""
+
+    @pytest.fixture
+    def config_instance(self):
+        """Create a Config instance for testing."""
+        with patch('financial_news_rag.config.Config._get_required_env', return_value="test_api_key"):
+            return Config()
+    
+    def test_get_required_env_success(self, config_instance):
         """Test that _get_required_env returns the value when environment variable is set."""
         with patch.dict(os.environ, {"TEST_KEY": "test_value"}):
-            config = Config()
-            value = config._get_required_env("TEST_KEY")
+            value = config_instance._get_required_env("TEST_KEY")
             assert value == "test_value"
     
-    def test_get_required_env_failure(self):
+    def test_get_required_env_failure(self, config_instance):
         """Test that _get_required_env raises ValueError when environment variable is not set."""
         with patch.dict(os.environ, clear=True):
-            config = Config()
             with pytest.raises(ValueError, match="Required environment variable 'TEST_KEY' is not set."):
-                config._get_required_env("TEST_KEY")
+                config_instance._get_required_env("TEST_KEY")
     
-    def test_get_env_with_default(self):
+    def test_get_env_with_default(self, config_instance):
         """Test that _get_env returns the default value when environment variable is not set."""
         with patch.dict(os.environ, clear=True):
-            config = Config()
-            value = config._get_env("TEST_KEY", "default_value")
+            value = config_instance._get_env("TEST_KEY", "default_value")
             assert value == "default_value"
     
-    def test_get_env_with_env_var(self):
+    def test_get_env_with_env_var(self, config_instance):
         """Test that _get_env returns the environment variable value when it is set."""
         with patch.dict(os.environ, {"TEST_KEY": "env_value"}):
-            config = Config()
-            value = config._get_env("TEST_KEY", "default_value")
+            value = config_instance._get_env("TEST_KEY", "default_value")
             assert value == "env_value"
     
-    def test_get_method(self):
+    def test_get_method(self, config_instance):
         """Test that the get method returns the config value by key."""
-        with patch('financial_news_rag.config.Config._get_required_env', return_value="test_api_key"):
-            config = Config()
-            # Add a test attribute
-            config._test_key = "test_value"
-            assert config.get("test_key") == "test_value"
-            assert config.get("nonexistent_key", "default") == "default"
+        # Add a test attribute
+        config_instance._test_key = "test_value"
+        assert config_instance.get("test_key") == "test_value"
+        assert config_instance.get("nonexistent_key", "default") == "default"
+
+        
+class TestConfigEODHDProperties:
+    """Test suite for EODHD-related configuration properties."""
     
-    def test_eodhd_config_properties_with_overrides(self):
-        """Test that the EODHD config properties return the correct values when overridden."""
+    def test_eodhd_config_properties_with_overrides(self, test_config):
+        """Test that the EODHD config properties use values from test_config fixture."""
+        # The test_config fixture sets these values
+        assert test_config.eodhd_api_key == "test_eodhd_api_key"
+        assert test_config.eodhd_api_url == "https://eodhd.com/api/news"  # Default value
+        assert test_config.eodhd_default_timeout == 100  # Default value
+
+    def test_eodhd_config_properties_with_environment_overrides(self):
+        """Test that EODHD config properties return correct values when environment variables are overridden."""
         with patch.dict(os.environ, {
             "EODHD_API_KEY": "test_api_key",
             "EODHD_API_URL_OVERRIDE": "https://test.api.url",
@@ -88,6 +109,10 @@ class TestConfig:
                 assert config.eodhd_default_max_retries == 3
                 assert config.eodhd_default_backoff_factor == 1.5
                 assert config.eodhd_default_limit == 50
+
+
+class TestConfigGeminiAndEmbeddingProperties:
+    """Test suite for Gemini and embedding-related configuration properties."""
     
     def test_all_config_properties_with_overrides(self):
         """Test that all config properties return the correct values when environment variables are set."""
