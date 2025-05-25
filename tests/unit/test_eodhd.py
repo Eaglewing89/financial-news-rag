@@ -203,8 +203,9 @@ class TestEODHDClientFetchNews:
         assert result["success"] is True
         assert len(result["articles"]) == 5
     
+    @patch("time.sleep")  # Mock sleep to speed up tests
     @patch("requests.get")
-    def test_fetch_news_request_timeout_error(self, mock_get, client):
+    def test_fetch_news_request_timeout_error(self, mock_get, mock_sleep, client):
         """Test handling of request timeout errors."""
         mock_get.side_effect = requests.exceptions.Timeout("Request timed out")
         
@@ -216,8 +217,9 @@ class TestEODHDClientFetchNews:
         assert result["status_code"] is None
         assert "request timed out" in result["error_message"].lower()
     
+    @patch("time.sleep")  # Mock sleep to speed up tests
     @patch("requests.get")
-    def test_fetch_news_connection_error(self, mock_get, client):
+    def test_fetch_news_connection_error(self, mock_get, mock_sleep, client):
         """Test handling of connection errors."""
         mock_get.side_effect = requests.exceptions.ConnectionError("Connection failed")
         
@@ -229,8 +231,9 @@ class TestEODHDClientFetchNews:
         assert result["status_code"] is None
         assert "connection" in result["error_message"].lower()
     
+    @patch("time.sleep")  # Mock sleep to speed up tests
     @patch("requests.get")
-    def test_fetch_news_http_error_response(self, mock_get, client):
+    def test_fetch_news_http_error_response(self, mock_get, mock_sleep, client):
         """Test handling of HTTP error responses."""
         mock_response = MagicMock()
         mock_response.status_code = 401
@@ -246,8 +249,9 @@ class TestEODHDClientFetchNews:
         assert result["status_code"] == 401
         assert "401" in result["error_message"]
     
+    @patch("time.sleep")  # Mock sleep to speed up tests
     @patch("requests.get")
-    def test_fetch_news_invalid_json_response(self, mock_get, client):
+    def test_fetch_news_invalid_json_response(self, mock_get, mock_sleep, client):
         """Test handling of invalid JSON responses."""
         mock_response = MagicMock()
         mock_response.status_code = 200
