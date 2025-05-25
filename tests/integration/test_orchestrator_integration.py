@@ -7,12 +7,23 @@ EmbeddingsGenerator, ChromaDBManager, and ReRanker.
 
 External APIs (EODHD, Gemini) are mocked to avoid costs and ensure reliability,
 but all internal component interactions are tested with real implementations.
+
+The tests are organized into multiple classes based on functional areas:
+1. BaseTestFinancialNewsRAGIntegration - Shared fixtures and setup
+2. TestOrchInitAndConfig - Initialization and configuration tests
+3. TestWorkflowIntegration - Complete workflow and lifecycle tests
+4. TestComponentInteraction - Component interaction tests
+5. TestErrorHandling - Exception handling tests
+6. TestSearchFunctionality - Search-related tests
+7. TestDatabaseOperations - Database consistency and operations
+8. TestPerformanceAndEdgeCases - Performance characteristics and edge cases
 """
 
 import os
 import tempfile
 import shutil
 import pytest
+import numpy as np
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any
@@ -31,12 +42,13 @@ from tests.fixtures.sample_data import ArticleFactory
 from tests.helpers.assertions import assert_article_structure, assert_search_result_structure
 
 
-class TestFinancialNewsRAGIntegration:
+class BaseTestFinancialNewsRAGIntegration:
     """
-    Integration tests for the FinancialNewsRAG orchestrator.
+    Base class for integration tests for the FinancialNewsRAG orchestrator.
     
-    These tests verify complete workflows and real component interactions,
-    while mocking only external APIs for cost and reliability reasons.
+    This class provides shared fixtures and setup methods used by all test classes.
+    It handles setting up the test environment, mocking external APIs, and configuring
+    realistic test data.
     """
     
     @pytest.fixture(autouse=True)
@@ -79,11 +91,18 @@ class TestFinancialNewsRAGIntegration:
     def _configure_api_mocks(self):
         """Configure realistic responses for external API mocks."""
         # Use current timestamps to ensure mock articles appear "fresh"
-        from datetime import datetime, timezone
         current_time = datetime.now(timezone.utc)
         recent_time = current_time.replace(hour=current_time.hour-1)  # 1 hour ago
         
-        # Mock EODHD API response - create proper mock response object for requests.get()
+        # Mock EODHD API response with sample articles
+        self._setup_eodhd_api_mock(current_time, recent_time)
+        
+        # Mock Gemini chat client for reranking
+        self._setup_gemini_chat_mock()
+    
+    def _setup_eodhd_api_mock(self, current_time, recent_time):
+        """Set up the EODHD API mock with realistic sample articles."""
+        # Create sample articles with current timestamps
         raw_eodhd_articles = [
             {
                 'title': 'Apple Reports Strong Q4 Earnings',
@@ -105,13 +124,10 @@ class TestFinancialNewsRAGIntegration:
             }
         ]
         
-        # Create a smarter mock that respects the limit parameter
+        # Create a mock that respects the limit parameter
         def mock_eodhd_response(*args, **kwargs):
-            # Extract the limit from the request params
             params = kwargs.get('params', {})
             limit = params.get('limit', len(raw_eodhd_articles))
-            
-            # Respect the limit parameter - return up to 'limit' articles
             limited_articles = raw_eodhd_articles[:limit]
             
             mock_response = MagicMock()
@@ -122,8 +138,9 @@ class TestFinancialNewsRAGIntegration:
             return mock_response
         
         self.mock_eodhd_api.side_effect = mock_eodhd_response
-        
-        # Mock Gemini chat client for reranking
+    
+    def _setup_gemini_chat_mock(self):
+        """Set up the Gemini chat API mock for reranking."""
         mock_chat_client = MagicMock()
         mock_chat_models = MagicMock()
         mock_chat_response = MagicMock()
@@ -133,22 +150,21 @@ class TestFinancialNewsRAGIntegration:
         self.mock_gemini_chat.return_value = mock_chat_client
     
     @pytest.fixture
-    def orchestrator(self):
-        """Create a FinancialNewsRAG orchestrator with real components."""
+    def mock_embedding_values(self):
+        """Create deterministic embedding values for testing."""
+        # Create a simple, deterministic embedding that's always the same
+        base_embedding = np.random.rand(768)
+        base_embedding = base_embedding / np.linalg.norm(base_embedding)
+        return base_embedding.tolist()
+    
+    @pytest.fixture
+    def orchestrator(self, mock_embedding_values):
+        """Create a FinancialNewsRAG orchestrator with real components but mocked APIs."""
         orchestrator = FinancialNewsRAG(
             db_path=self.test_db_path,
             chroma_persist_dir=self.test_chroma_dir,
             chroma_collection_name="test_integration_collection"
         )
-        
-        # Directly patch the embed_content method on the orchestrator's embedding generator client
-        # This is a more targeted approach that ensures the mock works correctly
-        import numpy as np
-        
-        # Create a simple, deterministic embedding that's always the same
-        base_embedding = np.random.rand(768)
-        base_embedding = base_embedding / np.linalg.norm(base_embedding)
-        embedding_values = base_embedding.tolist()
         
         # Create a simple class to hold embedding values
         class MockEmbedding:
@@ -157,7 +173,7 @@ class TestFinancialNewsRAGIntegration:
         
         # Create the mock response structure directly
         mock_response = MagicMock()
-        mock_embedding = MockEmbedding(embedding_values)
+        mock_embedding = MockEmbedding(mock_embedding_values)
         mock_response.embeddings = [mock_embedding]
         
         # Directly patch the embed_content method on the already-created client
@@ -168,6 +184,14 @@ class TestFinancialNewsRAGIntegration:
         orchestrator.embeddings_generator.client.models.embed_content = mock_embed_content
         
         return orchestrator
+    
+class TestOrchInitAndConfig(BaseTestFinancialNewsRAGIntegration):
+    """
+    Tests for the FinancialNewsRAG orchestrator initialization and configuration.
+    
+    These tests verify that the orchestrator initializes correctly, components are
+    properly set up, and configuration is correctly inherited.
+    """
     
     def test_orchestrator_initialization_integration(self, orchestrator):
         """Test that the orchestrator initializes all real components correctly."""
@@ -190,12 +214,75 @@ class TestFinancialNewsRAGIntegration:
         assert orchestrator.eodhd_api_key == "test_eodhd_api_key"
         assert orchestrator.gemini_api_key == "test_gemini_api_key"
     
+    def test_configuration_inheritance_integration(self, orchestrator):
+        """Test that configuration is properly inherited by all components."""
+        # Verify config is passed to components
+        assert orchestrator.config is not None
+        
+        # Check that components use the configuration
+        assert orchestrator.article_manager.db_path == self.test_db_path
+        assert orchestrator.chroma_manager.persist_directory == self.test_chroma_dir
+        assert orchestrator.chroma_manager.collection_name == "test_integration_collection"
+        
+        # Verify API keys are configured at the orchestrator level
+        assert orchestrator.eodhd_client.api_key == "test_eodhd_api_key"
+        assert orchestrator.gemini_api_key == "test_gemini_api_key"
+        
+        # Verify component models are configured correctly
+        assert orchestrator.embeddings_generator.model_name == "text-embedding-004"
+        assert orchestrator.embeddings_generator.embedding_dim == 768
+        assert orchestrator.reranker.model_name == "gemini-2.0-flash"
+    
+    def test_constructor_error_handling_integration(self):
+        """Test constructor error handling for missing API keys."""
+        # Test missing EODHD API key
+        with patch.dict(os.environ, {
+            "EODHD_API_KEY": "",
+            "GEMINI_API_KEY": "test_gemini_api_key",
+            "DATABASE_PATH_OVERRIDE": self.test_db_path,
+            "CHROMA_DEFAULT_PERSIST_DIRECTORY_OVERRIDE": self.test_chroma_dir,
+        }):
+            with pytest.raises(ValueError, match="EODHD API key not provided"):
+                FinancialNewsRAG(
+                    db_path=self.test_db_path,
+                    chroma_persist_dir=self.test_chroma_dir
+                )
+        
+        # Test missing Gemini API key
+        with patch.dict(os.environ, {
+            "EODHD_API_KEY": "test_eodhd_api_key",
+            "GEMINI_API_KEY": "",
+            "DATABASE_PATH_OVERRIDE": self.test_db_path,
+            "CHROMA_DEFAULT_PERSIST_DIRECTORY_OVERRIDE": self.test_chroma_dir,
+        }):
+            with pytest.raises(ValueError, match="Gemini API key not provided"):
+                FinancialNewsRAG(
+                    db_path=self.test_db_path,
+                    chroma_persist_dir=self.test_chroma_dir
+                )
+    
+class TestWorkflowIntegration(BaseTestFinancialNewsRAGIntegration):
+    """
+    Tests for the complete RAG workflow and article lifecycle.
+    
+    These tests verify that the entire workflow from fetching articles to searching
+    works correctly, as well as article lifecycle operations like deletion.
+    """
+    
     def test_complete_rag_workflow_integration(self, orchestrator):
-        """Test the complete RAG workflow end-to-end."""
+        """
+        Test the complete RAG workflow end-to-end.
+        
+        This test verifies the entire pipeline:
+        1. Fetching articles
+        2. Processing and cleaning article text
+        3. Generating embeddings
+        4. Storing in vector database
+        5. Searching with and without reranking
+        """
         # Step 1: Fetch articles
         fetch_result = orchestrator.fetch_and_store_articles(tag="TECHNOLOGY")
         
-        # Debug: Print details about the fetch result
         assert fetch_result["status"] == "SUCCESS"
         assert fetch_result["articles_stored"] == 2
         assert fetch_result["articles_fetched"] == 2
@@ -233,7 +320,7 @@ class TestFinancialNewsRAGIntegration:
         db_status_after_embedding = orchestrator.get_article_database_status()
         assert db_status_after_embedding["embedding_status"]["SUCCESS"] == 2
         
-        # Step 4: Search for articles
+        # Step 4: Search for articles (without reranking)
         search_results = orchestrator.search_articles(
             query="Apple earnings technology",
             n_results=2,
@@ -246,7 +333,7 @@ class TestFinancialNewsRAGIntegration:
             assert "similarity_score" in result
             assert result["similarity_score"] > 0
         
-        # Test search with reranking
+        # Step 5: Test search with reranking
         reranked_results = orchestrator.search_articles(
             query="Microsoft cloud services",
             n_results=2,
@@ -286,78 +373,25 @@ class TestFinancialNewsRAGIntegration:
         assert delete_result_large["deleted_from_sqlite"] == 0
         assert delete_result_large["deleted_from_chroma"] == 0
     
-    def test_error_handling_integration(self, orchestrator):
-        """Test error handling in integrated workflows."""
-        # Test with invalid tag/symbol combination
-        with pytest.raises(ValueError, match="tag and symbol parameters are mutually exclusive"):
-            orchestrator.fetch_and_store_articles(tag="TECHNOLOGY", symbol="AAPL")
-        
-        # Test with no tag or symbol
-        with pytest.raises(ValueError, match="Either tag or symbol must be provided"):
-            orchestrator.fetch_and_store_articles()
-        
-        # Test processing when no articles exist
-        process_result = orchestrator.process_articles_by_status(status="PENDING")
-        assert process_result["status"] == "SUCCESS"
-        assert process_result["articles_processed"] == 0
-        assert process_result["articles_failed"] == 0
-        
-        # Test embedding when no processed articles exist
-        embedding_result = orchestrator.embed_processed_articles(status="PENDING")
-        assert embedding_result["status"] == "SUCCESS"
-        assert embedding_result["articles_embedding_succeeded"] == 0
-        assert embedding_result["articles_failed"] == 0
+class TestComponentInteraction(BaseTestFinancialNewsRAGIntegration):
+    """
+    Tests for component interactions through the orchestrator.
     
-    def test_database_consistency_integration(self, orchestrator):
-        """Test that operations maintain consistency between SQLite and ChromaDB."""
-        # Add and process articles
-        orchestrator.fetch_and_store_articles(tag="FINANCE", limit=1)
-        orchestrator.process_articles_by_status(status="PENDING")
-        orchestrator.embed_processed_articles(status="PENDING")
-        
-        # Get initial states
-        initial_db_status = orchestrator.get_article_database_status()
-        initial_vector_status = orchestrator.get_vector_database_status()
-        
-        # Verify consistency
-        assert initial_db_status["total_articles"] == 1
-        assert initial_vector_status["unique_articles"] == 1
-        assert initial_db_status["embedding_status"]["SUCCESS"] == 1
-        
-        # Test that search returns consistent results
-        search_results = orchestrator.search_articles("finance banking", n_results=5)
-        assert len(search_results) <= initial_vector_status["unique_articles"]
-    
-    def test_search_functionality_integration(self, orchestrator):
-        """Test comprehensive search functionality with real components."""
-        # Add diverse articles
-        orchestrator.fetch_and_store_articles(tag="TECHNOLOGY", limit=1)
-        
-        # Process and embed
-        orchestrator.process_articles_by_status(status="PENDING")
-        orchestrator.embed_processed_articles(status="PENDING")
-        
-        # Test basic search
-        basic_results = orchestrator.search_articles("technology", n_results=1)
-        assert len(basic_results) == 1
-        assert_search_result_structure(basic_results[0])
-        
-        # Test search with date filters
-        date_results = orchestrator.search_articles(
-            "technology",
-            n_results=1,
-            from_date_str="2024-01-01",
-            to_date_str="2024-12-31"
-        )
-        assert len(date_results) <= 1
-        
-        # Test search with no results
-        no_results = orchestrator.search_articles("completely_irrelevant_query", n_results=5)
-        assert isinstance(no_results, list)  # Should return empty list, not error
+    These tests verify that the various components (ArticleManager, TextProcessor,
+    EmbeddingsGenerator, ChromaDBManager, ReRanker) correctly interact with each other.
+    """
     
     def test_component_interaction_integration(self, orchestrator):
-        """Test that components interact correctly through the orchestrator."""
-        # Fetch articles
+        """
+        Test that components interact correctly through the orchestrator.
+        
+        This test verifies the interactions between all major components:
+        - ArticleManager (storage)
+        - TextProcessor (content processing)
+        - EmbeddingsGenerator and ChromaDBManager (vector operations)
+        - ReRanker (search enhancements)
+        """
+        # Fetch articles (EODHDClient -> ArticleManager interaction)
         fetch_result = orchestrator.fetch_and_store_articles(symbol="MSFT", limit=1)
         assert fetch_result["status"] == "SUCCESS"
         
@@ -388,24 +422,30 @@ class TestFinancialNewsRAGIntegration:
         assert len(search_results) == 1
         assert "rerank_score" in search_results[0]
     
-    def test_configuration_inheritance_integration(self, orchestrator):
-        """Test that configuration is properly inherited by all components."""
-        # Verify config is passed to components
-        assert orchestrator.config is not None
+    def test_database_consistency_integration(self, orchestrator):
+        """
+        Test that operations maintain consistency between SQLite and ChromaDB.
         
-        # Check that components use the configuration
-        assert orchestrator.article_manager.db_path == self.test_db_path
-        assert orchestrator.chroma_manager.persist_directory == self.test_chroma_dir
-        assert orchestrator.chroma_manager.collection_name == "test_integration_collection"
+        This test verifies that the article data in SQLite and vector data in ChromaDB
+        remain synchronized throughout the full workflow.
+        """
+        # Add and process articles
+        orchestrator.fetch_and_store_articles(tag="FINANCE", limit=1)
+        orchestrator.process_articles_by_status(status="PENDING")
+        orchestrator.embed_processed_articles(status="PENDING")
         
-        # Verify API keys are configured at the orchestrator level
-        assert orchestrator.eodhd_client.api_key == "test_eodhd_api_key"
-        assert orchestrator.gemini_api_key == "test_gemini_api_key"
+        # Get initial states
+        initial_db_status = orchestrator.get_article_database_status()
+        initial_vector_status = orchestrator.get_vector_database_status()
         
-        # Verify component models are configured correctly
-        assert orchestrator.embeddings_generator.model_name == "text-embedding-004"
-        assert orchestrator.embeddings_generator.embedding_dim == 768
-        assert orchestrator.reranker.model_name == "gemini-2.0-flash"
+        # Verify consistency
+        assert initial_db_status["total_articles"] == 1
+        assert initial_vector_status["unique_articles"] == 1
+        assert initial_db_status["embedding_status"]["SUCCESS"] == 1
+        
+        # Test that search returns consistent results
+        search_results = orchestrator.search_articles("finance banking", n_results=5)
+        assert len(search_results) <= initial_vector_status["unique_articles"]
     
     def test_resource_cleanup_integration(self, orchestrator):
         """Test that resources are properly cleaned up."""
@@ -438,67 +478,48 @@ class TestFinancialNewsRAGIntegration:
         
         new_orchestrator.close()
     
-    def test_performance_and_scalability_integration(self, orchestrator):
-        """Test performance characteristics with multiple articles."""
-        # This test uses a limited number of articles to avoid long test times
-        # but verifies the system can handle batch operations
-        
-        # Fetch multiple articles
-        fetch_result = orchestrator.fetch_and_store_articles(tag="TECHNOLOGY", limit=2)
-        assert fetch_result["articles_stored"] == 2
-        
-        # Process all articles in batch
-        process_result = orchestrator.process_articles_by_status(status="PENDING", limit=10)
-        assert process_result["articles_processed"] == 2
-        
-        # Embed all articles in batch
-        embedding_result = orchestrator.embed_processed_articles(status="PENDING", limit=10)
-        assert embedding_result["articles_embedding_succeeded"] == 2
-        
-        # Verify final state
-        final_db_status = orchestrator.get_article_database_status()
-        final_vector_status = orchestrator.get_vector_database_status()
-        
-        assert final_db_status["total_articles"] == 2
-        assert final_db_status["text_processing_status"]["SUCCESS"] == 2
-        assert final_db_status["embedding_status"]["SUCCESS"] == 2
-        assert final_vector_status["unique_articles"] == 2
-        assert final_vector_status["total_chunks"] >= 2  # At least one chunk per article
-        
-        # Test that search performance is reasonable
-        search_results = orchestrator.search_articles("technology", n_results=5)
-        assert len(search_results) == 2  # Should return all available articles
+class TestErrorHandling(BaseTestFinancialNewsRAGIntegration):
+    """
+    Tests for error handling in the orchestrator.
     
-    def test_constructor_error_handling_integration(self):
-        """Test constructor error handling for missing API keys."""
-        # Test missing EODHD API key
-        with patch.dict(os.environ, {
-            "EODHD_API_KEY": "",
-            "GEMINI_API_KEY": "test_gemini_api_key",
-            "DATABASE_PATH_OVERRIDE": self.test_db_path,
-            "CHROMA_DEFAULT_PERSIST_DIRECTORY_OVERRIDE": self.test_chroma_dir,
-        }):
-            with pytest.raises(ValueError, match="EODHD API key not provided"):
-                FinancialNewsRAG(
-                    db_path=self.test_db_path,
-                    chroma_persist_dir=self.test_chroma_dir
-                )
+    These tests verify that the orchestrator properly handles various error scenarios,
+    including invalid parameters, missing data, and exceptions from components.
+    """
+    
+    def test_error_handling_integration(self, orchestrator):
+        """
+        Test error handling in integrated workflows.
         
-        # Test missing Gemini API key
-        with patch.dict(os.environ, {
-            "EODHD_API_KEY": "test_eodhd_api_key",
-            "GEMINI_API_KEY": "",
-            "DATABASE_PATH_OVERRIDE": self.test_db_path,
-            "CHROMA_DEFAULT_PERSIST_DIRECTORY_OVERRIDE": self.test_chroma_dir,
-        }):
-            with pytest.raises(ValueError, match="Gemini API key not provided"):
-                FinancialNewsRAG(
-                    db_path=self.test_db_path,
-                    chroma_persist_dir=self.test_chroma_dir
-                )
-
+        This test verifies that the orchestrator properly handles various error scenarios
+        when components are used together.
+        """
+        # Test with invalid tag/symbol combination
+        with pytest.raises(ValueError, match="tag and symbol parameters are mutually exclusive"):
+            orchestrator.fetch_and_store_articles(tag="TECHNOLOGY", symbol="AAPL")
+        
+        # Test with no tag or symbol
+        with pytest.raises(ValueError, match="Either tag or symbol must be provided"):
+            orchestrator.fetch_and_store_articles()
+        
+        # Test processing when no articles exist
+        process_result = orchestrator.process_articles_by_status(status="PENDING")
+        assert process_result["status"] == "SUCCESS"
+        assert process_result["articles_processed"] == 0
+        assert process_result["articles_failed"] == 0
+        
+        # Test embedding when no processed articles exist
+        embedding_result = orchestrator.embed_processed_articles(status="PENDING")
+        assert embedding_result["status"] == "SUCCESS"
+        assert embedding_result["articles_embedding_succeeded"] == 0
+        assert embedding_result["articles_failed"] == 0
+    
     def test_fetch_articles_exception_handling_integration(self, orchestrator):
-        """Test exception handling in fetch_and_store_articles method."""
+        """
+        Test exception handling in fetch_and_store_articles method.
+        
+        This test verifies that the orchestrator properly handles exceptions during
+        the article fetching and storing process.
+        """
         # Mock EODHD API to raise an exception
         with patch.object(orchestrator.eodhd_client, 'fetch_news') as mock_get_news:
             mock_get_news.side_effect = Exception("EODHD API connection failed")
@@ -549,12 +570,18 @@ class TestFinancialNewsRAGIntegration:
             assert "Database query failed" in str(result["errors"])
 
     def test_embed_articles_exception_handling_integration(self, orchestrator):
-        """Test exception handling in embed_processed_articles method."""
+        """
+        Test exception handling in embed_processed_articles method.
+        
+        This test verifies that the orchestrator properly handles various exception scenarios
+        during the embedding process, including missing content, chunk generation failures,
+        embedding generation failures, and storage failures.
+        """
         # Add and process an article
         orchestrator.fetch_and_store_articles(tag="TECHNOLOGY", limit=1)
         orchestrator.process_articles_by_status(status="PENDING")
         
-        # Test missing processed content scenario
+        # Test 1: Missing processed content scenario
         with patch.object(orchestrator.article_manager, 'get_processed_articles_for_embedding') as mock_get:
             mock_get.return_value = [{
                 'url_hash': 'test_hash_123',
@@ -569,7 +596,7 @@ class TestFinancialNewsRAGIntegration:
             assert result["articles_failed"] == 1
             assert result["articles_embedding_succeeded"] == 0
 
-        # Test no chunks generated scenario
+        # Test 2: No chunks generated scenario
         with patch.object(orchestrator.text_processor, 'split_into_chunks') as mock_split:
             mock_split.return_value = []  # No chunks
             
@@ -578,7 +605,7 @@ class TestFinancialNewsRAGIntegration:
             assert result["status"] == "SUCCESS"
             assert result["articles_failed"] >= 1
 
-        # Test embedding generation failure
+        # Test 3: Embedding generation failure
         with patch.object(orchestrator.embeddings_generator, 'generate_and_verify_embeddings') as mock_embed:
             # Make sure we return a properly structured failure with the expected data format
             mock_embed.return_value = {
@@ -586,7 +613,7 @@ class TestFinancialNewsRAGIntegration:
                 "all_valid": False  # Invalid embeddings
             }
             
-            # Also ensure we have at least one article that will trigger the embedding process
+            # Ensure we have at least one article that will trigger the embedding process
             with patch.object(orchestrator.article_manager, 'get_processed_articles_for_embedding') as mock_get:
                 mock_get.return_value = [{
                     'url_hash': 'test_hash_embed_failure',
@@ -600,7 +627,7 @@ class TestFinancialNewsRAGIntegration:
                 assert result["status"] == "SUCCESS"
                 assert result["articles_failed"] >= 1
 
-        # Test ChromaDB storage failure
+        # Test 4: ChromaDB storage failure
         with patch.object(orchestrator.chroma_manager, 'add_article_chunks') as mock_add:
             mock_add.return_value = False  # Storage failed
             
@@ -613,14 +640,14 @@ class TestFinancialNewsRAGIntegration:
                     'published_at': '2024-01-01T00:00:00Z'
                 }]
                 
-                # Make sure embedding generation succeeds so we reach the storage step
+                # Ensure embedding generation succeeds so we reach the storage step
                 with patch.object(orchestrator.embeddings_generator, 'generate_and_verify_embeddings') as mock_embed:
                     mock_embed.return_value = {
                         "embeddings": ["mock_embedding"],
                         "all_valid": True  # Valid embeddings
                     }
                     
-                    # Also mock the split_into_chunks to ensure we have chunks
+                    # Ensure we have chunks
                     with patch.object(orchestrator.text_processor, 'split_into_chunks') as mock_split:
                         mock_split.return_value = ["chunk1"]  # Return a valid chunk
                         
@@ -629,7 +656,7 @@ class TestFinancialNewsRAGIntegration:
                         assert result["status"] == "SUCCESS"
                         assert result["articles_failed"] >= 1
 
-        # Test main exception handling
+        # Test 5: Main exception handling
         with patch.object(orchestrator.article_manager, 'get_processed_articles_for_embedding') as mock_get:
             mock_get.side_effect = Exception("Database connection lost")
             
@@ -639,7 +666,7 @@ class TestFinancialNewsRAGIntegration:
             assert len(result["errors"]) > 0
             assert "Database connection lost" in str(result["errors"])
 
-        # Test individual article exception handling
+        # Test 6: Individual article exception handling
         with patch.object(orchestrator.embeddings_generator, 'generate_and_verify_embeddings') as mock_embed:
             mock_embed.side_effect = Exception("Embedding API error")
             
@@ -657,7 +684,7 @@ class TestFinancialNewsRAGIntegration:
                 assert result["status"] == "SUCCESS"
                 assert result["articles_failed"] >= 1
                 assert len(result["errors"]) > 0
-
+                
     def test_database_status_exception_handling_integration(self, orchestrator):
         """Test exception handling in database status methods."""
         # Test get_article_database_status exception handling
@@ -679,7 +706,7 @@ class TestFinancialNewsRAGIntegration:
             assert "error" in result
             assert result["status"] == "FAILED"
             assert "ChromaDB connection failed" in result["error"]
-
+            
     def test_search_exception_handling_integration(self, orchestrator):
         """Test exception handling in search_articles method."""
         # Add some test data first
@@ -710,7 +737,7 @@ class TestFinancialNewsRAGIntegration:
             result = orchestrator.search_articles("test query")
             
             assert result == []  # Should return empty list on error
-
+            
     def test_delete_operations_comprehensive_integration(self, orchestrator):
         """Test comprehensive delete operations including error scenarios."""
         # Add some test articles with different ages
@@ -789,7 +816,7 @@ class TestFinancialNewsRAGIntegration:
             assert result["status"] == "FAILED"
             assert len(result["errors"]) > 0
             assert "Database query failed" in str(result["errors"])
-
+            
     def test_resource_cleanup_error_handling_integration(self, orchestrator):
         """Test error handling in resource cleanup method."""
         # Test cleanup when component cleanup fails
@@ -811,7 +838,75 @@ class TestFinancialNewsRAGIntegration:
             
             # Verify the method was called
             mock_close_chroma.assert_called_once()
+    
+class TestSearchFunctionality(BaseTestFinancialNewsRAGIntegration):
+    """
+    Tests for search functionality in the orchestrator.
+    
+    These tests verify that various search operations, including basic search,
+    reranking, and filtering with metadata, work correctly.
+    """
+    
+    def test_search_functionality_integration(self, orchestrator):
+        """Test comprehensive search functionality with real components."""
+        # Add diverse articles
+        orchestrator.fetch_and_store_articles(tag="TECHNOLOGY", limit=1)
+        
+        # Process and embed
+        orchestrator.process_articles_by_status(status="PENDING")
+        orchestrator.embed_processed_articles(status="PENDING")
+        
+        # Test basic search
+        basic_results = orchestrator.search_articles("technology", n_results=1)
+        assert len(basic_results) == 1
+        assert_search_result_structure(basic_results[0])
+        
+        # Test search with date filters
+        date_results = orchestrator.search_articles(
+            "technology",
+            n_results=1,
+            from_date_str="2024-01-01",
+            to_date_str="2024-12-31"
+        )
+        assert len(date_results) <= 1
+        
+        # Test search with no results
+        no_results = orchestrator.search_articles("completely_irrelevant_query", n_results=5)
+        assert isinstance(no_results, list)  # Should return empty list, not error
+    
+    def test_search_metadata_filtering_integration(self, orchestrator):
+        """Test search functionality with metadata filtering."""
+        # Add test data
+        orchestrator.fetch_and_store_articles(tag="TECHNOLOGY", limit=1)
+        orchestrator.process_articles_by_status(status="PENDING")
+        orchestrator.embed_processed_articles(status="PENDING")
+        
+        # Test search with sort_by_metadata
+        result = orchestrator.search_articles(
+            "technology",
+            n_results=5,
+            sort_by_metadata={"published_at_timestamp": "desc"}
+        )
+        assert isinstance(result, list)
+        
+        # Test search with date filters
+        result = orchestrator.search_articles(
+            "technology",
+            n_results=5,
+            from_date_str="2020-01-01",
+            to_date_str="2030-12-31"
+        )
+        assert isinstance(result, list)
 
+
+class TestPerformanceAndEdgeCases(BaseTestFinancialNewsRAGIntegration):
+    """
+    Tests for performance characteristics and edge cases.
+    
+    These tests verify the orchestrator's behavior in edge cases and boundary conditions,
+    as well as basic performance characteristics.
+    """
+    
     def test_edge_cases_and_boundary_conditions_integration(self, orchestrator):
         """Test edge cases and boundary conditions."""
         # Test search with empty query
@@ -850,27 +945,34 @@ class TestFinancialNewsRAGIntegration:
             
             result = orchestrator.embed_processed_articles(status="FAILED")
             assert result["status"] == "SUCCESS"
-
-    def test_search_metadata_filtering_integration(self, orchestrator):
-        """Test search functionality with metadata filtering."""
-        # Add test data
-        orchestrator.fetch_and_store_articles(tag="TECHNOLOGY", limit=1)
-        orchestrator.process_articles_by_status(status="PENDING")
-        orchestrator.embed_processed_articles(status="PENDING")
+            
+    def test_performance_and_scalability_integration(self, orchestrator):
+        """Test performance characteristics with multiple articles."""
+        # This test uses a limited number of articles to avoid long test times
+        # but verifies the system can handle batch operations
         
-        # Test search with sort_by_metadata
-        result = orchestrator.search_articles(
-            "technology",
-            n_results=5,
-            sort_by_metadata={"published_at_timestamp": "desc"}
-        )
-        assert isinstance(result, list)
+        # Fetch multiple articles
+        fetch_result = orchestrator.fetch_and_store_articles(tag="TECHNOLOGY", limit=2)
+        assert fetch_result["articles_stored"] == 2
         
-        # Test search with date filters
-        result = orchestrator.search_articles(
-            "technology",
-            n_results=5,
-            from_date_str="2020-01-01",
-            to_date_str="2030-12-31"
-        )
-        assert isinstance(result, list)
+        # Process all articles in batch
+        process_result = orchestrator.process_articles_by_status(status="PENDING", limit=10)
+        assert process_result["articles_processed"] == 2
+        
+        # Embed all articles in batch
+        embedding_result = orchestrator.embed_processed_articles(status="PENDING", limit=10)
+        assert embedding_result["articles_embedding_succeeded"] == 2
+        
+        # Verify final state
+        final_db_status = orchestrator.get_article_database_status()
+        final_vector_status = orchestrator.get_vector_database_status()
+        
+        assert final_db_status["total_articles"] == 2
+        assert final_db_status["text_processing_status"]["SUCCESS"] == 2
+        assert final_db_status["embedding_status"]["SUCCESS"] == 2
+        assert final_vector_status["unique_articles"] == 2
+        assert final_vector_status["total_chunks"] >= 2  # At least one chunk per article
+        
+        # Test that search performance is reasonable
+        search_results = orchestrator.search_articles("technology", n_results=5)
+        assert len(search_results) == 2  # Should return all available articles
