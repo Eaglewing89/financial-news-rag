@@ -50,7 +50,7 @@
     ```
 - **Testing:**
   - Use `pytest` for all tests (see `tests/` directory).
-  - Run tests with `pytest` and check coverage with `pytest --cov`.
+  - Run tests with `pytest` and check coverage with `pytest --cov=financial_news_rag`.
 - **Branching:**
   - Use descriptive branch names, e.g., `feature/feature-name`, `docs/foundation`.
 - **Code Review:**
