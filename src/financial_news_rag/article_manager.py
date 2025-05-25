@@ -148,7 +148,7 @@ class ArticleManager:
         """
         query = """
         SELECT url_hash, title, raw_content, processed_content, url, published_at, added_at,
-               symbols, tags, sentiment, status_text_processing, status_embedding,
+               source_api, symbols, tags, sentiment, status_text_processing, status_embedding,
                embedding_model, vector_db_id
         FROM articles
         WHERE url_hash = ?
@@ -167,13 +167,14 @@ class ArticleManager:
             'url': row[4],
             'published_at': row[5],
             'added_at': row[6],
-            'symbols': json.loads(row[7]) if row[7] else [],
-            'tags': json.loads(row[8]) if row[8] else [],
-            'sentiment': json.loads(row[9]) if row[9] else {},
-            'status_text_processing': row[10],
-            'status_embedding': row[11],
-            'embedding_model': row[12],
-            'vector_db_id': row[13]
+            'source_api': row[7],
+            'symbols': json.loads(row[8]) if row[8] else [],
+            'tags': json.loads(row[9]) if row[9] else [],
+            'sentiment': json.loads(row[10]) if row[10] else {},
+            'status_text_processing': row[11],
+            'status_embedding': row[12],
+            'embedding_model': row[13],
+            'vector_db_id': row[14]
         }
     
     def get_processed_articles_for_embedding(self, status: str = 'PENDING', limit: int = 100) -> List[Dict]:

@@ -212,7 +212,8 @@ class ChromaDBManager:
                     if 'distances' in results:
                         distance = results['distances'][0][i]
                         if return_similarity_score:
-                            # Convert distance to similarity score using the formula: 1.0 - (distance / 2.0)
+                            # Convert cosine distance to similarity score
+                            # Cosine distance ranges from 0 (identical) to 2 (opposite)
                             result['similarity_score'] = 1.0 - (distance / 2.0)
                         else:
                             result['distance'] = distance

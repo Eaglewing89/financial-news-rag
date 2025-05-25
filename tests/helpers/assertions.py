@@ -392,3 +392,60 @@ def assert_search_results(results: List[Dict[str, Any]],
                 for term in query_terms
             )
             assert has_relevance, f"Result {i} appears irrelevant to query '{query}'"
+
+
+def assert_search_result_structure(result: Dict[str, Any],
+                                  has_rerank_score: bool = None) -> None:
+    """
+    Assert search result has the expected structure from orchestrator.search_articles().
+    
+    Args:
+        result: Search result dictionary from orchestrator
+        has_rerank_score: Whether to expect rerank_score field (auto-detected if None)
+    """
+    assert isinstance(result, dict), "Search result must be a dictionary"
+    
+    # Required fields that should always be present in search results
+    required_fields = [
+        'url_hash', 'title', 'processed_content', 'url', 'published_at',
+        'source_api', 'symbols', 'tags', 'similarity_score'
+    ]
+    
+    for field in required_fields:
+        assert field in result, f"Search result missing required field: {field}"
+        assert result[field] is not None, f"Search result field '{field}' cannot be None"
+    
+    # Validate similarity_score
+    similarity_score = result['similarity_score']
+    assert isinstance(similarity_score, (int, float)), "similarity_score must be numeric"
+    assert 0 <= similarity_score <= 1, f"similarity_score {similarity_score} outside valid range [0, 1]"
+    
+    # Check for rerank_score if specified or auto-detect
+    if has_rerank_score is None:
+        has_rerank_score = 'rerank_score' in result
+    
+    if has_rerank_score:
+        assert 'rerank_score' in result, "Expected rerank_score field in reranked result"
+        rerank_score = result['rerank_score']
+        assert isinstance(rerank_score, (int, float)), "rerank_score must be numeric"
+        assert 0 <= rerank_score <= 1, f"rerank_score {rerank_score} outside valid range [0, 1]"
+    
+    # Validate article content fields
+    assert isinstance(result['title'], str), "title must be a string"
+    assert len(result['title'].strip()) > 0, "title cannot be empty"
+    
+    assert isinstance(result['processed_content'], str), "processed_content must be a string"
+    assert len(result['processed_content'].strip()) > 0, "processed_content cannot be empty"
+    
+    assert isinstance(result['url'], str), "url must be a string"
+    assert result['url'].startswith(('http://', 'https://')), "url must be a valid HTTP/HTTPS URL"
+    
+    # Validate lists
+    assert isinstance(result['symbols'], list), "symbols must be a list"
+    assert isinstance(result['tags'], list), "tags must be a list"
+    
+    # Validate published_at is a valid datetime string
+    try:
+        datetime.fromisoformat(result['published_at'].replace('Z', '+00:00'))
+    except ValueError:
+        raise AssertionError(f"published_at '{result['published_at']}' is not a valid ISO datetime string")
