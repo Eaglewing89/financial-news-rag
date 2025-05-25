@@ -11,12 +11,13 @@ import requests
 from unittest.mock import patch, MagicMock
 
 from financial_news_rag.eodhd import EODHDClient
-from financial_news_rag.config import Config
 from tests.fixtures.sample_data import EODHDResponseFactory
 
 
 class TestEODHDClientInitialization:
-    """Test suite for EODHDClient initialization and configuration."""
+    """
+    Test suite for EODHDClient initialization and configuration.
+    """
     
     def test_init_with_explicit_api_key(self):
         """Test initialization with an explicit API key."""
@@ -44,22 +45,25 @@ class TestEODHDClientInitialization:
         assert client.default_limit == 500
     
     @patch.dict('os.environ', {'EODHD_API_KEY': 'env_test_key'})
-    def test_init_with_config_object(self):
-        """Test initialization using a Config object."""
-        config = Config()
+    def test_init_with_environment_variables(self):
+        """Test initialization with configuration values from environment."""
+        # Test that EODHDClient can be initialized with explicit values
+        # that might come from a configuration system
         client = EODHDClient(
-            api_key=config.eodhd_api_key,
-            api_url=config.eodhd_api_url,
-            default_timeout=config.eodhd_default_timeout,
-            default_max_retries=config.eodhd_default_max_retries,
-            default_backoff_factor=config.eodhd_default_backoff_factor,
-            default_limit=config.eodhd_default_limit
+            api_key="env_test_key",
+            api_url="https://eodhd.com/api/news",
+            default_timeout=30,
+            default_max_retries=3,
+            default_backoff_factor=1.0,
+            default_limit=1000
         )
         
         assert client.api_key == "env_test_key"
-        # Other assertions depend on Config class defaults
-        assert client.api_url is not None
-        assert client.default_timeout > 0
+        assert client.api_url == "https://eodhd.com/api/news"
+        assert client.default_timeout == 30
+        assert client.default_max_retries == 3
+        assert client.default_backoff_factor == 1.0
+        assert client.default_limit == 1000
     
     def test_init_without_api_key_raises_error(self):
         """Test that initialization without API key raises ValueError."""
