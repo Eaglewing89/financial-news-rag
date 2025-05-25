@@ -468,3 +468,409 @@ class TestFinancialNewsRAGIntegration:
         # Test that search performance is reasonable
         search_results = orchestrator.search_articles("technology", n_results=5)
         assert len(search_results) == 2  # Should return all available articles
+    
+    def test_constructor_error_handling_integration(self):
+        """Test constructor error handling for missing API keys."""
+        # Test missing EODHD API key
+        with patch.dict(os.environ, {
+            "EODHD_API_KEY": "",
+            "GEMINI_API_KEY": "test_gemini_api_key",
+            "DATABASE_PATH_OVERRIDE": self.test_db_path,
+            "CHROMA_DEFAULT_PERSIST_DIRECTORY_OVERRIDE": self.test_chroma_dir,
+        }):
+            with pytest.raises(ValueError, match="EODHD API key not provided"):
+                FinancialNewsRAG(
+                    db_path=self.test_db_path,
+                    chroma_persist_dir=self.test_chroma_dir
+                )
+        
+        # Test missing Gemini API key
+        with patch.dict(os.environ, {
+            "EODHD_API_KEY": "test_eodhd_api_key",
+            "GEMINI_API_KEY": "",
+            "DATABASE_PATH_OVERRIDE": self.test_db_path,
+            "CHROMA_DEFAULT_PERSIST_DIRECTORY_OVERRIDE": self.test_chroma_dir,
+        }):
+            with pytest.raises(ValueError, match="Gemini API key not provided"):
+                FinancialNewsRAG(
+                    db_path=self.test_db_path,
+                    chroma_persist_dir=self.test_chroma_dir
+                )
+
+    def test_fetch_articles_exception_handling_integration(self, orchestrator):
+        """Test exception handling in fetch_and_store_articles method."""
+        # Mock EODHD API to raise an exception
+        with patch.object(orchestrator.eodhd_client, 'fetch_news') as mock_get_news:
+            mock_get_news.side_effect = Exception("EODHD API connection failed")
+            
+            result = orchestrator.fetch_and_store_articles(tag="TECHNOLOGY")
+            
+            assert result["status"] == "FAILED"
+            assert result["articles_fetched"] == 0
+            assert result["articles_stored"] == 0
+            assert len(result["errors"]) > 0
+            assert "EODHD API connection failed" in str(result["errors"])
+
+        # Test ArticleManager.store_articles exception
+        with patch.object(orchestrator.article_manager, 'store_articles') as mock_store:
+            mock_store.side_effect = Exception("Database write failed")
+            
+            result = orchestrator.fetch_and_store_articles(symbol="AAPL")
+            
+            assert result["status"] == "FAILED"
+            assert len(result["errors"]) > 0
+            assert "Database write failed" in str(result["errors"])
+
+    def test_process_articles_exception_handling_integration(self, orchestrator):
+        """Test exception handling in process_articles_by_status method."""
+        # First add an article to process
+        orchestrator.fetch_and_store_articles(tag="TECHNOLOGY", limit=1)
+        
+        # Mock text processor to raise an exception during processing
+        with patch.object(orchestrator.text_processor, 'process_and_validate_content') as mock_process:
+            mock_process.side_effect = Exception("Text processing failed")
+            
+            result = orchestrator.process_articles_by_status(status="PENDING")
+            
+            assert result["status"] == "SUCCESS"  # Overall operation succeeds but individual articles fail
+            assert result["articles_failed"] == 1
+            assert result["articles_processed"] == 0
+            assert len(result["errors"]) > 0
+            assert "Text processing failed" in str(result["errors"])
+
+        # Test main exception handling in process_articles_by_status
+        with patch.object(orchestrator.article_manager, 'get_articles_by_processing_status') as mock_get:
+            mock_get.side_effect = Exception("Database query failed")
+            
+            result = orchestrator.process_articles_by_status(status="PENDING")
+            
+            assert result["status"] == "FAILED"
+            assert len(result["errors"]) > 0
+            assert "Database query failed" in str(result["errors"])
+
+    def test_embed_articles_exception_handling_integration(self, orchestrator):
+        """Test exception handling in embed_processed_articles method."""
+        # Add and process an article
+        orchestrator.fetch_and_store_articles(tag="TECHNOLOGY", limit=1)
+        orchestrator.process_articles_by_status(status="PENDING")
+        
+        # Test missing processed content scenario
+        with patch.object(orchestrator.article_manager, 'get_processed_articles_for_embedding') as mock_get:
+            mock_get.return_value = [{
+                'url_hash': 'test_hash_123',
+                'processed_content': None,  # Missing content
+                'title': 'Test Article',
+                'published_at': '2024-01-01T00:00:00Z'
+            }]
+            
+            result = orchestrator.embed_processed_articles(status="PENDING")
+            
+            assert result["status"] == "SUCCESS"
+            assert result["articles_failed"] == 1
+            assert result["articles_embedding_succeeded"] == 0
+
+        # Test no chunks generated scenario
+        with patch.object(orchestrator.text_processor, 'split_into_chunks') as mock_split:
+            mock_split.return_value = []  # No chunks
+            
+            result = orchestrator.embed_processed_articles(status="PENDING")
+            
+            assert result["status"] == "SUCCESS"
+            assert result["articles_failed"] >= 1
+
+        # Test embedding generation failure
+        with patch.object(orchestrator.embeddings_generator, 'generate_and_verify_embeddings') as mock_embed:
+            # Make sure we return a properly structured failure with the expected data format
+            mock_embed.return_value = {
+                "embeddings": [],
+                "all_valid": False  # Invalid embeddings
+            }
+            
+            # Also ensure we have at least one article that will trigger the embedding process
+            with patch.object(orchestrator.article_manager, 'get_processed_articles_for_embedding') as mock_get:
+                mock_get.return_value = [{
+                    'url_hash': 'test_hash_embed_failure',
+                    'processed_content': 'Test content for embedding failure',
+                    'title': 'Test Article',
+                    'published_at': '2024-01-01T00:00:00Z'
+                }]
+                
+                result = orchestrator.embed_processed_articles(status="PENDING")
+                
+                assert result["status"] == "SUCCESS"
+                assert result["articles_failed"] >= 1
+
+        # Test ChromaDB storage failure
+        with patch.object(orchestrator.chroma_manager, 'add_article_chunks') as mock_add:
+            mock_add.return_value = False  # Storage failed
+            
+            # Ensure we have an article that will trigger the storage code path
+            with patch.object(orchestrator.article_manager, 'get_processed_articles_for_embedding') as mock_get:
+                mock_get.return_value = [{
+                    'url_hash': 'test_hash_storage_failure',
+                    'processed_content': 'Test content for storage failure',
+                    'title': 'Test Article',
+                    'published_at': '2024-01-01T00:00:00Z'
+                }]
+                
+                # Make sure embedding generation succeeds so we reach the storage step
+                with patch.object(orchestrator.embeddings_generator, 'generate_and_verify_embeddings') as mock_embed:
+                    mock_embed.return_value = {
+                        "embeddings": ["mock_embedding"],
+                        "all_valid": True  # Valid embeddings
+                    }
+                    
+                    # Also mock the split_into_chunks to ensure we have chunks
+                    with patch.object(orchestrator.text_processor, 'split_into_chunks') as mock_split:
+                        mock_split.return_value = ["chunk1"]  # Return a valid chunk
+                        
+                        result = orchestrator.embed_processed_articles(status="PENDING")
+                        
+                        assert result["status"] == "SUCCESS"
+                        assert result["articles_failed"] >= 1
+
+        # Test main exception handling
+        with patch.object(orchestrator.article_manager, 'get_processed_articles_for_embedding') as mock_get:
+            mock_get.side_effect = Exception("Database connection lost")
+            
+            result = orchestrator.embed_processed_articles(status="PENDING")
+            
+            assert result["status"] == "FAILED"
+            assert len(result["errors"]) > 0
+            assert "Database connection lost" in str(result["errors"])
+
+        # Test individual article exception handling
+        with patch.object(orchestrator.embeddings_generator, 'generate_and_verify_embeddings') as mock_embed:
+            mock_embed.side_effect = Exception("Embedding API error")
+            
+            # Ensure we have an article that will trigger the embedding process
+            with patch.object(orchestrator.article_manager, 'get_processed_articles_for_embedding') as mock_get:
+                mock_get.return_value = [{
+                    'url_hash': 'test_hash_api_error',
+                    'processed_content': 'Test content for API error',
+                    'title': 'Test Article',
+                    'published_at': '2024-01-01T00:00:00Z'
+                }]
+                
+                result = orchestrator.embed_processed_articles(status="PENDING")
+                
+                assert result["status"] == "SUCCESS"
+                assert result["articles_failed"] >= 1
+                assert len(result["errors"]) > 0
+
+    def test_database_status_exception_handling_integration(self, orchestrator):
+        """Test exception handling in database status methods."""
+        # Test get_article_database_status exception handling
+        with patch.object(orchestrator.article_manager, 'get_database_statistics') as mock_status:
+            mock_status.side_effect = Exception("SQLite connection failed")
+            
+            result = orchestrator.get_article_database_status()
+            
+            assert "error" in result
+            assert result["status"] == "FAILED"
+            assert "SQLite connection failed" in result["error"]
+
+        # Test get_vector_database_status exception handling
+        with patch.object(orchestrator.chroma_manager, 'get_collection_status') as mock_status:
+            mock_status.side_effect = Exception("ChromaDB connection failed")
+            
+            result = orchestrator.get_vector_database_status()
+            
+            assert "error" in result
+            assert result["status"] == "FAILED"
+            assert "ChromaDB connection failed" in result["error"]
+
+    def test_search_exception_handling_integration(self, orchestrator):
+        """Test exception handling in search_articles method."""
+        # Add some test data first
+        orchestrator.fetch_and_store_articles(tag="TECHNOLOGY", limit=1)
+        orchestrator.process_articles_by_status(status="PENDING")
+        orchestrator.embed_processed_articles(status="PENDING")
+        
+        # Test embedding generation failure during search
+        with patch.object(orchestrator.embeddings_generator, 'generate_embeddings') as mock_embed:
+            mock_embed.side_effect = Exception("Embedding generation failed")
+            
+            result = orchestrator.search_articles("test query")
+            
+            assert result == []  # Should return empty list on error
+
+        # Test ChromaDB query failure
+        with patch.object(orchestrator.chroma_manager, 'query_embeddings') as mock_query:
+            mock_query.side_effect = Exception("Vector database query failed")
+            
+            result = orchestrator.search_articles("test query")
+            
+            assert result == []  # Should return empty list on error
+
+        # Test article retrieval failure
+        with patch.object(orchestrator.article_manager, 'get_article_by_hash') as mock_get:
+            mock_get.side_effect = Exception("Article retrieval failed")
+            
+            result = orchestrator.search_articles("test query")
+            
+            assert result == []  # Should return empty list on error
+
+    def test_delete_operations_comprehensive_integration(self, orchestrator):
+        """Test comprehensive delete operations including error scenarios."""
+        # Add some test articles with different ages
+        from datetime import datetime, timezone, timedelta
+        
+        # Add current articles
+        orchestrator.fetch_and_store_articles(tag="TECHNOLOGY", limit=1)
+        orchestrator.process_articles_by_status(status="PENDING")
+        orchestrator.embed_processed_articles(status="PENDING")
+        
+        # Test deleting articles when none are old enough
+        result = orchestrator.delete_articles_older_than(days=1)
+        assert result["status"] in ["SUCCESS", "FAILED"]
+        assert result["deleted_from_sqlite"] == 0
+        assert result["deleted_from_chroma"] == 0
+        
+        # Mock old articles for deletion testing
+        old_date = datetime.now(timezone.utc) - timedelta(days=200)
+        with patch.object(orchestrator.chroma_manager, 'get_article_hashes_by_date_range') as mock_get_old:
+            mock_get_old.return_value = ['old_hash_1', 'old_hash_2']
+            
+            # Test successful deletion
+            with patch.object(orchestrator.chroma_manager, 'delete_embeddings_by_article') as mock_del_chroma, \
+                 patch.object(orchestrator.article_manager, 'delete_article_by_hash') as mock_del_sqlite:
+                mock_del_chroma.return_value = True
+                mock_del_sqlite.return_value = True
+                
+                result = orchestrator.delete_articles_older_than(days=180)
+                
+                assert result["status"] == "SUCCESS"
+                assert result["deleted_from_sqlite"] == 2
+                assert result["deleted_from_chroma"] == 2
+                assert len(result["errors"]) == 0
+
+            # Test partial failure - ChromaDB deletion fails
+            with patch.object(orchestrator.chroma_manager, 'delete_embeddings_by_article') as mock_del_chroma, \
+                 patch.object(orchestrator.article_manager, 'delete_article_by_hash') as mock_del_sqlite:
+                mock_del_chroma.return_value = False
+                mock_del_sqlite.return_value = True
+                
+                result = orchestrator.delete_articles_older_than(days=180)
+                
+                assert result["status"] == "SUCCESS"  # Still success if SQLite deletion worked
+                assert result["deleted_from_sqlite"] == 2
+                assert result["deleted_from_chroma"] == 0
+
+            # Test complete failure - both deletions fail
+            with patch.object(orchestrator.chroma_manager, 'delete_embeddings_by_article') as mock_del_chroma, \
+                 patch.object(orchestrator.article_manager, 'delete_article_by_hash') as mock_del_sqlite:
+                mock_del_chroma.return_value = False
+                mock_del_sqlite.return_value = False
+                
+                result = orchestrator.delete_articles_older_than(days=180)
+                
+                assert result["status"] == "FAILED"
+                assert result["deleted_from_sqlite"] == 0
+                assert result["deleted_from_chroma"] == 0
+                assert len(result["errors"]) > 0
+
+            # Test exception during deletion
+            with patch.object(orchestrator.chroma_manager, 'delete_embeddings_by_article') as mock_del_chroma:
+                mock_del_chroma.side_effect = Exception("ChromaDB deletion error")
+                
+                result = orchestrator.delete_articles_older_than(days=180)
+                
+                assert result["status"] in ["FAILED", "PARTIAL_FAILURE"]
+                assert len(result["errors"]) > 0
+                assert "ChromaDB deletion error" in str(result["errors"])
+
+        # Test main exception handling
+        with patch.object(orchestrator.chroma_manager, 'get_article_hashes_by_date_range') as mock_get_old:
+            mock_get_old.side_effect = Exception("Database query failed")
+            
+            result = orchestrator.delete_articles_older_than(days=180)
+            
+            assert result["status"] == "FAILED"
+            assert len(result["errors"]) > 0
+            assert "Database query failed" in str(result["errors"])
+
+    def test_resource_cleanup_error_handling_integration(self, orchestrator):
+        """Test error handling in resource cleanup method."""
+        # Test cleanup when component cleanup fails
+        with patch.object(orchestrator.article_manager, 'close_connection') as mock_close_sqlite:
+            mock_close_sqlite.side_effect = Exception("SQLite close failed")
+            
+            # Should not raise exception, just log error
+            orchestrator.close()
+            
+            # Verify the method was called
+            mock_close_sqlite.assert_called_once()
+
+        # Test cleanup when ChromaDB cleanup fails
+        with patch.object(orchestrator.chroma_manager, 'close_connection') as mock_close_chroma:
+            mock_close_chroma.side_effect = Exception("ChromaDB close failed")
+            
+            # Should not raise exception, just log error
+            orchestrator.close()
+            
+            # Verify the method was called
+            mock_close_chroma.assert_called_once()
+
+    def test_edge_cases_and_boundary_conditions_integration(self, orchestrator):
+        """Test edge cases and boundary conditions."""
+        # Test search with empty query
+        result = orchestrator.search_articles("", n_results=5)
+        assert isinstance(result, list)
+        
+        # Test search with very long query
+        long_query = "technology " * 100
+        result = orchestrator.search_articles(long_query, n_results=1)
+        assert isinstance(result, list)
+        
+        # Test delete with edge case days values
+        result = orchestrator.delete_articles_older_than(days=0)
+        assert "status" in result
+        
+        result = orchestrator.delete_articles_older_than(days=99999)
+        assert "status" in result
+        
+        # Test processing with different status values
+        result = orchestrator.process_articles_by_status(status="NONEXISTENT")
+        assert result["status"] == "SUCCESS"
+        assert result["articles_processed"] == 0
+        
+        # Test embedding with FAILED status (re-embedding scenario)
+        orchestrator.fetch_and_store_articles(tag="TECHNOLOGY", limit=1)
+        orchestrator.process_articles_by_status(status="PENDING")
+        
+        # Simulate failed embedding status
+        with patch.object(orchestrator.article_manager, 'get_processed_articles_for_embedding') as mock_get:
+            mock_get.return_value = [{
+                'url_hash': 'test_hash_failed',
+                'processed_content': 'Test content for re-embedding',
+                'title': 'Test Article',
+                'published_at': '2024-01-01T00:00:00Z'
+            }]
+            
+            result = orchestrator.embed_processed_articles(status="FAILED")
+            assert result["status"] == "SUCCESS"
+
+    def test_search_metadata_filtering_integration(self, orchestrator):
+        """Test search functionality with metadata filtering."""
+        # Add test data
+        orchestrator.fetch_and_store_articles(tag="TECHNOLOGY", limit=1)
+        orchestrator.process_articles_by_status(status="PENDING")
+        orchestrator.embed_processed_articles(status="PENDING")
+        
+        # Test search with sort_by_metadata
+        result = orchestrator.search_articles(
+            "technology",
+            n_results=5,
+            sort_by_metadata={"published_at_timestamp": "desc"}
+        )
+        assert isinstance(result, list)
+        
+        # Test search with date filters
+        result = orchestrator.search_articles(
+            "technology",
+            n_results=5,
+            from_date_str="2020-01-01",
+            to_date_str="2030-12-31"
+        )
+        assert isinstance(result, list)
