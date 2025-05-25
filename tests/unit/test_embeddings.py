@@ -530,8 +530,4 @@ class TestEmbeddingsGeneratorUtilityMethods:
         assert generator.model_name == 'text-embedding-004'
         assert isinstance(generator.model_name, str)
     
-    def test_string_representation(self, generator):
-        """Test string representation of the generator."""
-        str_repr = str(generator)
-        assert 'text-embedding-004' in str_repr
-        assert '768' in str_repr
+

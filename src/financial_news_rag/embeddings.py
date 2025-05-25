@@ -63,12 +63,6 @@ class EmbeddingsGenerator:
         self.embedding_dim = model_dimensions[model_name]
         logger.info(f"EmbeddingsGenerator initialized with model: {model_name} (dim={self.embedding_dim})")
     
-    def __str__(self) -> str:
-        """Return a string representation of the EmbeddingsGenerator."""
-        return (f"EmbeddingsGenerator(model={self.model_name}, "
-                f"dimensions={self.embedding_dim}, "
-                f"task_type={self.default_task_type})")
-    
     @retry(
         retry=retry_if_exception_type((GoogleAPIError, ServiceUnavailable, ConnectionError)),
         stop=stop_after_attempt(5),
