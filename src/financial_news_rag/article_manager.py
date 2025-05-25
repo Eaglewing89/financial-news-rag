@@ -10,15 +10,14 @@ This module provides a class for managing article data in a SQLite database:
 
 import json
 import logging
-import os
 import sqlite3
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
+
 from financial_news_rag.utils import generate_url_hash, get_utc_now
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -26,14 +25,14 @@ logger = logging.getLogger(__name__)
 class ArticleManager:
     """
     A class for managing articles in a SQLite database.
-    
+
     This class handles:
     - Database initialization and connection
     - Article storage and retrieval
     - Status tracking in SQLite
     - API call logging
     """
-    
+
     # Database table creation SQL
     ARTICLES_TABLE_SQL = """
     CREATE TABLE IF NOT EXISTS articles (
@@ -56,7 +55,7 @@ class ArticleManager:
         vector_db_id TEXT
     )
     """
-    
+
     API_CALL_LOG_TABLE_SQL = """
     CREATE TABLE IF NOT EXISTS api_call_log (
         log_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,53 +74,59 @@ class ArticleManager:
         error_message TEXT
     )
     """
-    
+
     def __init__(self, db_path: str):
         """
         Initialize the article manager.
-        
+
         Args:
             db_path: Path to SQLite database file.
         """
         self.db_path = db_path
         self.conn = None
-        
+
         # Initialize the database
         self._init_database()
-        
+
     def _init_database(self) -> None:
         """Initialize the SQLite database with required tables if they don't exist."""
         try:
             self.conn = sqlite3.connect(self.db_path)
             cursor = self.conn.cursor()
-            
+
             # Create tables if they don't exist
             cursor.execute(self.ARTICLES_TABLE_SQL)
             cursor.execute(self.API_CALL_LOG_TABLE_SQL)
-            
+
             # Create indices for faster lookups
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_status_text_processing ON articles(status_text_processing)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_status_embedding ON articles(status_embedding)")
-            
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_status_text_processing ON articles(status_text_processing)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_status_embedding ON articles(status_embedding)"
+            )
+
             self.conn.commit()
             logger.info(f"Database initialized at {self.db_path}")
         except sqlite3.Error as e:
             logger.error(f"Database initialization error: {e}")
             raise
-            
+
     def _get_connection(self) -> sqlite3.Connection:
         """Get a database connection, creating one if needed."""
         if self.conn is None:
             self.conn = sqlite3.connect(self.db_path)
         return self.conn
-    
+
     def close_connection(self) -> None:
         """Close the database connection if open."""
         if self.conn:
             self.conn.close()
             self.conn = None
-            
-    def _execute_query(self, query: str, params: tuple = (), commit: bool = False) -> Any:
+
+    def _execute_query(
+        self, query: str, params: tuple = (), commit: bool = False
+    ) -> Any:
         """Execute a SQL query with parameters."""
         conn = self._get_connection()
         cursor = conn.cursor()
@@ -134,15 +139,14 @@ class ArticleManager:
             logger.error(f"Database query error: {e}")
             logger.error(f"Query: {query}, Params: {params}")
             raise
-    
 
     def get_article_by_hash(self, url_hash: str) -> dict:
         """
         Get complete article data by URL hash.
-        
+
         Args:
             url_hash: SHA-256 hash of the article URL
-            
+
         Returns:
             dict: Complete article data or None if not found
         """
@@ -155,37 +159,39 @@ class ArticleManager:
         """
         cursor = self._execute_query(query, (url_hash,))
         row = cursor.fetchone()
-        
+
         if not row:
             return None
-            
+
         return {
-            'url_hash': row[0],
-            'title': row[1],
-            'raw_content': row[2],
-            'processed_content': row[3],
-            'url': row[4],
-            'published_at': row[5],
-            'added_at': row[6],
-            'source_api': row[7],
-            'symbols': json.loads(row[8]) if row[8] else [],
-            'tags': json.loads(row[9]) if row[9] else [],
-            'sentiment': json.loads(row[10]) if row[10] else {},
-            'status_text_processing': row[11],
-            'status_embedding': row[12],
-            'embedding_model': row[13],
-            'vector_db_id': row[14]
+            "url_hash": row[0],
+            "title": row[1],
+            "raw_content": row[2],
+            "processed_content": row[3],
+            "url": row[4],
+            "published_at": row[5],
+            "added_at": row[6],
+            "source_api": row[7],
+            "symbols": json.loads(row[8]) if row[8] else [],
+            "tags": json.loads(row[9]) if row[9] else [],
+            "sentiment": json.loads(row[10]) if row[10] else {},
+            "status_text_processing": row[11],
+            "status_embedding": row[12],
+            "embedding_model": row[13],
+            "vector_db_id": row[14],
         }
-    
-    def get_processed_articles_for_embedding(self, status: str = 'PENDING', limit: int = 100) -> List[Dict]:
+
+    def get_processed_articles_for_embedding(
+        self, status: str = "PENDING", limit: int = 100
+    ) -> List[Dict]:
         """
         Get articles that have been processed and are ready for embedding,
         or have a specific embedding status.
-        
+
         Args:
             status: The embedding status to filter articles by (e.g., 'PENDING', 'FAILED').
             limit: Maximum number of articles to retrieve
-            
+
         Returns:
             List of article dictionaries with processed content
         """
@@ -198,46 +204,48 @@ class ArticleManager:
         """
         cursor = self._execute_query(query, (status, limit))
         articles = []
-        
+
         for row in cursor.fetchall():
             article = {
-                'url_hash': row[0],
-                'processed_content': row[1],
-                'title': row[2],
-                'url': row[3],
-                'published_at': row[4],
-                'added_at': row[5],
-                'symbols': json.loads(row[6]) if row[6] else [],
-                'tags': json.loads(row[7]) if row[7] else [],
-                'sentiment': json.loads(row[8]) if row[8] else {}
+                "url_hash": row[0],
+                "processed_content": row[1],
+                "title": row[2],
+                "url": row[3],
+                "published_at": row[4],
+                "added_at": row[5],
+                "symbols": json.loads(row[6]) if row[6] else [],
+                "tags": json.loads(row[7]) if row[7] else [],
+                "sentiment": json.loads(row[8]) if row[8] else {},
             }
             articles.append(article)
-            
+
         return articles
-    
+
     def update_article_processing_status(
-        self, 
-        url_hash: str, 
-        processed_content: Optional[str] = None, 
-        status: str = 'SUCCESS',
-        error_message: Optional[str] = None
+        self,
+        url_hash: str,
+        processed_content: Optional[str] = None,
+        status: str = "SUCCESS",
+        error_message: Optional[str] = None,
     ) -> None:
         """
         Update an article's text processing status in the database.
-        
+
         Args:
             url_hash: SHA-256 hash of the article URL
             processed_content: Cleaned and processed article content
             status: Processing status ('SUCCESS', 'FAILED', etc.)
             error_message: Error message if processing failed
         """
-        if status == 'SUCCESS' and processed_content:
+        if status == "SUCCESS" and processed_content:
             query = """
             UPDATE articles
             SET processed_content = ?, status_text_processing = ?
             WHERE url_hash = ?
             """
-            self._execute_query(query, (processed_content, status, url_hash), commit=True)
+            self._execute_query(
+                query, (processed_content, status, url_hash), commit=True
+            )
         else:
             query = """
             UPDATE articles
@@ -245,22 +253,22 @@ class ArticleManager:
             WHERE url_hash = ?
             """
             self._execute_query(query, (status, url_hash), commit=True)
-            
+
         if error_message:
             # Log the error to a separate table or field if needed
             logger.error(f"Processing error for {url_hash}: {error_message}")
-    
+
     def update_article_embedding_status(
-        self, 
-        url_hash: str, 
-        status: str = 'SUCCESS', 
+        self,
+        url_hash: str,
+        status: str = "SUCCESS",
         embedding_model: Optional[str] = None,
         vector_db_id: Optional[str] = None,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ) -> None:
         """
         Update an article's embedding status in the database.
-        
+
         Args:
             url_hash: SHA-256 hash of the article URL
             status: Embedding status ('SUCCESS', 'FAILED', etc.)
@@ -276,32 +284,32 @@ class ArticleManager:
         WHERE url_hash = ?
         """
         self._execute_query(
-            query, 
-            (status, embedding_model, vector_db_id, url_hash), 
-            commit=True
+            query, (status, embedding_model, vector_db_id, url_hash), commit=True
         )
-            
+
         if error_message:
             # Log the error to a separate table or field if needed
             logger.error(f"Embedding error for {url_hash}: {error_message}")
-    
-    def store_articles(self, articles: List[Dict], replace_existing: bool = False) -> int:
+
+    def store_articles(
+        self, articles: List[Dict], replace_existing: bool = False
+    ) -> int:
         """
         Store articles in the database.
-        
+
         Args:
             articles: List of article dictionaries from EODHDClient
             replace_existing: Whether to replace existing articles
-            
+
         Returns:
             int: Number of articles stored
         """
         if not articles:
             return 0
-            
+
         conn = self._get_connection()
         cursor = conn.cursor()
-        
+
         # Prepare query based on replace_existing flag
         if replace_existing:
             query = """
@@ -321,53 +329,55 @@ class ArticleManager:
                 status_text_processing, status_embedding
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 'PENDING')
             """
-        
+
         stored_count = 0
-        
+
         try:
             for article in articles:
                 # Generate URL hash and added_at timestamp
-                url = article.get('url', '')
-                url_hash = generate_url_hash(url) # Changed: Use imported function
-                added_at_timestamp = get_utc_now().isoformat() # Changed: Use imported function
-                
+                url = article.get("url", "")
+                url_hash = generate_url_hash(url)  # Changed: Use imported function
+                added_at_timestamp = (
+                    get_utc_now().isoformat()
+                )  # Changed: Use imported function
+
                 # Handle the case where raw_content is None
-                raw_content = article.get('raw_content', '')
+                raw_content = article.get("raw_content", "")
                 if raw_content is None:
-                    raw_content = ''
-                
+                    raw_content = ""
+
                 # Convert lists and dicts to JSON strings
-                symbols_json = json.dumps(article.get('symbols', []))
-                tags_json = json.dumps(article.get('tags', []))
-                sentiment_json = json.dumps(article.get('sentiment', {}))
-                
+                symbols_json = json.dumps(article.get("symbols", []))
+                tags_json = json.dumps(article.get("tags", []))
+                sentiment_json = json.dumps(article.get("sentiment", {}))
+
                 # Source query information
-                source_query_tag = article.get('source_query_tag')
-                source_query_symbol = article.get('source_query_symbol')
-                
+                source_query_tag = article.get("source_query_tag")
+                source_query_symbol = article.get("source_query_symbol")
+
                 params = (
                     url_hash,
-                    article.get('title', ''),
+                    article.get("title", ""),
                     raw_content,
                     url,
-                    article.get('published_at', ''),
+                    article.get("published_at", ""),
                     added_at_timestamp,
-                    article.get('source_api', 'unknown'),
+                    article.get("source_api", "unknown"),
                     symbols_json,
                     tags_json,
                     sentiment_json,
                     source_query_tag,
-                    source_query_symbol
+                    source_query_symbol,
                 )
-                
+
                 cursor.execute(query, params)
                 # Only count if a row was actually inserted (rowcount > 0)
                 if cursor.rowcount > 0:
                     stored_count += 1
-                
+
             conn.commit()
             return stored_count
-            
+
         except sqlite3.Error as e:
             conn.rollback()
             logger.error(f"Error storing articles: {e}")
@@ -385,11 +395,11 @@ class ArticleManager:
         fetched_articles: Optional[List[Dict[str, Any]]] = None,
         api_call_successful: bool = True,
         http_status_code: Optional[int] = None,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ) -> int:
         """
         Log an API call to the api_call_log table.
-        
+
         Args:
             query_type: Type of query ('tag' or 'symbol')
             query_value: The tag or symbol used in the query
@@ -402,7 +412,7 @@ class ArticleManager:
             api_call_successful: Whether the API call was successful
             http_status_code: HTTP status code of the response
             error_message: Error message if the API call failed
-            
+
         Returns:
             int: ID of the logged API call (log_id)
         """
@@ -414,24 +424,26 @@ class ArticleManager:
             api_call_successful, http_status_code, error_message
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
-        
+
         # Calculate oldest_article_date and newest_article_date from fetched_articles
         oldest_article_date_val = None
         newest_article_date_val = None
-        
+
         if fetched_articles:
             valid_dates = [
-                article['published_at']
+                article["published_at"]
                 for article in fetched_articles
-                if article.get('published_at') and isinstance(article.get('published_at'), str) and article.get('published_at').strip()
+                if article.get("published_at")
+                and isinstance(article.get("published_at"), str)
+                and article.get("published_at").strip()
             ]
             if valid_dates:
                 oldest_article_date_val = min(valid_dates)
                 newest_article_date_val = max(valid_dates)
-        
-        current_timestamp = get_utc_now().isoformat() # Changed: Use imported function
+
+        current_timestamp = get_utc_now().isoformat()  # Changed: Use imported function
         api_call_successful_int = 1 if api_call_successful else 0
-        
+
         params = (
             query_type,
             query_value,
@@ -445,9 +457,9 @@ class ArticleManager:
             newest_article_date_val,
             api_call_successful_int,
             http_status_code,
-            error_message
+            error_message,
         )
-        
+
         try:
             cursor = self._execute_query(query, params, commit=True)
             log_id = cursor.lastrowid
@@ -456,15 +468,17 @@ class ArticleManager:
         except sqlite3.Error as e:
             logger.error(f"Error logging API call: {e}")
             return -1
-    
-    def get_articles_by_processing_status(self, status: str, limit: int = 100) -> List[Dict]:
+
+    def get_articles_by_processing_status(
+        self, status: str, limit: int = 100
+    ) -> List[Dict]:
         """
         Get articles by their text processing status.
-        
+
         Args:
             status: The status to filter articles by (e.g., 'FAILED', 'SUCCESS', 'PENDING')
             limit: Maximum number of articles to retrieve
-            
+
         Returns:
             List of article dictionaries matching the specified status
         """
@@ -478,35 +492,35 @@ class ArticleManager:
         """
         cursor = self._execute_query(query, (status, limit))
         articles = []
-        
+
         for row in cursor.fetchall():
             article = {
-                'url_hash': row[0],
-                'raw_content': row[1],
-                'title': row[2],
-                'url': row[3],
-                'published_at': row[4],
-                'added_at': row[5],
-                'symbols': json.loads(row[6]) if row[6] else [],
-                'tags': json.loads(row[7]) if row[7] else [],
-                'sentiment': json.loads(row[8]) if row[8] else {},
-                'processed_content': row[9],
-                'status_text_processing': row[10],
-                'status_embedding': row[11],
-                'embedding_model': row[12],
-                'vector_db_id': row[13]
+                "url_hash": row[0],
+                "raw_content": row[1],
+                "title": row[2],
+                "url": row[3],
+                "published_at": row[4],
+                "added_at": row[5],
+                "symbols": json.loads(row[6]) if row[6] else [],
+                "tags": json.loads(row[7]) if row[7] else [],
+                "sentiment": json.loads(row[8]) if row[8] else {},
+                "processed_content": row[9],
+                "status_text_processing": row[10],
+                "status_embedding": row[11],
+                "embedding_model": row[12],
+                "vector_db_id": row[13],
             }
             articles.append(article)
-            
+
         return articles
-    
+
     def delete_article_by_hash(self, url_hash: str) -> bool:
         """
         Delete an article from the database by its URL hash.
-        
+
         Args:
             url_hash: SHA-256 hash of the article URL
-            
+
         Returns:
             bool: True if an article was successfully deleted, False otherwise
                  (e.g., article not found or database error)
@@ -514,29 +528,29 @@ class ArticleManager:
         try:
             query = "DELETE FROM articles WHERE url_hash = ?"
             cursor = self._execute_query(query, (url_hash,), commit=True)
-            
+
             # Check if any rows were affected (article was deleted)
             return cursor.rowcount > 0
         except sqlite3.Error as e:
             logger.error(f"Error deleting article with hash {url_hash}: {e}")
             return False
-            
+
     def get_database_statistics(self) -> Dict[str, Any]:
         """
         Get statistics about the article database.
-        
+
         Returns:
             Dict containing article database statistics including total counts,
-            processing statuses, embedding statuses, article tags, symbols, 
+            processing statuses, embedding statuses, article tags, symbols,
             date ranges, and API call data.
         """
         try:
             cursor = self.conn.cursor()
-            
+
             # Get total article count
             cursor.execute("SELECT COUNT(*) FROM articles")
             total_articles = cursor.fetchone()[0]
-            
+
             # Get counts by text processing status
             cursor.execute(
                 """
@@ -545,8 +559,10 @@ class ArticleManager:
                 GROUP BY status_text_processing
                 """
             )
-            text_processing_status = {status: count for status, count in cursor.fetchall()}
-            
+            text_processing_status = {
+                status: count for status, count in cursor.fetchall()
+            }
+
             # Get counts by embedding status
             cursor.execute(
                 """
@@ -556,7 +572,7 @@ class ArticleManager:
                 """
             )
             embedding_status = {status: count for status, count in cursor.fetchall()}
-            
+
             # Get counts by source query tag
             cursor.execute(
                 """
@@ -567,7 +583,7 @@ class ArticleManager:
                 """
             )
             tag_counts = {tag: count for tag, count in cursor.fetchall() if tag}
-            
+
             # Get counts by source query symbol
             cursor.execute(
                 """
@@ -577,16 +593,18 @@ class ArticleManager:
                 GROUP BY source_query_symbol
                 """
             )
-            symbol_counts = {symbol: count for symbol, count in cursor.fetchall() if symbol}
-            
+            symbol_counts = {
+                symbol: count for symbol, count in cursor.fetchall() if symbol
+            }
+
             # Get date range of articles
             cursor.execute("SELECT MIN(published_at), MAX(published_at) FROM articles")
             oldest_date, newest_date = cursor.fetchone()
-            
+
             # Get API call statistics
             cursor.execute("SELECT COUNT(*) FROM api_call_log")
             total_api_calls = cursor.fetchone()[0]
-            
+
             cursor.execute(
                 """
                 SELECT SUM(articles_retrieved_count) 
@@ -595,7 +613,7 @@ class ArticleManager:
                 """
             )
             total_articles_retrieved = cursor.fetchone()[0] or 0
-            
+
             status = {
                 "total_articles": total_articles,
                 "text_processing_status": text_processing_status,
@@ -604,20 +622,17 @@ class ArticleManager:
                 "articles_by_symbol": symbol_counts,
                 "date_range": {
                     "oldest_article": oldest_date,
-                    "newest_article": newest_date
+                    "newest_article": newest_date,
                 },
                 "api_calls": {
                     "total_calls": total_api_calls,
-                    "total_articles_retrieved": total_articles_retrieved
-                }
+                    "total_articles_retrieved": total_articles_retrieved,
+                },
             }
-            
+
             logger.info(f"Article database status: {total_articles} total articles")
             return status
-            
+
         except sqlite3.Error as e:
             logger.error(f"Error getting article database status: {str(e)}")
-            return {
-                "error": str(e),
-                "status": "FAILED"
-            }
+            return {"error": str(e), "status": "FAILED"}
