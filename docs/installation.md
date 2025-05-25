@@ -1,3 +1,3 @@
-# Testing Guide
+# Installation
 
 _Content to be added_
