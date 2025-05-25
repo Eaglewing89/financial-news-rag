@@ -32,7 +32,7 @@ class EODHDClient:
         self,
         api_key: str,
         api_url: str = 'https://eodhd.com/api/news',
-        default_timeout: int = 100,
+        default_timeout: int = 30,
         default_max_retries: int = 3,
         default_backoff_factor: float = 1.5,
         default_limit: int = 50
@@ -123,7 +123,10 @@ class EODHDClient:
         
         # Construct parameters
         if not symbol and not tag:
-            raise ValueError("Either 'symbol' or 'tag' must be provided.")
+            raise ValueError("Either 'tag' or 'symbol' parameter is required")
+        
+        if symbol and tag:
+            raise ValueError("Cannot specify both 'tag' and 'symbol'")
         
         params = {
             'api_token': self.api_key,

@@ -156,6 +156,37 @@ class ArticleFactory:
         return [cls.create_article(**common_kwargs) for _ in range(count)]
     
     @classmethod
+    def create_eodhd_articles_batch(
+        cls,
+        count: int,
+        symbols: Optional[List[str]] = None,
+        **common_kwargs
+    ) -> List[Dict[str, Any]]:
+        """
+        Create a batch of test articles with EODHD-specific formatting.
+        
+        Args:
+            count: Number of articles to create
+            symbols: List of symbols to assign to articles
+            **common_kwargs: Common fields for all articles
+            
+        Returns:
+            List of article dictionaries in EODHD format
+        """
+        articles = []
+        for i in range(count):
+            # If symbols provided, assign them cyclically to articles
+            article_symbols = None
+            if symbols:
+                # Each article gets one symbol from the list
+                article_symbols = [symbols[i % len(symbols)]]
+            
+            article = cls.create_article(symbols=article_symbols, **common_kwargs)
+            articles.append(article)
+        
+        return articles
+    
+    @classmethod
     def create_article_with_status(
         cls,
         processing_status: str = "PENDING",
@@ -291,19 +322,23 @@ class EODHDResponseFactory:
     def create_response(
         cls,
         count: int = 2,
-        articles: Optional[List[Dict[str, Any]]] = None
-    ) -> Dict[str, Any]:
+        articles: Optional[List[Dict[str, Any]]] = None,
+        symbols: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
         """
-        Create a successful EODHD API response.
+        Create a raw EODHD API response (list of articles).
         
         Args:
             count: Number of articles to generate
             articles: List of articles (generates if None)
+            symbols: List of symbols to include in generated articles
             
         Returns:
-            Mock API response dictionary
+            List of article dictionaries (raw EODHD format)
         """
-        return cls.create_success_response(articles=articles, count=count)
+        if articles is None:
+            articles = ArticleFactory.create_eodhd_articles_batch(count, symbols=symbols)
+        return articles
     
     @classmethod
     def create_success_response(
