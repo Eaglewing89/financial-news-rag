@@ -5,8 +5,6 @@ This module provides factory classes that can generate complex test objects
 with relationships and realistic data for comprehensive testing.
 """
 
-import factory
-import factory.fuzzy
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List
 import random
@@ -15,6 +13,8 @@ import random
 # Install with: pip install factory_boy
 
 try:
+    import factory
+    import factory.fuzzy
     from factory import Factory, Faker, SubFactory, LazyFunction, LazyAttribute
     FACTORY_BOY_AVAILABLE = True
 except ImportError:

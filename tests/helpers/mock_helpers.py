@@ -8,12 +8,15 @@ creating mock responses, and performing common assertions across tests.
 import tempfile
 import sqlite3
 import os
-from typing import Dict, List, Any, Optional, Callable
+from typing import Dict, List, Any, Optional, Callable, TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timezone
 import numpy as np
 
 from financial_news_rag.utils import generate_url_hash
+
+if TYPE_CHECKING:
+    from financial_news_rag.config import Config
 
 
 class DatabaseTestHelper:
