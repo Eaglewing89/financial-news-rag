@@ -76,9 +76,9 @@ class ChromaDBManager:
         try:
             # Create ChromaDB client
             if self.in_memory:
-                self.client = chromadb.Client(Settings(is_persistent=False))
+                self.client = chromadb.Client(Settings(is_persistent=False, anonymized_telemetry=False))
             else:
-                self.client = chromadb.PersistentClient(path=self.persist_directory)
+                self.client = chromadb.PersistentClient(path=self.persist_directory, settings=Settings(anonymized_telemetry=False))
             
             # Try to get the existing collection or create a new one
             try:
