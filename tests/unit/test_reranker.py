@@ -55,11 +55,19 @@ def api_key():
 @pytest.fixture
 def create_reranker(api_key):
     """Factory fixture to create a ReRanker instance with mocked client."""
-    with patch("financial_news_rag.reranker.genai.Client") as mock_client:
-        def _create_reranker(model_name="gemini-2.0-flash"):
-            """Create a reranker with specified parameters."""
-            return ReRanker(api_key=api_key, model_name=model_name), mock_client
-        return _create_reranker
+    def _create_reranker(model_name="gemini-2.0-flash"):
+        """Create a reranker with specified parameters."""
+        with patch("financial_news_rag.reranker.genai.Client") as mock_client_class:
+            # Create a mock client instance
+            mock_client_instance = MagicMock()
+            mock_client_class.return_value = mock_client_instance
+            
+            # Create the ReRanker with the mocked client
+            reranker = ReRanker(api_key=api_key, model_name=model_name)
+            
+            # Return the reranker and the mock client instance for further mocking
+            return reranker, mock_client_instance
+    return _create_reranker
 
 
 class TestReRankerInitialization:
@@ -67,10 +75,10 @@ class TestReRankerInitialization:
 
     def test_initialization(self, create_reranker):
         """Test that the ReRanker is initialized correctly."""
-        # Arrange
-        reranker, _ = create_reranker()
+        # Arrange & Act
+        reranker, mock_client = create_reranker()
         
-        # Act & Assert
+        # Assert
         assert reranker.model_name == "gemini-2.0-flash"
         
         # Arrange - with custom model
@@ -258,6 +266,173 @@ class TestReRankerErrorHandling:
         assert reranked[1]["title"] == "Article 5"
 
 
+class TestReRankerAssessmentLogic:
+    """Test suite for ReRanker _assess_article_relevance method."""
+
+    def test_assess_article_relevance_successful_json_response(self, create_reranker):
+        """Test successful assessment with valid JSON response."""
+        # Arrange
+        reranker, mock_client = create_reranker()
+        
+        # Mock the API response with valid JSON
+        mock_response = MagicMock()
+        mock_response.text = '{"id": "test_hash", "score": 8.5}'
+        mock_client.models.generate_content.return_value = mock_response
+        
+        # Act
+        result = reranker._assess_article_relevance(
+            query="technology trends",
+            article_content="This article discusses emerging technology trends in finance.",
+            url_hash="test_hash"
+        )
+        
+        # Assert
+        assert result == {"id": "test_hash", "score": 8.5}
+        mock_client.models.generate_content.assert_called_once()
+
+    def test_assess_article_relevance_malformed_json_with_regex_fallback(self, create_reranker):
+        """Test assessment when JSON parsing fails but regex succeeds."""
+        # Arrange
+        reranker, mock_client = create_reranker()
+        
+        # Mock the API response with malformed JSON but extractable score
+        mock_response = MagicMock()
+        mock_response.text = 'Some text before {"id": "test_hash", "score": 7.2} some text after'
+        mock_client.models.generate_content.return_value = mock_response
+        
+        # Act
+        result = reranker._assess_article_relevance(
+            query="market analysis",
+            article_content="Market trends and analysis.",
+            url_hash="test_hash"
+        )
+        
+        # Assert
+        assert result == {"id": "test_hash", "score": 7.2}
+        mock_client.models.generate_content.assert_called_once()
+
+    def test_assess_article_relevance_completely_unparseable_response(self, create_reranker):
+        """Test assessment when both JSON and regex parsing fail."""
+        # Arrange
+        reranker, mock_client = create_reranker()
+        
+        # Mock the API response with completely unparseable content
+        mock_response = MagicMock()
+        mock_response.text = 'This is completely random text with no score information'
+        mock_client.models.generate_content.return_value = mock_response
+        
+        # Act
+        result = reranker._assess_article_relevance(
+            query="financial news",
+            article_content="Some financial content.",
+            url_hash="test_hash"
+        )
+        
+        # Assert
+        assert result == {"id": "test_hash", "score": 0.0}
+        mock_client.models.generate_content.assert_called_once()
+
+    def test_assess_article_relevance_content_truncation(self, create_reranker):
+        """Test that very long content gets truncated properly."""
+        # Arrange
+        reranker, mock_client = create_reranker()
+        
+        # Create content longer than 10000 characters
+        long_content = "A" * 15000
+        
+        mock_response = MagicMock()
+        mock_response.text = '{"id": "test_hash", "score": 6.0}'
+        mock_client.models.generate_content.return_value = mock_response
+        
+        # Act
+        result = reranker._assess_article_relevance(
+            query="test query",
+            article_content=long_content,
+            url_hash="test_hash"
+        )
+        
+        # Assert
+        assert result == {"id": "test_hash", "score": 6.0}
+        
+        # Verify the content was truncated in the API call
+        call_args = mock_client.models.generate_content.call_args
+        assert "A" * 10000 + "..." in call_args[1]['contents']
+
+    def test_assess_article_relevance_empty_content_direct(self, create_reranker):
+        """Test direct assessment of empty content (should return 0.0 without API call)."""
+        # Arrange
+        reranker, mock_client = create_reranker()
+        
+        # Act
+        result = reranker._assess_article_relevance(
+            query="test query",
+            article_content="",
+            url_hash="test_hash"
+        )
+        
+        # Assert
+        assert result == {"id": "test_hash", "score": 0.0}
+        # API should not be called for empty content
+        mock_client.models.generate_content.assert_not_called()
+
+    def test_assess_article_relevance_whitespace_only_content(self, create_reranker):
+        """Test direct assessment of whitespace-only content."""
+        # Arrange
+        reranker, mock_client = create_reranker()
+        
+        # Act
+        result = reranker._assess_article_relevance(
+            query="test query",
+            article_content="   \n\t   ",
+            url_hash="test_hash"
+        )
+        
+        # Assert
+        assert result == {"id": "test_hash", "score": 0.0}
+        # API should not be called for whitespace-only content
+        mock_client.models.generate_content.assert_not_called()
+
+    def test_assess_article_relevance_api_exception(self, create_reranker):
+        """Test assessment when API call raises an exception."""
+        # Arrange
+        reranker, mock_client = create_reranker()
+        
+        # Mock the API to raise an exception
+        mock_client.models.generate_content.side_effect = GoogleAPIError("API Error")
+        
+        # Act
+        result = reranker._assess_article_relevance(
+            query="test query",
+            article_content="Some content here.",
+            url_hash="test_hash"
+        )
+        
+        # Assert
+        assert result == {"id": "test_hash", "score": 0.0}
+        mock_client.models.generate_content.assert_called_once()
+
+    def test_assess_article_relevance_integer_score_in_regex(self, create_reranker):
+        """Test regex fallback with integer score (no decimal)."""
+        # Arrange
+        reranker, mock_client = create_reranker()
+        
+        # Mock response with integer score in regex fallback
+        mock_response = MagicMock()
+        mock_response.text = 'Response text with "score": 9 somewhere'
+        mock_client.models.generate_content.return_value = mock_response
+        
+        # Act
+        result = reranker._assess_article_relevance(
+            query="test query",
+            article_content="Test content.",
+            url_hash="test_hash"
+        )
+        
+        # Assert
+        assert result == {"id": "test_hash", "score": 9.0}
+        mock_client.models.generate_content.assert_called_once()
+
+
 class TestReRankerEdgeCases:
     """Test suite for ReRanker edge cases and boundary conditions."""
 
@@ -370,3 +545,122 @@ class TestReRankerEdgeCases:
         assert reranked[0]["rerank_score"] == 0.0
         assert reranked[0]["url_hash"] == "hash_none"
         assert reranked[0]["title"] == "None Content Article"
+
+
+class TestReRankerIntegrationScenarios:
+    """Test suite for more realistic integration-like scenarios within unit testing."""
+
+    def test_mixed_article_quality_reranking(self, create_reranker):
+        """Test reranking with articles of varying content quality."""
+        # Arrange
+        reranker, _ = create_reranker()
+        
+        articles = [
+            {
+                "url_hash": "good_article",
+                "title": "Comprehensive Financial Analysis",
+                "processed_content": "Detailed analysis of financial markets and technology integration in modern banking systems."
+            },
+            {
+                "url_hash": "empty_article", 
+                "title": "Empty Article",
+                "processed_content": ""
+            },
+            {
+                "url_hash": "missing_content",
+                "title": "Missing Content"
+                # No processed_content field
+            },
+            {
+                "url_hash": "none_content",
+                "title": "None Content", 
+                "processed_content": None
+            }
+        ]
+        
+        with patch("financial_news_rag.reranker.ReRanker._assess_article_relevance") as mock_assess:
+            # Good article gets high score
+            # Empty/missing/none content should get 0.0 scores
+            mock_assess.side_effect = [
+                {"id": "good_article", "score": 8.5},
+                {"id": "empty_article", "score": 0.0},
+                {"id": "missing_content", "score": 0.0},
+                {"id": "none_content", "score": 0.0}
+            ]
+            
+            # Act
+            reranked = reranker.rerank_articles("financial technology", articles)
+            
+            # Assert
+            assert len(reranked) == 4
+            assert reranked[0]["url_hash"] == "good_article"
+            assert reranked[0]["rerank_score"] == 8.5
+            
+            # All others should have 0.0 scores and be at the end
+            for i in range(1, 4):
+                assert reranked[i]["rerank_score"] == 0.0
+
+    def test_score_boundary_values(self, create_reranker, test_query):
+        """Test reranking with boundary score values (0.0, 10.0)."""
+        # Arrange
+        reranker, _ = create_reranker()
+        
+        articles = [
+            {
+                "url_hash": "perfect_match",
+                "title": "Perfect Match",
+                "processed_content": "Exactly what the user is looking for."
+            },
+            {
+                "url_hash": "no_match", 
+                "title": "No Match",
+                "processed_content": "Completely irrelevant content."
+            }
+        ]
+        
+        with patch("financial_news_rag.reranker.ReRanker._assess_article_relevance") as mock_assess:
+            mock_assess.side_effect = [
+                {"id": "perfect_match", "score": 10.0},
+                {"id": "no_match", "score": 0.0}
+            ]
+            
+            # Act
+            reranked = reranker.rerank_articles(test_query, articles)
+            
+            # Assert
+            assert len(reranked) == 2
+            assert reranked[0]["url_hash"] == "perfect_match"
+            assert reranked[0]["rerank_score"] == 10.0
+            assert reranked[1]["url_hash"] == "no_match" 
+            assert reranked[1]["rerank_score"] == 0.0
+
+    def test_identical_scores_maintain_original_order(self, create_reranker, test_query):
+        """Test that articles with identical scores maintain their original relative order."""
+        # Arrange
+        reranker, _ = create_reranker()
+        
+        articles = [
+            {"url_hash": "first", "title": "First", "processed_content": "Content A"},
+            {"url_hash": "second", "title": "Second", "processed_content": "Content B"}, 
+            {"url_hash": "third", "title": "Third", "processed_content": "Content C"}
+        ]
+        
+        with patch("financial_news_rag.reranker.ReRanker._assess_article_relevance") as mock_assess:
+            # All articles get the same score
+            mock_assess.side_effect = [
+                {"id": "first", "score": 5.0},
+                {"id": "second", "score": 5.0},
+                {"id": "third", "score": 5.0}
+            ]
+            
+            # Act
+            reranked = reranker.rerank_articles(test_query, articles)
+            
+            # Assert - Original order should be maintained when scores are equal
+            assert len(reranked) == 3
+            assert reranked[0]["url_hash"] == "first"
+            assert reranked[1]["url_hash"] == "second" 
+            assert reranked[2]["url_hash"] == "third"
+            
+            for article in reranked:
+                assert article["rerank_score"] == 5.0
