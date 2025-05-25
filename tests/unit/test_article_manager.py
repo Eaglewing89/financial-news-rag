@@ -458,3 +458,399 @@ class TestArticleManagerStatistics:
         assert stats['text_processing_status']['PENDING'] == 1
         assert stats['embedding_status']['SUCCESS'] == 1
         assert stats['embedding_status']['PENDING'] == 1
+    
+    def test_get_database_statistics_detailed(self, article_manager):
+        """Test retrieving detailed database statistics with varied data."""
+        # Create and store articles with different properties
+        articles = [
+            # Different status combinations
+            ArticleFactory.create_article(
+                title='Status Test 1',
+                url='https://example.com/status1',
+                source_query_tag='EARNINGS',
+                source_query_symbol=None
+            ),
+            ArticleFactory.create_article(
+                title='Status Test 2',
+                url='https://example.com/status2',
+                source_query_tag=None,
+                source_query_symbol='AAPL.US'
+            ),
+            ArticleFactory.create_article(
+                title='Status Test 3',
+                url='https://example.com/status3',
+                source_query_tag='TECHNOLOGY',
+                source_query_symbol=None
+            ),
+            ArticleFactory.create_article(
+                title='Status Test 4',
+                url='https://example.com/status4',
+                source_query_tag=None,
+                source_query_symbol='MSFT.US'
+            )
+        ]
+        
+        # Store all articles
+        article_manager.store_articles(articles)
+        
+        # Update with different statuses
+        url_hash1 = generate_url_hash(articles[0]['url'])
+        url_hash2 = generate_url_hash(articles[1]['url'])
+        url_hash3 = generate_url_hash(articles[2]['url'])
+        url_hash4 = generate_url_hash(articles[3]['url'])
+        
+        # Set different processing statuses
+        article_manager.update_article_processing_status(url_hash1, status='SUCCESS', processed_content='Content 1')
+        article_manager.update_article_processing_status(url_hash2, status='FAILED', error_message='Error 1')
+        article_manager.update_article_processing_status(url_hash3, status='SUCCESS', processed_content='Content 3')
+        # Leave url_hash4 as PENDING
+        
+        # Set different embedding statuses
+        article_manager.update_article_embedding_status(url_hash1, status='SUCCESS', embedding_model='model-1')
+        article_manager.update_article_embedding_status(url_hash2, status='PENDING')
+        article_manager.update_article_embedding_status(url_hash3, status='FAILED', error_message='Embedding failed')
+        # Leave url_hash4 as PENDING
+        
+        # Add some API calls
+        article_manager.log_api_call(
+            query_type='tag',
+            query_value='EARNINGS',
+            articles_retrieved_count=10
+        )
+        article_manager.log_api_call(
+            query_type='symbol',
+            query_value='AAPL.US',
+            articles_retrieved_count=5
+        )
+        
+        # Get statistics
+        stats = article_manager.get_database_statistics()
+        
+        # Verify complete statistics structure
+        assert stats['total_articles'] == 4
+        
+        # Verify processing status counts
+        assert stats['text_processing_status']['SUCCESS'] == 2
+        assert stats['text_processing_status']['FAILED'] == 1
+        assert stats['text_processing_status']['PENDING'] == 1
+        
+        # Verify embedding status counts
+        assert stats['embedding_status']['SUCCESS'] == 1
+        assert stats['embedding_status']['FAILED'] == 1
+        assert stats['embedding_status']['PENDING'] == 2
+        
+        # Verify tag counts
+        assert stats['articles_by_tag']['EARNINGS'] == 1
+        assert stats['articles_by_tag']['TECHNOLOGY'] == 1
+        
+        # Verify symbol counts
+        assert stats['articles_by_symbol']['AAPL.US'] == 1
+        assert stats['articles_by_symbol']['MSFT.US'] == 1
+        
+        # Verify date range
+        assert 'oldest_article' in stats['date_range']
+        assert 'newest_article' in stats['date_range']
+        
+        # Verify API call stats
+        assert stats['api_calls']['total_calls'] == 2
+        assert stats['api_calls']['total_articles_retrieved'] == 15
+
+
+# =============================================================================
+# TestArticleManagerAPILogging - Logging API calls and retrieving statistics
+# =============================================================================
+
+class TestArticleManagerAPILogging:
+    """Tests for ArticleManager API call logging functionality."""
+    
+    def test_log_api_call_basic(self, article_manager):
+        """Test logging a basic successful API call."""
+        # Log a simple API call
+        log_id = article_manager.log_api_call(
+            query_type="tag",
+            query_value="EARNINGS",
+            from_date="2023-01-01",
+            to_date="2023-01-31",
+            limit=100,
+            offset=0,
+            articles_retrieved_count=25,
+            api_call_successful=True,
+            http_status_code=200
+        )
+        
+        # Verify log ID is valid
+        assert log_id > 0
+        
+        # Verify database statistics reflect the API call
+        stats = article_manager.get_database_statistics()
+        assert 'api_calls' in stats
+        assert stats['api_calls']['total_calls'] == 1
+        assert stats['api_calls']['total_articles_retrieved'] == 25
+    
+    def test_log_api_call_with_articles(self, article_manager):
+        """Test logging API call with article data for date calculations."""
+        # Create mock fetched articles with dates
+        fetched_articles = [
+            {'published_at': '2023-01-05T12:00:00Z', 'title': 'Article 1'},
+            {'published_at': '2023-01-10T12:00:00Z', 'title': 'Article 2'},
+            {'published_at': '2023-01-01T12:00:00Z', 'title': 'Article 3'}
+        ]
+        
+        # Log API call with articles
+        log_id = article_manager.log_api_call(
+            query_type="symbol",
+            query_value="AAPL.US",
+            articles_retrieved_count=3,
+            fetched_articles=fetched_articles,
+            api_call_successful=True
+        )
+        
+        assert log_id > 0
+        
+        # Verify API call count in statistics
+        stats = article_manager.get_database_statistics()
+        assert stats['api_calls']['total_calls'] == 1
+        assert stats['api_calls']['total_articles_retrieved'] == 3
+        
+        # Query the log directly to verify date calculations
+        conn = article_manager._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT oldest_article_date_in_batch, newest_article_date_in_batch FROM api_call_log WHERE log_id = ?", (log_id,))
+        row = cursor.fetchone()
+        
+        # Verify oldest and newest dates were calculated correctly
+        assert row[0] == '2023-01-01T12:00:00Z'  # Oldest
+        assert row[1] == '2023-01-10T12:00:00Z'  # Newest
+    
+    def test_log_api_call_failure(self, article_manager):
+        """Test logging a failed API call."""
+        # Log a failed API call
+        log_id = article_manager.log_api_call(
+            query_type="tag",
+            query_value="INVALID_TAG",
+            api_call_successful=False,
+            http_status_code=403,
+            error_message="API rate limit exceeded"
+        )
+        
+        assert log_id > 0
+        
+        # Verify API call was logged but no articles counted
+        stats = article_manager.get_database_statistics()
+        assert stats['api_calls']['total_calls'] == 1
+        # Failed calls don't contribute to article count
+        assert stats['api_calls']['total_articles_retrieved'] == 0
+    
+    def test_log_api_call_with_empty_articles(self, article_manager):
+        """Test logging API call with empty article list."""
+        # Log API call with empty article list
+        log_id = article_manager.log_api_call(
+            query_type="symbol",
+            query_value="RARE.SYMBOL",
+            articles_retrieved_count=0,
+            fetched_articles=[],
+            api_call_successful=True,
+            http_status_code=200
+        )
+        
+        assert log_id > 0
+        
+        # Verify API call was logged but no articles counted
+        stats = article_manager.get_database_statistics()
+        assert stats['api_calls']['total_calls'] == 1
+        assert stats['api_calls']['total_articles_retrieved'] == 0
+
+
+# =============================================================================
+# TestArticleManagerDeletion - Article deletion functionality
+# =============================================================================
+
+class TestArticleManagerDeletion:
+    """Tests for ArticleManager deletion operations."""
+    
+    def test_delete_article_by_hash_success(self, article_manager):
+        """Test successfully deleting an article."""
+        # Create and store an article
+        article = ArticleFactory.create_article(
+            title="Article to Delete",
+            url="https://example.com/delete-me"
+        )
+        article_manager.store_articles([article])
+        url_hash = generate_url_hash(article['url'])
+        
+        # Verify article exists
+        assert article_manager.get_article_by_hash(url_hash) is not None
+        
+        # Delete the article
+        result = article_manager.delete_article_by_hash(url_hash)
+        assert result is True
+        
+        # Verify article no longer exists
+        assert article_manager.get_article_by_hash(url_hash) is None
+        
+        # Verify database statistics reflect the deletion
+        stats = article_manager.get_database_statistics()
+        assert stats['total_articles'] == 0
+    
+    def test_delete_article_by_hash_nonexistent(self, article_manager):
+        """Test deleting a non-existent article."""
+        # Delete an article that doesn't exist
+        result = article_manager.delete_article_by_hash("nonexistent_hash_123")
+        assert result is False
+    
+    def test_delete_article_after_update_status(self, article_manager):
+        """Test deleting an article after updating its status."""
+        # Create and store an article
+        article = ArticleFactory.create_article(
+            title="Process Then Delete",
+            url="https://example.com/process-delete"
+        )
+        article_manager.store_articles([article])
+        url_hash = generate_url_hash(article['url'])
+        
+        # Update article statuses
+        article_manager.update_article_processing_status(
+            url_hash, 
+            processed_content="Processed content",
+            status="SUCCESS"
+        )
+        article_manager.update_article_embedding_status(
+            url_hash,
+            status="SUCCESS",
+            embedding_model="test-model",
+            vector_db_id="test-id-123"
+        )
+        
+        # Delete the article
+        result = article_manager.delete_article_by_hash(url_hash)
+        assert result is True
+        
+        # Verify article no longer exists
+        assert article_manager.get_article_by_hash(url_hash) is None
+
+
+# =============================================================================
+# TestArticleManagerLimitsAndQueries - Testing query limits and database operations
+# =============================================================================
+
+class TestArticleManagerLimitsAndQueries:
+    """Tests for ArticleManager query parameters and database operations."""
+    
+    def test_get_articles_with_custom_limit(self, article_manager, sample_articles):
+        """Test retrieving articles with custom limit parameter."""
+        # Store all sample articles
+        article_manager.store_articles(sample_articles)
+        
+        # Get articles with limit=1
+        articles_limit_1 = article_manager.get_articles_by_processing_status('PENDING', limit=1)
+        assert len(articles_limit_1) == 1
+        
+        # Get articles with limit=2
+        articles_limit_2 = article_manager.get_articles_by_processing_status('PENDING', limit=2)
+        assert len(articles_limit_2) == 2
+        
+        # Get articles with large limit
+        articles_no_limit = article_manager.get_articles_by_processing_status('PENDING', limit=100)
+        assert len(articles_no_limit) == 3
+    
+    def test_get_processed_articles_with_custom_limit(self, article_manager, sample_articles):
+        """Test retrieving processed articles with custom limit parameter."""
+        # Store all sample articles
+        article_manager.store_articles(sample_articles)
+        
+        # Update processing status for all articles
+        for article in sample_articles:
+            url_hash = generate_url_hash(article['url'])
+            article_manager.update_article_processing_status(
+                url_hash,
+                processed_content=f"Processed content for {article['title']}",
+                status="SUCCESS"
+            )
+        
+        # Get articles with limit=1
+        articles_limit_1 = article_manager.get_processed_articles_for_embedding(limit=1)
+        assert len(articles_limit_1) == 1
+        
+        # Get articles with limit=2
+        articles_limit_2 = article_manager.get_processed_articles_for_embedding(limit=2)
+        assert len(articles_limit_2) == 2
+        
+        # Get articles with large limit
+        articles_no_limit = article_manager.get_processed_articles_for_embedding(limit=100)
+        assert len(articles_no_limit) == 3
+    
+    def test_get_processed_articles_with_custom_status(self, article_manager, sample_articles):
+        """Test retrieving processed articles with custom status parameter."""
+        # Store all sample articles and update with different statuses
+        article_manager.store_articles(sample_articles)
+        
+        # Update with different embedding statuses
+        url_hash1 = generate_url_hash(sample_articles[0]['url'])
+        url_hash2 = generate_url_hash(sample_articles[1]['url'])
+        url_hash3 = generate_url_hash(sample_articles[2]['url'])
+        
+        # Set processing status to SUCCESS for all
+        for url_hash in [url_hash1, url_hash2, url_hash3]:
+            article_manager.update_article_processing_status(
+                url_hash,
+                processed_content="Processed content",
+                status="SUCCESS"
+            )
+        
+        # Set different embedding statuses
+        article_manager.update_article_embedding_status(url_hash1, status="PENDING")
+        article_manager.update_article_embedding_status(url_hash2, status="FAILED")
+        article_manager.update_article_embedding_status(url_hash3, status="SUCCESS")
+        
+        # Retrieve with different status filters
+        pending_articles = article_manager.get_processed_articles_for_embedding(status="PENDING")
+        assert len(pending_articles) == 1
+        
+        failed_articles = article_manager.get_processed_articles_for_embedding(status="FAILED")
+        assert len(failed_articles) == 1
+        
+        success_articles = article_manager.get_processed_articles_for_embedding(status="SUCCESS")
+        assert len(success_articles) == 1
+    
+    def test_execute_query_error_handling(self, article_manager, monkeypatch):
+        """Test error handling in _execute_query method."""
+        # Create a mock connection that raises an error when execute is called
+        def mock_execute_query(*args, **kwargs):
+            raise sqlite3.Error("Mock database error")
+            
+        # Patch the _execute_query method
+        monkeypatch.setattr(article_manager, '_execute_query', mock_execute_query)
+        
+        # Test error handling in a method that uses _execute_query
+        with pytest.raises(sqlite3.Error):
+            article_manager.get_article_by_hash("test_hash")
+    
+    @patch('logging.Logger.error')
+    def test_database_statistics_error_handling(self, mock_log_error, article_manager):
+        """Test error handling in get_database_statistics method."""
+        # Temporarily replace the connection with one that will cause errors
+        original_conn = article_manager.conn
+        
+        try:
+            # Create a mock connection that raises an error on execute
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.execute.side_effect = sqlite3.Error("Mock statistics error")
+            mock_conn.cursor.return_value = mock_cursor
+            
+            # Replace the real connection
+            article_manager.conn = mock_conn
+            
+            # Call get_database_statistics, which should handle the error
+            stats = article_manager.get_database_statistics()
+            
+            # Verify error was logged
+            assert mock_log_error.called
+            
+            # Verify error status returned
+            assert 'error' in stats
+            assert stats['status'] == 'FAILED'
+            
+        finally:
+            # Restore original connection
+            article_manager.conn = original_conn
