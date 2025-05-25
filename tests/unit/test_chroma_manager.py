@@ -18,19 +18,6 @@ from tests.fixtures.sample_data import (
 class TestChromaDBManagerInitialization:
     """Test suite for ChromaDBManager initialization and configuration."""
     
-    @pytest.fixture
-    def chroma_manager(self, temp_directory):
-        """Create a ChromaDBManager instance for testing."""
-        # Generate a unique collection name for each test to avoid state sharing
-        test_collection_name = f"test_collection_{id(self)}"
-        
-        return ChromaDBManager(
-            persist_directory=temp_directory,
-            collection_name=test_collection_name,
-            embedding_dimension=768,
-            in_memory=True  # Use in-memory mode for tests
-        )
-    
     def test_initialization(self, chroma_manager):
         """Test successful initialization and collection creation."""
         assert chroma_manager.collection_name.startswith("test_collection_")
@@ -69,16 +56,6 @@ class TestChromaDBManagerInitialization:
 
 class TestChromaDBManagerQueryOperations:
     """Test suite for ChromaDB query and retrieval operations."""
-    
-    @pytest.fixture
-    def chroma_manager(self, temp_directory):
-        """Create a ChromaDBManager instance for testing."""
-        return ChromaDBManager(
-            persist_directory=temp_directory,
-            collection_name=f"test_collection_{id(self)}",
-            embedding_dimension=768,
-            in_memory=True
-        )
     
     @pytest.fixture
     def sample_article_data(self):
@@ -206,16 +183,6 @@ class TestChromaDBManagerQueryOperations:
 class TestChromaDBManagerCollectionManagement:
     """Test suite for ChromaDB collection management operations."""
     
-    @pytest.fixture
-    def chroma_manager(self, temp_directory):
-        """Create a ChromaDBManager instance for testing."""
-        return ChromaDBManager(
-            persist_directory=temp_directory,
-            collection_name=f"test_collection_{id(self)}",
-            embedding_dimension=768,
-            in_memory=True
-        )
-    
     def test_get_collection_status_empty(self, chroma_manager):
         """Test getting collection status for empty collection."""
         status = chroma_manager.get_collection_status()
@@ -317,16 +284,6 @@ class TestChromaDBManagerCollectionManagement:
 
 class TestChromaDBManagerArticleChunks:
     """Test suite for ChromaDB article chunk management operations."""
-    
-    @pytest.fixture
-    def chroma_manager(self, temp_directory):
-        """Create a ChromaDBManager instance for testing."""
-        return ChromaDBManager(
-            persist_directory=temp_directory,
-            collection_name=f"test_collection_{id(self)}",
-            embedding_dimension=768,
-            in_memory=True
-        )
     
     def test_add_article_chunks_success(self, chroma_manager):
         """Test adding article chunks with the new method."""
