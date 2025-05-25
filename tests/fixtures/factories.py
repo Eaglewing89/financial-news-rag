@@ -280,3 +280,51 @@ class TestScenarioFactory:
         scenario['scenario_type'] = f'error_{error_type}'
         
         return scenario
+
+
+class ConfigDataFactory:
+    """Factory for creating configuration test data."""
+    
+    @classmethod
+    def create_eodhd_env_overrides(cls) -> Dict[str, str]:
+        """Create environment variables for EODHD configuration overrides."""
+        return {
+            "EODHD_API_KEY": "test_eodhd_api_key",
+            "EODHD_API_URL_OVERRIDE": "https://test.api.url",
+            "EODHD_DEFAULT_TIMEOUT_OVERRIDE": "200",
+            "EODHD_DEFAULT_MAX_RETRIES_OVERRIDE": "5",
+            "EODHD_DEFAULT_BACKOFF_FACTOR_OVERRIDE": "2.0",
+            "EODHD_DEFAULT_LIMIT_OVERRIDE": "100"
+        }
+    
+    @classmethod
+    def create_gemini_env_overrides(cls) -> Dict[str, str]:
+        """Create environment variables for Gemini configuration overrides."""
+        return {
+            "GEMINI_API_KEY": "test_gemini_api_key",
+            "EMBEDDINGS_DEFAULT_MODEL": "custom-embedding-model",
+            "EMBEDDINGS_DEFAULT_TASK_TYPE": "CUSTOM_TASK",
+            "EMBEDDINGS_MODEL_DIMENSIONS": '{"custom-embedding-model": 1024, "text-embedding-004": 999}',
+            "RERANKER_DEFAULT_MODEL": "gemini-3.0-pro",
+            "TEXTPROCESSOR_MAX_TOKENS_PER_CHUNK": "3000"
+        }
+    
+    @classmethod
+    def create_all_env_overrides(cls) -> Dict[str, str]:
+        """Create complete set of environment variable overrides."""
+        overrides = {}
+        overrides.update(cls.create_eodhd_env_overrides())
+        overrides.update(cls.create_gemini_env_overrides())
+        return overrides
+    
+    @classmethod
+    def create_database_path_override(cls, custom_path: str = "/custom/path/to/database.db") -> Dict[str, str]:
+        """Create environment variable for database path override."""
+        return {"DATABASE_PATH_OVERRIDE": custom_path}
+    
+    @classmethod
+    def create_invalid_json_dimensions(cls) -> Dict[str, str]:
+        """Create environment variables with invalid JSON for testing error handling."""
+        return {
+            "EMBEDDINGS_MODEL_DIMENSIONS": "invalid json"
+        }
