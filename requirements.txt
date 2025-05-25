@@ -12,6 +12,7 @@ beautifulsoup4
 # Testing
 pytest
 pytest-cov
+factory-boy
 
 # Development
 black

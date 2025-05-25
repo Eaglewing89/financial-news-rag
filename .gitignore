@@ -35,6 +35,7 @@ docs/copilot-chats/
 htmlcov/
 .cache/
 .pytest_cache/
+tests_old/
 
 # OS files
 .DS_Store
