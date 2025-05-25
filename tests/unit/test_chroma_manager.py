@@ -419,6 +419,12 @@ class TestChromaDBManagerDateRangeOperations:
     
     def test_query_embeddings_invalid_date_filters(self, chroma_manager):
         """Test querying with invalid date filters."""
+        # Close any existing connections to ensure a clean slate
+        chroma_manager.close_connection()
+        
+        # Reinitialize the client and collection
+        chroma_manager._initialize_client_and_collection()
+        
         # Add test data
         article = create_test_article_with_hash()
         chunk_texts = ["Test chunk"]
@@ -564,6 +570,12 @@ class TestChromaDBManagerDateRangeOperations:
     
     def test_get_article_hashes_by_date_range_articles_without_timestamps(self, chroma_manager):
         """Test getting article hashes when articles don't have published_at_timestamp."""
+        # First, close any existing connections to ensure a clean slate
+        chroma_manager.close_connection()
+        
+        # Reinitialize the client and collection
+        chroma_manager._initialize_client_and_collection()
+        
         # Add article without published_at (no timestamp in metadata)
         article = create_test_article_with_hash()
         chunk_texts = ["Test chunk"]

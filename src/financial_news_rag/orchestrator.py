@@ -742,7 +742,13 @@ class FinancialNewsRAG:
         Close database connections and clean up resources.
         """
         try:
+            # Close the SQLite connection
             self.article_manager.close_connection()
+            
+            # Close the ChromaDB connection
+            if hasattr(self, 'chroma_manager') and self.chroma_manager:
+                self.chroma_manager.close_connection()
+                
             logger.info("FinancialNewsRAG resources released")
         except Exception as e:
             logger.error(f"Error closing connections: {str(e)}")

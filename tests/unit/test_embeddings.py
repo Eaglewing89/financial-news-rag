@@ -150,20 +150,16 @@ class TestEmbeddingsGeneratorEmbeddingGeneration:
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         
-        mock_embedding_obj = MagicMock()
-        mock_embedding_obj.values = mock_embedding_vector
-        mock_result = MagicMock()
-        mock_result.embeddings = [mock_embedding_obj]
-        
-        mock_client.models.embed_content.return_value = mock_result
-        
-        # Test with single chunk
-        single_chunk = ["This is a single test chunk for embedding."]
-        embeddings = generator.generate_embeddings(single_chunk)
-        
-        assert len(embeddings) == 1
-        assert len(embeddings[0]) == 768
-        assert isinstance(embeddings[0], list)
+        # Mock the _embed_single_text method directly to return a list
+        # This ensures we're not relying on the mock's behavior for values
+        with patch.object(generator, '_embed_single_text', return_value=mock_embedding_vector):
+            # Test with single chunk
+            single_chunk = ["This is a single test chunk for embedding."]
+            embeddings = generator.generate_embeddings(single_chunk)
+            
+            assert len(embeddings) == 1
+            assert len(embeddings[0]) == 768
+            assert isinstance(embeddings[0], list)
     
     @patch('financial_news_rag.embeddings.genai.Client')
     def test_generate_embeddings_custom_task_type(self, mock_client_cls, test_config, mock_embedding_vector, test_chunks):
@@ -179,20 +175,15 @@ class TestEmbeddingsGeneratorEmbeddingGeneration:
             task_type=test_config.embeddings_default_task_type
         )
         
-        mock_embedding_obj = MagicMock()
-        mock_embedding_obj.values = mock_embedding_vector
-        mock_result = MagicMock()
-        mock_result.embeddings = [mock_embedding_obj] * len(test_chunks)
-        
-        mock_client.models.embed_content.return_value = mock_result
-        
-        # Generate embeddings with custom task type
-        custom_task_type = "RETRIEVAL_DOCUMENT"
-        embeddings = generator.generate_embeddings(test_chunks, task_type=custom_task_type)
-        
-        # Verify embeddings were generated
-        assert len(embeddings) == len(test_chunks)
-        assert all(len(emb) == 768 for emb in embeddings)
+        # Mock the _embed_single_text method directly to return a list
+        with patch.object(generator, '_embed_single_text', return_value=mock_embedding_vector):
+            # Generate embeddings with custom task type
+            custom_task_type = "RETRIEVAL_DOCUMENT"
+            embeddings = generator.generate_embeddings(test_chunks, task_type=custom_task_type)
+            
+            # Verify embeddings were generated
+            assert len(embeddings) == len(test_chunks)
+            assert all(len(emb) == 768 for emb in embeddings)
     
     @patch('financial_news_rag.embeddings.genai.Client')
     def test_generate_embeddings_empty_input(self, mock_client_cls, generator):

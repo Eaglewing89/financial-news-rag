@@ -97,6 +97,26 @@ class ChromaDBManager:
             logger.error(f"Error initializing ChromaDB: {e}")
             raise
     
+    def close_connection(self) -> None:
+        """
+        Close the ChromaDB client connection and release resources.
+        This should be called when the application is shutting down
+        or when the ChromaDBManager is no longer needed.
+        """
+        try:
+            # Set collection to None to break the reference
+            self.collection = None
+            
+            # If client exists and has a close method, call it
+            if hasattr(self, 'client') and self.client and hasattr(self.client, 'close'):
+                self.client.close()
+                logger.info("ChromaDB client connection closed")
+            
+            # Set client to None to break the reference
+            self.client = None
+        except Exception as e:
+            logger.error(f"Error closing ChromaDB connection: {str(e)}")
+    
     # The add_embeddings method has been removed as it's not used by the FinancialNewsRAG orchestrator.
     # The add_article_chunks method handles the needed functionality.
     
