@@ -148,7 +148,8 @@ class ArticleManager:
         """
         query = """
         SELECT url_hash, title, raw_content, processed_content, url, published_at, added_at,
-               symbols, tags, sentiment, status_text_processing, status_embedding
+               symbols, tags, sentiment, status_text_processing, status_embedding,
+               embedding_model, vector_db_id
         FROM articles
         WHERE url_hash = ?
         """
@@ -170,7 +171,9 @@ class ArticleManager:
             'tags': json.loads(row[8]) if row[8] else [],
             'sentiment': json.loads(row[9]) if row[9] else {},
             'status_text_processing': row[10],
-            'status_embedding': row[11]
+            'status_embedding': row[11],
+            'embedding_model': row[12],
+            'vector_db_id': row[13]
         }
     
     def get_processed_articles_for_embedding(self, status: str = 'PENDING', limit: int = 100) -> List[Dict]:
@@ -357,7 +360,9 @@ class ArticleManager:
                 )
                 
                 cursor.execute(query, params)
-                stored_count += 1
+                # Only count if a row was actually inserted (rowcount > 0)
+                if cursor.rowcount > 0:
+                    stored_count += 1
                 
             conn.commit()
             return stored_count

@@ -288,6 +288,24 @@ class EODHDResponseFactory:
     """Factory for creating mock EODHD API responses."""
     
     @classmethod
+    def create_response(
+        cls,
+        count: int = 2,
+        articles: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a successful EODHD API response.
+        
+        Args:
+            count: Number of articles to generate
+            articles: List of articles (generates if None)
+            
+        Returns:
+            Mock API response dictionary
+        """
+        return cls.create_success_response(articles=articles, count=count)
+    
+    @classmethod
     def create_success_response(
         cls,
         articles: Optional[List[Dict[str, Any]]] = None,
