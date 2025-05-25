@@ -142,7 +142,7 @@ class ChromaDBManager:
             if from_date_str:
                 try:
                     from_timestamp = convert_iso_to_timestamp(from_date_str)
-                    if from_timestamp:
+                    if from_timestamp is not None:
                         timestamp_filter_conditions["$gte"] = from_timestamp
                         logger.info(f"Filtering articles published on or after {from_date_str} (timestamp {from_timestamp})")
                     else:
@@ -154,7 +154,7 @@ class ChromaDBManager:
             if to_date_str:
                 try:
                     to_timestamp = convert_iso_to_timestamp(to_date_str)
-                    if to_timestamp:
+                    if to_timestamp is not None:
                         timestamp_filter_conditions["$lte"] = to_timestamp
                         logger.info(f"Filtering articles published on or before {to_date_str} (timestamp {to_timestamp})")
                     else:
