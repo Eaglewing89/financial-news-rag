@@ -70,8 +70,8 @@ rag = FinancialNewsRAG()
 # Article Storage Pipeline
 rag.fetch_and_store_articles(
         tag="MERGERS AND ACQUISITIONS", 
-        from_date="2025-05-26", 
-        to_date="2025-04-26", 
+        from_date="2025-04-26", 
+        to_date="2025-05-26", 
         limit=1000
     )
 rag.process_articles_by_status(status='PENDING')

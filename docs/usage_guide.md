@@ -185,7 +185,7 @@ if 'orchestrator' in locals() and orchestrator and vector_db_status.get('total_c
     print("Search Results 1 (basic):")
     for i, article in enumerate(search_results1):
         print(f"  {i+1}. Title: {article.get('title')}, Score: {article.get('similarity_score')}")
-        # print(f"     URL: {article.get('link')}") # 'link' or 'url' depending on data source
+        # print(f"     URL: {article.get('url')}")
         # print(f"     Published: {article.get('published_at')}")
         # print(f"     Content Snippet: {article.get('processed_content', '')[:150]}...")
 
@@ -196,7 +196,7 @@ if 'orchestrator' in locals() and orchestrator and vector_db_status.get('total_c
     print("Search Results 2 (re-ranked):")
     for i, article in enumerate(search_results2):
         print(f"  {i+1}. Title: {article.get('title')}, Score: {article.get('relevance_score', article.get('similarity_score'))}")
-        print(f"     URL: {article.get('url')}") # Reranker might use 'url'
+        print(f"     URL: {article.get('url')}")
         print(f"     Published: {article.get('published_at')}")
         # print(f"     Content Snippet: {article.get('processed_content', '')[:150]}...")
 
