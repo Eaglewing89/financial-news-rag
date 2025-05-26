@@ -4,7 +4,7 @@ setup(
     name="financial-news-rag",
     version="0.1.0",
     description="Retrieval Augmented Generation (RAG) system for financial news",
-    author="",
+    author="Robert Örneving",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     install_requires=[
@@ -13,7 +13,8 @@ setup(
         "requests",
         "python-dotenv",
         "nltk",
-        "beautifulsoup4"
+        "beautifulsoup4",
+        "google-genai"
     ],
     python_requires=">=3.10",
 )

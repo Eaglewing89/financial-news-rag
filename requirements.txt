@@ -1,6 +1,7 @@
 # Core functionality
 chromadb
 google-generativeai
+google-genai
 requests
 python-dotenv
 tenacity
@@ -18,3 +19,4 @@ factory-boy
 black
 isort
 flake8
+ipykernel

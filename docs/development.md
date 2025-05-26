@@ -1,21 +1,43 @@
+[← Back to Main Documentation Index](./index.md)
+
 # Development Environment Guide
+
+For instructions on installing and using `financial-news-rag` as a library, see `installation.md`.
+
+This guide is for contributors and developers who want to work on the source code, run tests, or build new features.
 
 ## 1. Environment Setup
 
-- **Python version:** 3.12.10 (recommended)
+- **Python version:** Python 3.10 or higher
+- **Clone the repository:**
+  ```bash
+  git clone https://github.com/Eaglewing89/financial-news-rag.git
+  cd financial-news-rag
+  ```
+  (Or use SSH if preferred.)
 - **Create virtual environment:**
   ```bash
   python -m venv venv
   ```
 - **Activate virtual environment:**
-  ```bash
-  source venv/bin/activate
-  ```
-- **Install dependencies:**
+  - On macOS and Linux:
+    ```bash
+    source venv/bin/activate
+    ```
+  - On Windows:
+    ```bash
+    .\venv\Scripts\activate
+    ```
+- **Install all dependencies (including dev tools):**
   ```bash
   pip install -r requirements.txt
   ```
-  This will install all required packages for both development and running the module. (Currently, there is a single `requirements.txt` for all dependencies.)
+  This will install all required packages for development, testing, and running the module, including tools for linting, formatting, and running example notebooks.
+- **Install the project in editable mode:**
+  ```bash
+  pip install -e .
+  ```
+  This allows you to edit the source code and have changes reflected immediately without reinstalling.
 
 ## 2. Dependency Management
 
@@ -56,15 +78,18 @@
 - **Code Review:**
   - Self-review is encouraged. Collaborators may review their own code as needed.
 
-## 4. Project Structure
+## 4. Further Documentation
 
-See `docs/project_spec.md` for detailed structure and module responsibilities.
+For more information, see the following documentation in the `docs/` folder:
 
-## 5. Additional Resources
-
-- [Project Specification](docs/project_spec.md)
-- [Technical Design](docs/technical_design.md)
-- [Testing Guide](docs/testing.md)
+- [Project Overview & Architecture](./index.md)
+- [Installation Guide](./installation.md)
+- [Usage Guide](./usage_guide.md)
+- [Configuration Reference](./configuration.md)
+- [API Reference Index](./api_reference/index.md)
+- [Testing Guide](./testing.md)
+- [Development Guide](./development.md) (this file)
 
 ---
 For any questions or suggestions, please update this guide or contact the project maintainer.
+
