@@ -2,6 +2,8 @@
 
 This guide provides a comprehensive overview of how to use the `FinancialNewsRAG` orchestrator, the central component for interacting with the financial news RAG system. It covers initialization, fetching and storing articles, processing content, generating embeddings, searching, and managing data.
 
+An alternative to this guide is the [jupyter notebook example](../examples/financial_news_rag_example.ipynb) for a more interactive tutorial. 
+
 ## 1. Initialization
 
 First, you need to initialize the `FinancialNewsRAG` orchestrator. This requires API keys for EODHD and Gemini. These keys are typically loaded from environment variables (via a `.env` file in your project root) by the centralized `Config` class.

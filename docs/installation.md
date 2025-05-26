@@ -79,4 +79,5 @@ GEMINI_API_KEY=yyyyyyyyyyyyyyyyyyyyyyyyy
 ---
 
 You should now have a working installation of the `financial-news-rag` project.  
-For detailed usage, please refer to the [`usage_guide.md`](./usage_guide.md).
+For detailed usage, please refer to the [`Usage guide`](./usage_guide.md).  
+Or try out the [`Notebook example`](../examples/financial_news_rag_example.ipynb).

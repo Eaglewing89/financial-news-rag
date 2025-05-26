@@ -1,4 +1,12 @@
 # Financial News RAG Project
+# Table of Contents
+
+1. [Overview](#1-overview)
+2. [Purpose](#2-purpose)
+3. [Architecture](#3-architecture)
+    - [Diagrams](#high-level-architectural-diagrams)
+4. [Getting Started](#4-getting-started)
+5. [For Developers](#5-for-developers)
 
 ## 1. Overview
 

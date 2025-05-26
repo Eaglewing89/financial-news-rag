@@ -1,4 +1,3 @@
-
 # Development Environment Guide
 
 For instructions on installing and using `financial-news-rag` as a library, see `installation.md`.
@@ -77,16 +76,18 @@ This guide is for contributors and developers who want to work on the source cod
 - **Code Review:**
   - Self-review is encouraged. Collaborators may review their own code as needed.
 
-## 4. Project Structure (NOTE TO COPILOT: This section is deprecated. We are currently updating our docs from the ground up)
+## 4. Further Documentation
 
-See `docs/project_spec.md` for detailed structure and module responsibilities. 
-(Note: `project_spec.md` may be an old reference from `old_docs`. We should verify and update this link if needed, possibly to `docs/index.md` or a new architecture document.) 
+For more information, see the following documentation in the `docs/` folder:
 
-## 5. Additional Resources (NOTE TO COPILOT: This section is deprecated. We are currently updating our docs from the ground up)
-
-- [Project Specification](docs/project_spec.md) (Verify link)
-- [Technical Design](docs/technical_design.md) (Verify link - likely from `old_docs`)
-- [Testing Guide](docs/testing.md) (This will be the new testing guide we create)
+- [Project Overview & Architecture](index.md)
+- [Installation Guide](installation.md)
+- [Usage Guide](usage_guide.md)
+- [Configuration Reference](configuration.md)
+- [API Reference](api_reference/)
+- [Testing Guide](testing.md)
+- [Development Guide](development.md) (this file)
 
 ---
 For any questions or suggestions, please update this guide or contact the project maintainer.
+
