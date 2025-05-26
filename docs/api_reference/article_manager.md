@@ -1,3 +1,7 @@
+[← Back to Main Documentation Index](../index.md)  
+
+[← API reference Index](./index.md)
+
 # Article Manager (`article_manager.py`)
 
 The `article_manager.py` module provides the `ArticleManager` class, which is responsible for managing financial news articles within a SQLite database. This includes storing, retrieving, and updating articles, as well as logging API calls related to article fetching.

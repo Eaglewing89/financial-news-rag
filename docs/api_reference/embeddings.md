@@ -1,3 +1,7 @@
+[← Back to Main Documentation Index](../index.md)  
+
+[← API reference Index](./index.md)
+
 # Embeddings Generator (`embeddings.py`)
 
 The `embeddings.py` module provides the `EmbeddingsGenerator` class, which is responsible for generating vector embeddings for text chunks. It utilizes Google's `text-embedding-004` model through the Gemini API.

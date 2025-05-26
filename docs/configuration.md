@@ -1,3 +1,5 @@
+[← Back to Main Documentation Index](./index.md)
+
 # Configuration (`config.py`)
 
 This document provides an in-depth explanation of the `Config` class found in `financial_news_rag.config`, which manages the configuration for the Financial News RAG application. Understanding these settings is crucial for customizing the behavior of the system, especially when initializing the `FinancialNewsRAG` orchestrator.

@@ -1,3 +1,7 @@
+[← Back to Main Documentation Index](../index.md)  
+
+[← API reference Index](./index.md)
+
 # ChromaDB Manager (`chroma_manager.py`)
 
 The `chroma_manager.py` module provides the `ChromaDBManager` class, designed to handle all interactions with a ChromaDB vector database. This includes initializing the database, adding and querying article embeddings, managing metadata, and deleting entries.

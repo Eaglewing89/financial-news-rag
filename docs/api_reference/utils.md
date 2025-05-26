@@ -1,3 +1,7 @@
+[← Back to Main Documentation Index](../index.md)  
+
+[← API reference Index](./index.md)
+
 # `utils` Module API Reference
 
 The `utils` module provides a collection of helper functions used throughout the Financial News RAG application. These functions handle common tasks such as data type conversion, unique ID generation, and date/time manipulations.

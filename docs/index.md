@@ -1,3 +1,5 @@
+[← README.md](../README.md)
+
 # Financial News RAG Project
 # Table of Contents
 
@@ -170,17 +172,17 @@ flowchart LR
 
 To get started with the Financial News RAG system, please refer to the following documents:
 
-*   **[Installation Guide (`installation.md`)](installation.md):** Instructions on how to install the package and set up necessary API keys.
-*   **[Usage Guide (`usage_guide.md`)](usage_guide.md):** A comprehensive guide on how to use the `FinancialNewsRAG` orchestrator with code examples.
-*   **[Configuration (`configuration.md`)](configuration.md):** Detailed information on all configurable parameters.
+*   **[Installation Guide (`installation.md`)](./installation.md):** Instructions on how to install the package and set up necessary API keys.
+*   **[Usage Guide (`usage_guide.md`)](./usage_guide.md):** A comprehensive guide on how to use the `FinancialNewsRAG` orchestrator with code examples.
+*   **[Configuration (`configuration.md`)](./configuration.md):** Detailed information on all configurable parameters.
 
 ## 5. For Developers
 
 If you plan to contribute to the project or understand its internals, the following resources will be helpful:
 
-*   **[Development Guide (`development.md`)](development.md):** Information on setting up the development environment, coding standards, and contribution guidelines.
-*   **[API Reference (`api_reference/`)](api_reference/):** Detailed API documentation for all modules and classes.
-*   **[Testing Guide (`testing.md`)](testing.md):** Instructions on how to run tests and understand the testing framework.
+*   **[Development Guide (`development.md`)](./development.md):** Information on setting up the development environment, coding standards, and contribution guidelines.
+*   **[API Reference (`api_reference/index`)](./api_reference/index):** Detailed API documentation for all modules and classes.
+*   **[Testing Guide (`testing.md`)](./testing.md):** Instructions on how to run tests and understand the testing framework.
 
 ---
 

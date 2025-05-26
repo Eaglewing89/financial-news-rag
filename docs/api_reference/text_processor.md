@@ -1,3 +1,7 @@
+[← Back to Main Documentation Index](../index.md)  
+
+[← API reference Index](./index.md)
+
 # `text_processor` Module API Reference
 
 The `text_processor` module is designed to handle the cleaning, normalization, validation, and chunking of raw text content, specifically from financial news articles. It ensures that text is in a suitable format for further processing, such as embedding generation.

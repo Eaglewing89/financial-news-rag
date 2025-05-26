@@ -1,3 +1,5 @@
+[← Back to Main Documentation Index](./index.md)
+
 # Development Environment Guide
 
 For instructions on installing and using `financial-news-rag` as a library, see `installation.md`.
@@ -80,13 +82,13 @@ This guide is for contributors and developers who want to work on the source cod
 
 For more information, see the following documentation in the `docs/` folder:
 
-- [Project Overview & Architecture](index.md)
-- [Installation Guide](installation.md)
-- [Usage Guide](usage_guide.md)
-- [Configuration Reference](configuration.md)
-- [API Reference](api_reference/)
-- [Testing Guide](testing.md)
-- [Development Guide](development.md) (this file)
+- [Project Overview & Architecture](./index.md)
+- [Installation Guide](./installation.md)
+- [Usage Guide](./usage_guide.md)
+- [Configuration Reference](./configuration.md)
+- [API Reference Index](./api_reference/index.md)
+- [Testing Guide](./testing.md)
+- [Development Guide](./development.md) (this file)
 
 ---
 For any questions or suggestions, please update this guide or contact the project maintainer.

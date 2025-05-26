@@ -1,3 +1,5 @@
+[← Back to Main Documentation Index](./index.md)
+
 # Usage Guide: FinancialNewsRAG Orchestrator
 
 This guide provides a comprehensive overview of how to use the `FinancialNewsRAG` orchestrator, the central component for interacting with the financial news RAG system. It covers initialization, fetching and storing articles, processing content, generating embeddings, searching, and managing data.

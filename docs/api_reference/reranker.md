@@ -1,3 +1,7 @@
+[← Back to Main Documentation Index](../index.md)  
+
+[← API reference Index](./index.md)
+
 # ReRanker (`reranker.py`)
 
 The `reranker.py` module provides the `ReRanker` class, which is designed to re-rank a list of financial news articles based on their relevance to a given user query. It uses a Gemini Large Language Model (LLM) to assess the relevance of each article.

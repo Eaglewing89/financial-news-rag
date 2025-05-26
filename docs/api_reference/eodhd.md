@@ -1,3 +1,7 @@
+[← Back to Main Documentation Index](../index.md)  
+
+[← API reference Index](./index.md)
+
 # EODHD API Client (`eodhd.py`)
 
 The `eodhd.py` module provides the `EODHDClient` class, which is responsible for fetching financial news articles from the EOD Historical Data (EODHD) API. It handles API authentication, request construction, response parsing, error handling (including retries with exponential backoff), and normalization of the data received from the API.

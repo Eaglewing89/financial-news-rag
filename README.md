@@ -86,7 +86,7 @@ results = orchestrator.search_articles(
     )
 ```
 
-See the [Usage Guide](docs/usage_guide.md) for a full walkthrough and more examples.
+See the [Usage Guide](./docs/usage_guide.md) for a full walkthrough and more examples.
 
 Or check out the [Notebook Example](./examples/financial_news_rag_example.ipynb) for an interactive tutorial. 
 
@@ -94,13 +94,13 @@ Or check out the [Notebook Example](./examples/financial_news_rag_example.ipynb)
 
 ## 📚 Documentation
 
-- [Project Overview & Architecture](docs/index.md)
-- [Installation Guide](docs/installation.md)
-- [Usage Guide](docs/usage_guide.md)
-- [Configuration Reference](docs/configuration.md)
-- [API Reference](docs/api_reference/)
-- [Testing Guide](docs/testing.md)
-- [Development Guide](docs/development.md)
+- [Project Overview & Architecture](./docs/index.md)
+- [Installation Guide](./docs/installation.md)
+- [Usage Guide](./docs/usage_guide.md)
+- [Configuration Reference](./docs/configuration.md)
+- [API Reference](./docs/api_reference/index.md)
+- [Testing Guide](./docs/testing.md)
+- [Development Guide](./docs/development.md)
 
 ---
 

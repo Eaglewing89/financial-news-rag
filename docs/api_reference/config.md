@@ -1,3 +1,7 @@
+[← Back to Main Documentation Index](../index.md)  
+
+[← API reference Index](./index.md)
+
 # `config` Module API Reference
 
 The `config` module is responsible for managing all application configurations. It provides a centralized `Config` class that loads settings from environment variables (supporting `.env` files) and offers default values for various parameters essential for the application's operation.

@@ -1,3 +1,5 @@
+[← Back to Main Documentation Index](./index.md)
+
 # Installation
 
 This guide provides instructions on how to set up and install the `financial-news-rag` library for your project.
