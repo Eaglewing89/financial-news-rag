@@ -121,6 +121,7 @@ class FinancialNewsRAG:
             model_name=self.config.embeddings_default_model,
             model_dimensions=self.config.embeddings_model_dimensions,
             task_type=self.config.embeddings_default_task_type,
+            rate_limit_delay=self.config.embeddings_default_rate_limit_delay,
         )
 
         self.chroma_manager = ChromaDBManager(

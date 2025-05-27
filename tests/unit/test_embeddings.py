@@ -435,7 +435,7 @@ class TestEmbeddingsGeneratorBatchProcessing:
         embeddings = generator.generate_embeddings(large_batch)
 
         # Ensure sleep was called the right number of times
-        assert mock_sleep.call_count == len(large_batch) - 1
+        assert mock_sleep.call_count == len(large_batch)
 
         # Verify test still validates proper batch processing
         assert len(embeddings) == 20

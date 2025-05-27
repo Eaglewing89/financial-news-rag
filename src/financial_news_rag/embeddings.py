@@ -42,6 +42,7 @@ class EmbeddingsGenerator:
         model_name: str,
         model_dimensions: Dict[str, int],
         task_type: str = "SEMANTIC_SIMILARITY",
+        rate_limit_delay: float = 0.5
     ):
         """
         Initialize the EmbeddingsGenerator with API key and model settings.
@@ -62,6 +63,7 @@ class EmbeddingsGenerator:
         self.client = genai.Client(api_key=api_key)
         self.model_name = model_name
         self.default_task_type = task_type
+        self.rate_limit_delay = rate_limit_delay
 
         # Set embedding dimension based on model, fail if unknown
         if model_name not in model_dimensions:
@@ -166,8 +168,7 @@ class EmbeddingsGenerator:
         for i, chunk in enumerate(text_chunks):
             try:
                 # Add slight delay between requests to avoid rate limiting
-                if i > 0:
-                    time.sleep(0.05)  # 50ms delay
+                time.sleep(self.rate_limit_delay)
                 embedding = self._embed_single_text(chunk, task_type)
                 embeddings.append(embedding)
                 # Log progress periodically

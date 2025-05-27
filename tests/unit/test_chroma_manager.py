@@ -294,6 +294,15 @@ class TestChromaDBManagerCollectionManagement:
 
     def test_get_collection_status_comprehensive(self, chroma_manager):
         """Test comprehensive collection status information."""
+        # Clear any existing data first - get all IDs and delete them
+        try:
+            result = chroma_manager.collection.get()
+            if result['ids']:
+                chroma_manager.collection.delete(ids=result['ids'])
+        except Exception:
+            # If collection is empty or any other issue, continue
+            pass
+
         # Test with multiple articles
         articles = [
             create_test_article_with_hash(symbol="AAPL.US"),

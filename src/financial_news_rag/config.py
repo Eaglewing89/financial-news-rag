@@ -57,6 +57,9 @@ class Config:
         self._embeddings_default_task_type = self._get_env(
             "EMBEDDINGS_DEFAULT_TASK_TYPE", "SEMANTIC_SIMILARITY"
         )
+        self._embeddings_default_rate_limit_delay = float(self._get_env(
+            "EMBEDDINGS_DEFAULT_RATE_LIMIT_DELAY", "0.5")
+        )
 
         # ReRanker configuration
         self._reranker_default_model = self._get_env(
@@ -199,6 +202,11 @@ class Config:
     def embeddings_model_dimensions(self) -> Dict[str, int]:
         """Get the dimensions for each embedding model."""
         return self._embeddings_model_dimensions
+    
+    @property
+    def embeddings_default_rate_limit_delay(self) -> float:
+        """Get the default rate limit delay for text embeddings."""
+        return self._embeddings_default_rate_limit_delay
 
     @property
     def reranker_default_model(self) -> str:
