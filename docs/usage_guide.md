@@ -289,6 +289,6 @@ The `FinancialNewsRAG` system uses a centralized `Config` class for managing set
     ```
 3.  **Custom Config Class (Advanced):** For more complex scenarios, you could potentially subclass the `Config` object, though direct overrides or environment variables are usually sufficient.
 
-Refer to `configuration.md` for a detailed list of all configurable parameters, their corresponding environment variables, and default values.
+Refer to the [Confugration Guide](./configuration.md) for a detailed list of all configurable parameters, their corresponding environment variables, and default values.
 
 This concludes the usage guide for the `FinancialNewsRAG` orchestrator. You can adapt these examples to build more complex workflows for your financial news analysis and retrieval tasks.

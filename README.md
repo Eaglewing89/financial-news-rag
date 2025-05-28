@@ -14,7 +14,7 @@ graph TD
 
     subgraph core_functionality[" "]
         direction LR
-        news_fetcher --> text_processor --> embeddings_generator --> semantic_similarity
+        news_fetcher --> text_processor --> embeddings_generator -.- semantic_similarity
     end
     orchestrator --> core_functionality
 
@@ -54,7 +54,7 @@ graph TD
 See the [Installation Guide](docs/installation.md) for full instructions, including API key setup.
 
 ```bash
-pip install financial-news-rag
+pip install git+https://github.com/Eaglewing89/financial-news-rag.git
 ```
 
 ---
@@ -104,7 +104,7 @@ Or check out the [Notebook Example](./examples/financial_news_rag_example.ipynb)
 
 ---
 
-## Method Flowcharts
+## 🗺️ Workflow Visualizations
 
 ### Article Storage Pipeline
 
