@@ -18,21 +18,8 @@ from financial_news_rag.eodhd import EODHDClient
 from financial_news_rag.reranker import ReRanker
 from financial_news_rag.text_processor import TextProcessor
 
-# Configure logging
-# logging.basicConfig(
-# level=logging.INFO,
-# format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-# )
+# Configure module logger
 logger = logging.getLogger(__name__)
-
-# Configure basic logging if no handlers are configured for the root logger.
-# This allows the application (e.g., the notebook) to set up its own logging
-# configuration if desired, without the library overriding it or adding duplicate handlers.
-if not logging.root.handlers:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
 
 
 class FinancialNewsRAG:

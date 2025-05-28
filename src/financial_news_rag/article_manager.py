@@ -15,10 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from financial_news_rag.utils import generate_url_hash, get_utc_now
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+# Configure module logger
 logger = logging.getLogger(__name__)
 
 

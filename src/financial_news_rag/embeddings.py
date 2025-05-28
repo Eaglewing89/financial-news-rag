@@ -19,10 +19,7 @@ from tenacity import (
     wait_exponential,
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+# Configure module logger
 logger = logging.getLogger(__name__)
 
 

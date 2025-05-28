@@ -17,10 +17,7 @@ from chromadb.config import Settings
 
 from financial_news_rag.utils import convert_iso_to_timestamp
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+# Configure module logger
 logger = logging.getLogger(__name__)
 
 
