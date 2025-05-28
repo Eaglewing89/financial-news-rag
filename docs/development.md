@@ -88,6 +88,7 @@ For more information, see the following documentation in the `docs/` folder:
 - [Configuration Reference](./configuration.md)
 - [API Reference Index](./api_reference/index.md)
 - [Testing Guide](./testing.md)
+- [Development Checklists](./development_checklists.md)
 - [Development Guide](./development.md) (this file)
 
 ---

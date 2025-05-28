@@ -221,29 +221,14 @@ class TestTextProcessorValidation:
 
 
 class TestTextProcessorChunking:
-    """Test suite for text chunking functionality."""
+    """Test suite for text chunking functionality with default (regex) tokenization."""
 
     @pytest.fixture
     def processor(self):
         """Create a TextProcessor with reasonable chunk size for testing."""
         return TextProcessor(max_tokens_per_chunk=512)
 
-    @pytest.fixture
-    def mock_nltk_tokenize(self):
-        """Mock NLTK sentence tokenization for reliable testing."""
-        with patch("financial_news_rag.text_processor.sent_tokenize") as mock_tokenize:
-            # Realistic behavior: split on sentence-ending punctuation followed by space
-            def side_effect(text):
-                import re
-
-                # Split on sentence boundaries but preserve the punctuation
-                sentences = re.split(r"(?<=[.!?])\s+", text)
-                return [s.strip() for s in sentences if s.strip()]
-
-            mock_tokenize.side_effect = side_effect
-            yield mock_tokenize
-
-    def test_chunk_short_text_single_chunk(self, processor, mock_nltk_tokenize):
+    def test_chunk_short_text_single_chunk(self, processor):
         """Test that short text results in a single chunk."""
         short_text = "This is a short text that should fit in one chunk."
         chunks = processor.split_into_chunks(short_text)
@@ -251,9 +236,7 @@ class TestTextProcessorChunking:
         assert len(chunks) == 1
         assert chunks[0] == short_text
 
-    def test_chunk_long_text_multiple_chunks(
-        self, processor, mock_nltk_tokenize, long_test_sentences
-    ):
+    def test_chunk_long_text_multiple_chunks(self, processor, long_test_sentences):
         """Test that long text is split into multiple chunks."""
         # Use test data from factory
         long_text = " ".join(long_test_sentences)
@@ -271,28 +254,131 @@ class TestTextProcessorChunking:
             estimated_tokens = len(chunk) // 4
             assert estimated_tokens <= 250  # Allow some margin for sentence boundaries
 
-    def test_chunk_respects_sentence_boundaries(
-        self, processor, mock_nltk_tokenize, financial_test_sentences
-    ):
+    def test_chunk_respects_sentence_boundaries(self, processor, financial_test_sentences):
         """Test that chunking respects sentence boundaries when possible."""
         # Use test data from factory
         text = " ".join(financial_test_sentences)
 
         # Use chunk size that should fit 2-3 sentences
-        small_processor = TextProcessor(max_tokens_per_chunk=150)
+        medium_processor = TextProcessor(max_tokens_per_chunk=300)
+        chunks = medium_processor.split_into_chunks(text)
+
+        # Each chunk should end with sentence-ending punctuation
+        for chunk in chunks[:-1]:  # All but the last chunk
+            assert chunk.rstrip().endswith((".", "!", "?"))
+
+    def test_chunk_empty_text(self, processor):
+        """Test chunking behavior with empty text."""
+        empty_text = ""
+        chunks = processor.split_into_chunks(empty_text)
+
+        assert chunks == []
+
+    def test_chunk_single_long_sentence(self, processor):
+        """Test chunking behavior with a single very long sentence."""
+        # Create a sentence longer than the chunk size
+        long_sentence = "This is a very long sentence that contains many words and should exceed the maximum token limit per chunk and therefore needs to be split into multiple smaller parts even though it is technically a single sentence without any sentence-ending punctuation in the middle."
+        
+        # Use small chunk size to force word-level splitting
+        small_processor = TextProcessor(max_tokens_per_chunk=50)
+        chunks = small_processor.split_into_chunks(long_sentence)
+
+        # Should create multiple chunks even from a single sentence
+        assert len(chunks) > 1
+        
+        # Reconstruct original text (roughly)
+        reconstructed = " ".join(chunks)
+        # Should contain most of the original words
+        original_words = set(long_sentence.split())
+        reconstructed_words = set(reconstructed.split())
+        assert len(original_words.intersection(reconstructed_words)) > 0.8 * len(original_words)
+
+    def test_chunk_with_mixed_punctuation(self, processor):
+        """Test chunking with various sentence-ending punctuation."""
+        mixed_text = "First sentence. Second question? Third exclamation! Fourth statement."
+        chunks = processor.split_into_chunks(mixed_text)
+
+        # With default chunk size, this should fit in one chunk
+        assert len(chunks) == 1
+        assert chunks[0] == mixed_text
+
+
+class TestTextProcessorChunkingWithNLTK:
+    """Test suite for text chunking functionality with NLTK tokenization."""
+
+    @pytest.fixture
+    def nltk_processor(self):
+        """Create a TextProcessor with NLTK enabled."""
+        return TextProcessor(max_tokens_per_chunk=512, use_nltk=True, nltk_auto_download=False)
+
+    @pytest.fixture
+    def mock_nltk_tokenize(self):
+        """Mock NLTK sentence tokenization for reliable testing."""
+        with patch("nltk.tokenize.sent_tokenize") as mock_tokenize:
+            # Realistic behavior: split on sentence-ending punctuation followed by space
+            def side_effect(text):
+                import re
+                # Split on sentence boundaries but preserve the punctuation
+                sentences = re.split(r"(?<=[.!?])\s+", text)
+                return [s.strip() for s in sentences if s.strip()]
+
+            mock_tokenize.side_effect = side_effect
+            yield mock_tokenize
+
+    @patch("nltk.data.find")
+    @patch("nltk.tokenize.sent_tokenize")
+    def test_nltk_chunking_when_available(self, mock_sent_tokenize, mock_find, nltk_processor):
+        """Test chunking with NLTK when punkt data is available."""
+        # Mock that punkt data is found and sent_tokenize works
+        mock_find.return_value = True
+        mock_sent_tokenize.side_effect = [
+            ["Test sentence."],  # For the initialization test
+            ["First sentence.", "Second sentence!", "Third sentence?"]  # For actual chunking
+        ]
+        
+        # Re-initialize processor to trigger tokenizer setup
+        processor = TextProcessor(max_tokens_per_chunk=512, use_nltk=True, nltk_auto_download=False)
+        
+        text = "First sentence. Second sentence! Third sentence?"
+        chunks = processor.split_into_chunks(text)
+        
+        assert len(chunks) == 1
+        assert chunks[0] == text
+        # Verify NLTK tokenizer was called (twice: once for init test, once for actual chunking)
+        assert mock_sent_tokenize.call_count == 2
+
+    @patch("nltk.tokenize.sent_tokenize")
+    def test_nltk_without_auto_download_raises_error(self, mock_sent_tokenize):
+        """Test that missing NLTK data raises appropriate error when auto-download is disabled."""
+        # Mock that punkt data is not found - sent_tokenize raises LookupError
+        mock_sent_tokenize.side_effect = LookupError("punkt not found")
+        
+        with pytest.raises(RuntimeError, match="punkt tokenizer not available"):
+            TextProcessor(
+                max_tokens_per_chunk=512,
+                use_nltk=True,
+                nltk_auto_download=False
+            )
+
+    def test_nltk_chunk_respects_sentence_boundaries(self, nltk_processor, mock_nltk_tokenize):
+        """Test that NLTK chunking respects sentence boundaries."""
+        text = "First sentence. Second sentence! Third sentence?"
+        
+        # Use smaller chunk size to force splitting
+        small_processor = TextProcessor(max_tokens_per_chunk=150, use_nltk=True, nltk_auto_download=False)
         chunks = small_processor.split_into_chunks(text)
 
         # Verify chunks end with sentence boundaries when possible
         for chunk in chunks[:-1]:  # All chunks except last
             assert chunk.endswith(".") or chunk.endswith("!") or chunk.endswith("?")
 
-    def test_chunk_very_long_sentence(self, processor, mock_nltk_tokenize):
-        """Test chunking of very long sentences that exceed token limits."""
+    def test_nltk_chunk_very_long_sentence(self, nltk_processor, mock_nltk_tokenize):
+        """Test NLTK chunking of very long sentences that exceed token limits."""
         # Create a single very long sentence
         long_sentence = " ".join([f"word{i}" for i in range(200)])
 
         # Use small chunk size
-        small_processor = TextProcessor(max_tokens_per_chunk=100)
+        small_processor = TextProcessor(max_tokens_per_chunk=100, use_nltk=True, nltk_auto_download=False)
         chunks = small_processor.split_into_chunks(long_sentence)
 
         # Should be split into multiple chunks even though it's one sentence
@@ -301,22 +387,20 @@ class TestTextProcessorChunking:
         # All chunks should be reasonable size (allow some margin above the target)
         for chunk in chunks:
             estimated_tokens = len(chunk) // 4
-            assert (
-                estimated_tokens <= 200
-            )  # Increased margin for word boundaries and splitting behavior
+            assert estimated_tokens <= 200  # Increased margin for word boundaries and splitting behavior
 
-    def test_chunk_empty_input(self, processor, mock_nltk_tokenize):
-        """Test chunking with empty input."""
-        assert processor.split_into_chunks("") == []
-        assert processor.split_into_chunks(None) == []
-        assert processor.split_into_chunks("   ") == []
+    def test_nltk_chunk_empty_input(self, nltk_processor, mock_nltk_tokenize):
+        """Test NLTK chunking with empty input."""
+        assert nltk_processor.split_into_chunks("") == []
+        assert nltk_processor.split_into_chunks(None) == []
+        assert nltk_processor.split_into_chunks("   ") == []
 
-    def test_chunk_preserves_content(self, processor, mock_nltk_tokenize):
-        """Test that chunking preserves all content."""
+    def test_nltk_chunk_preserves_content(self, nltk_processor, mock_nltk_tokenize):
+        """Test that NLTK chunking preserves all content."""
         # Create text with specific content to track
         text = "Apple Inc. reported strong Q4 earnings. Revenue increased 15% to $10 billion. The company announced a new product line. Analysts are optimistic about future growth."
 
-        chunks = processor.split_into_chunks(text)
+        chunks = nltk_processor.split_into_chunks(text)
 
         # Reconstruct text from chunks
         reconstructed = " ".join(chunks)
@@ -329,8 +413,8 @@ class TestTextProcessorChunking:
         assert "new product line" in reconstructed
         assert "Analysts" in reconstructed
 
-    def test_chunk_financial_content(self, processor, mock_nltk_tokenize):
-        """Test chunking of typical financial news content."""
+    def test_nltk_chunk_financial_content(self, nltk_processor, mock_nltk_tokenize):
+        """Test NLTK chunking of typical financial news content."""
         financial_text = """
         Apple Inc. (NASDAQ: AAPL) reported quarterly earnings that exceeded expectations.
         Revenue for Q4 2023 reached $89.5 billion, representing a 2% year-over-year decline.
@@ -342,7 +426,7 @@ class TestTextProcessorChunking:
         The board approved a quarterly dividend of $0.24 per share.
         """
 
-        chunks = processor.split_into_chunks(financial_text.strip())
+        chunks = nltk_processor.split_into_chunks(financial_text.strip())
 
         # Verify financial data is properly distributed across chunks
         all_content = " ".join(chunks)
@@ -354,6 +438,8 @@ class TestTextProcessorChunking:
         assert "$0.24" in all_content
 
 
+
+
 class TestTextProcessorIntegration:
     """Integration tests for TextProcessor combining cleaning and chunking."""
 
@@ -362,23 +448,7 @@ class TestTextProcessorIntegration:
         """Create a TextProcessor instance for integration testing."""
         return TextProcessor(max_tokens_per_chunk=300)
 
-    @pytest.fixture
-    def mock_nltk_tokenize(self):
-        """Mock NLTK sentence tokenization for integration tests."""
-        with patch("financial_news_rag.text_processor.sent_tokenize") as mock_tokenize:
-
-            def side_effect(text):
-                import re
-
-                sentences = re.split(r"(?<=[.!?])\s+", text)
-                return [s.strip() for s in sentences if s.strip()]
-
-            mock_tokenize.side_effect = side_effect
-            yield mock_tokenize
-
-    def test_clean_and_chunk_html_content(
-        self, processor, mock_nltk_tokenize, sample_html_content
-    ):
+    def test_clean_and_chunk_html_content(self, processor, sample_html_content):
         """Test cleaning HTML content and then chunking it."""
         html_content = sample_html_content["realistic_article"]
 
@@ -402,9 +472,7 @@ class TestTextProcessorIntegration:
         all_content = " ".join(chunks)
         assert "AAPL $150.50 (+2.5%)" in all_content
 
-    def test_process_realistic_financial_article(
-        self, processor, mock_nltk_tokenize, sample_financial_article
-    ):
+    def test_process_realistic_financial_article(self, processor, sample_financial_article):
         """Test processing of a realistic financial news article."""
         article_content = sample_financial_article
 
@@ -438,30 +506,3 @@ class TestTextProcessorIntegration:
             assert (
                 estimated_tokens <= processor.max_tokens_per_chunk * 1.1
             )  # Allow 10% margin
-
-
-class TestTextProcessorNLTKFallback:
-    """Test suite for NLTK fallback behavior."""
-
-    @pytest.fixture
-    def processor(self):
-        """Create a TextProcessor instance for testing."""
-        return TextProcessor(max_tokens_per_chunk=512)
-
-    def test_nltk_tokenize_fallback(self, processor):
-        """Test fallback mechanism when NLTK tokenizer fails."""
-        text = "First sentence. Second sentence! Third sentence?"
-
-        # Mock NLTK to raise an exception
-        with patch(
-            "financial_news_rag.text_processor.sent_tokenize",
-            side_effect=Exception("NLTK error"),
-        ):
-            chunks = processor.split_into_chunks(text)
-
-            # Should still work with fallback regex splitting
-            assert len(chunks) >= 1
-            all_content = " ".join(chunks)
-            assert "First sentence" in all_content
-            assert "Second sentence" in all_content
-            assert "Third sentence" in all_content
