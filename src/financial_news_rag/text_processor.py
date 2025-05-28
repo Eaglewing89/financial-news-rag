@@ -11,8 +11,6 @@ import re
 import unicodedata
 from typing import Dict, List, Optional
 
-from financial_news_rag.config import Config
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -30,23 +28,30 @@ class TextProcessor:
     - Content validation
     """
 
-    def __init__(self, max_tokens_per_chunk: int, config: Optional[Config] = None):
+    def __init__(
+        self, 
+        max_tokens_per_chunk: int, 
+        use_nltk: bool = False, 
+        nltk_auto_download: bool = False
+    ):
         """
         Initialize the text processor.
 
         Args:
             max_tokens_per_chunk: Maximum token count per chunk for embedding
-            config: Configuration instance for text processing options
+            use_nltk: Whether to use NLTK for sentence tokenization (default: False)
+            nltk_auto_download: Whether to auto-download NLTK data if missing (default: False)
         """
         self.max_tokens_per_chunk = max_tokens_per_chunk
-        self.config = config or Config()
+        self.use_nltk = use_nltk
+        self.nltk_auto_download = nltk_auto_download
         
         # Initialize sentence tokenizer based on configuration
         self._sentence_tokenizer = self._initialize_tokenizer()
 
     def _initialize_tokenizer(self):
         """Initialize the sentence tokenizer based on configuration."""
-        if not self.config.textprocessor_use_nltk:
+        if not self.use_nltk:
             logger.info("Using regex-based sentence tokenization")
             return self._regex_tokenize
         
@@ -65,7 +70,7 @@ class TextProcessor:
                 return sent_tokenize
             except LookupError:
                 # Punkt data missing or version mismatch
-                if self.config.textprocessor_nltk_auto_download:
+                if self.nltk_auto_download:
                     logger.info("Downloading NLTK punkt tokenizer...")
                     try:
                         # Try the newer punkt_tab first (for newer NLTK versions)
@@ -92,7 +97,7 @@ class TextProcessor:
                         "NLTK requested but punkt tokenizer not available. "
                         "Run: python -c \"import nltk; nltk.download('punkt_tab')\" or "
                         "python -c \"import nltk; nltk.download('punkt')\" "
-                        "or set TEXTPROCESSOR_NLTK_AUTO_DOWNLOAD=true"
+                        "or set nltk_auto_download=True"
                     )
         except ImportError:
             raise RuntimeError(

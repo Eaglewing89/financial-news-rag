@@ -114,7 +114,8 @@ class FinancialNewsRAG:
 
         self.text_processor = TextProcessor(
             max_tokens_per_chunk=max_tokens_per_chunk_to_use,
-            config=self.config
+            use_nltk=self.config.textprocessor_use_nltk,
+            nltk_auto_download=self.config.textprocessor_nltk_auto_download
         )
 
         self.embeddings_generator = EmbeddingsGenerator(
