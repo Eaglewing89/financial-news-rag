@@ -44,6 +44,8 @@ The `financial-news-rag` system requires API keys for two services: EODHD (for f
 
 You need to create a `.env` file in the root of your project directory.
 
+An example is provided in the [`.env.example`](../.env.example)
+
 #### a. EODHD API Key
 
 1.  Sign up for an account on the [EODHD website](https://eodhd.com/).
@@ -55,7 +57,7 @@ You need to create a `.env` file in the root of your project directory.
 
 #### b. Google Gemini API Key
 
-1.  Go to [Google AI Studio (formerly MakerSuite)](https://ai.google.dev/) or the Google Cloud Console to obtain your API key for the Gemini models.
+1.  Go to [Google AI Studio](https://ai.google.dev/) or the Google Cloud Console to obtain your API key for the Gemini models.
 2.  Ensure the Gemini API is enabled for your project if using Google Cloud.
 3.  Add the following line to your `.env` file, replacing `your_gemini_api_key_here` with your actual key:
     ```env
@@ -81,5 +83,9 @@ GEMINI_API_KEY=yyyyyyyyyyyyyyyyyyyyyyyyy
 ---
 
 You should now have a working installation of the `financial-news-rag` project.  
+
+---
+
 For detailed usage, please refer to the [`Usage guide`](./usage_guide.md).  
-Or try out the [`Notebook example`](../examples/financial_news_rag_example.ipynb).
+For a setup tailored to your needs, please refer to the [`Configuration guide`](./configuration.md).  
+Or try out the [`Notebook example`](../examples/financial_news_rag_example.ipynb).  

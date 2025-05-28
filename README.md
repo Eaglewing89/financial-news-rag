@@ -14,7 +14,7 @@ graph TD
 
     subgraph core_functionality[" "]
         direction LR
-        news_fetcher --> text_processor --> embeddings_generator --> semantic_similarity
+        news_fetcher --> text_processor --> embeddings_generator -.- semantic_similarity
     end
     orchestrator --> core_functionality
 
@@ -54,7 +54,7 @@ graph TD
 See the [Installation Guide](docs/installation.md) for full instructions, including API key setup.
 
 ```bash
-pip install financial-news-rag
+pip install git+https://github.com/Eaglewing89/financial-news-rag.git
 ```
 
 ---
@@ -79,12 +79,14 @@ rag.embed_processed_articles()
 
 # Article Search
 query = "Which billion-dollar M&A deals were announced in the tech sector in the last 30 days, and what were the valuation multiples?"
-results = orchestrator.search_articles(
+results = rag.search_articles(
         query=query, 
         n_results=50,
         rerank=True
     )
 ```
+
+Use the [`.env.example`](./.env.example) to get set up quickly!
 
 See the [Usage Guide](./docs/usage_guide.md) for a full walkthrough and more examples.
 
@@ -104,7 +106,7 @@ Or check out the [Notebook Example](./examples/financial_news_rag_example.ipynb)
 
 ---
 
-## Method Flowcharts
+## 🗺️ Workflow Visualizations
 
 ### Article Storage Pipeline
 

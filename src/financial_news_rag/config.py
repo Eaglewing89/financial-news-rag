@@ -57,6 +57,9 @@ class Config:
         self._embeddings_default_task_type = self._get_env(
             "EMBEDDINGS_DEFAULT_TASK_TYPE", "SEMANTIC_SIMILARITY"
         )
+        self._embeddings_default_rate_limit_delay = float(self._get_env(
+            "EMBEDDINGS_DEFAULT_RATE_LIMIT_DELAY", "0.5")
+        )
 
         # ReRanker configuration
         self._reranker_default_model = self._get_env(
@@ -66,6 +69,12 @@ class Config:
         # TextProcessor configuration
         self._textprocessor_max_tokens_per_chunk = int(
             self._get_env("TEXTPROCESSOR_MAX_TOKENS_PER_CHUNK", "2048")
+        )
+        self._textprocessor_use_nltk = self._get_env_bool(
+            "TEXTPROCESSOR_USE_NLTK", False
+        )
+        self._textprocessor_nltk_auto_download = self._get_env_bool(
+            "TEXTPROCESSOR_NLTK_AUTO_DOWNLOAD", False
         )
 
         # Database configuration
@@ -133,6 +142,20 @@ class Config:
         """
         return os.getenv(key, default)
 
+    def _get_env_bool(self, key: str, default: bool = False) -> bool:
+        """
+        Get a boolean environment variable with a default value.
+
+        Args:
+            key: The name of the environment variable.
+            default: The default value to use if the environment variable is not set.
+
+        Returns:
+            The boolean value of the environment variable or the default value.
+        """
+        value = self._get_env(key, str(default)).lower()
+        return value in ("true", "1", "yes", "on")
+
     def get(self, key: str, default: Optional[Any] = None) -> Any:
         """
         Get a configuration value by key.
@@ -199,6 +222,11 @@ class Config:
     def embeddings_model_dimensions(self) -> Dict[str, int]:
         """Get the dimensions for each embedding model."""
         return self._embeddings_model_dimensions
+    
+    @property
+    def embeddings_default_rate_limit_delay(self) -> float:
+        """Get the default rate limit delay for text embeddings."""
+        return self._embeddings_default_rate_limit_delay
 
     @property
     def reranker_default_model(self) -> str:
@@ -209,6 +237,16 @@ class Config:
     def textprocessor_max_tokens_per_chunk(self) -> int:
         """Get the maximum tokens per chunk for the TextProcessor."""
         return self._textprocessor_max_tokens_per_chunk
+    
+    @property
+    def textprocessor_use_nltk(self) -> bool:
+        """Get boolean use nltk for the TextProcessor."""
+        return self._textprocessor_use_nltk
+    
+    @property
+    def textprocessor_nltk_auto_download(self) -> bool:
+        """Get boolean auto download nltk data for the TextProcessor."""
+        return self._textprocessor_nltk_auto_download
 
     @property
     def database_path(self) -> str:

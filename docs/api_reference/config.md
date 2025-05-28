@@ -71,6 +71,10 @@ The `Config` class exposes its settings through read-only properties. Below is a
     -   Description: A dictionary mapping embedding model names to their output dimensions.
     -   Environment Variable: `EMBEDDINGS_MODEL_DIMENSIONS` (as a JSON string, e.g., `'''{"text-embedding-004": 768, "custom-model": 1024}'''`)
     -   Default: `{"text-embedding-004": 768}` (Custom values merged with/override defaults)
+-   **`embeddings_default_rate_limit_delay`**: `float`
+    -   Description: The default delay in seconds between calls when rate limiting is encountered for embedding generation.
+    -   Environment Variable: `EMBEDDINGS_DEFAULT_RATE_LIMIT_DELAY`
+    -   Default: `0.5`
 
 #### ReRanker Configuration
 
@@ -85,6 +89,14 @@ The `Config` class exposes its settings through read-only properties. Below is a
     -   Description: The maximum number of tokens per chunk when processing text.
     -   Environment Variable: `TEXTPROCESSOR_MAX_TOKENS_PER_CHUNK`
     -   Default: `2048`
+-   **`textprocessor_use_nltk`**: `bool`
+    -   Description: Whether to use NLTK for text processing (e.g., sentence splitting). If `False`, basic splitting will be used.
+    -   Environment Variable: `TEXTPROCESSOR_USE_NLTK`
+    -   Default: `False`
+-   **`textprocessor_nltk_auto_download`**: `bool`
+    -   Description: If `textprocessor_use_nltk` is `True`, this controls whether to automatically download NLTK data (e.g., 'punkt') if not found.
+    -   Environment Variable: `TEXTPROCESSOR_NLTK_AUTO_DOWNLOAD`
+    -   Default: `False`
 
 #### Database Configuration
 

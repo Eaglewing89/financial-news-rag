@@ -11,34 +11,8 @@ import re
 import unicodedata
 from typing import Dict, List, Optional
 
-import nltk
-from nltk.tokenize import sent_tokenize
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+# Configure module logger
 logger = logging.getLogger(__name__)
-
-
-# Ensure NLTK packages are downloaded
-def download_nltk_data():
-    """Download required NLTK data if not already available."""
-    try:
-        nltk.data.find("tokenizers/punkt")
-        logger.debug("NLTK punkt tokenizer already downloaded")
-    except LookupError:
-        logger.info("Downloading NLTK punkt tokenizer...")
-        try:
-            nltk.download("punkt", quiet=True)
-            logger.info("Successfully downloaded NLTK punkt tokenizer")
-        except Exception as e:
-            logger.warning(f"Failed to download NLTK punkt tokenizer: {e}")
-            logger.warning("Fallback sentence splitting will be used")
-
-
-# Try to download NLTK data during module import
-download_nltk_data()
 
 
 class TextProcessor:
@@ -51,14 +25,86 @@ class TextProcessor:
     - Content validation
     """
 
-    def __init__(self, max_tokens_per_chunk: int):
+    def __init__(
+        self, 
+        max_tokens_per_chunk: int, 
+        use_nltk: bool = False, 
+        nltk_auto_download: bool = False
+    ):
         """
         Initialize the text processor.
 
         Args:
             max_tokens_per_chunk: Maximum token count per chunk for embedding
+            use_nltk: Whether to use NLTK for sentence tokenization (default: False)
+            nltk_auto_download: Whether to auto-download NLTK data if missing (default: False)
         """
         self.max_tokens_per_chunk = max_tokens_per_chunk
+        self.use_nltk = use_nltk
+        self.nltk_auto_download = nltk_auto_download
+        
+        # Initialize sentence tokenizer based on configuration
+        self._sentence_tokenizer = self._initialize_tokenizer()
+
+    def _initialize_tokenizer(self):
+        """Initialize the sentence tokenizer based on configuration."""
+        if not self.use_nltk:
+            logger.info("Using regex-based sentence tokenization")
+            return self._regex_tokenize
+        
+        # User wants NLTK - try to set it up
+        try:
+            import nltk
+            from nltk.tokenize import sent_tokenize
+            
+            # Check if punkt data is available and test if sent_tokenize works
+            punkt_available = False
+            try:
+                # Test if sent_tokenize actually works (this will catch version mismatches)
+                sent_tokenize("Test sentence.")
+                punkt_available = True
+                logger.info("Using NLTK sentence tokenization")
+                return sent_tokenize
+            except LookupError:
+                # Punkt data missing or version mismatch
+                if self.nltk_auto_download:
+                    logger.info("Downloading NLTK punkt tokenizer...")
+                    try:
+                        # Try the newer punkt_tab first (for newer NLTK versions)
+                        nltk.download("punkt_tab", quiet=True)
+                        # Test if it works now
+                        sent_tokenize("Test sentence.")
+                        logger.info("Using NLTK sentence tokenization")
+                        return sent_tokenize
+                    except:
+                        try:
+                            # Fall back to the older punkt format
+                            nltk.download("punkt", quiet=True)
+                            # Test if it works now
+                            sent_tokenize("Test sentence.")
+                            logger.info("Using NLTK sentence tokenization")
+                            return sent_tokenize
+                        except:
+                            raise RuntimeError(
+                                "Failed to download working NLTK punkt tokenizer. "
+                                "Please manually run: python -c \"import nltk; nltk.download('punkt_tab')\""
+                            )
+                else:
+                    raise RuntimeError(
+                        "NLTK requested but punkt tokenizer not available. "
+                        "Run: python -c \"import nltk; nltk.download('punkt_tab')\" or "
+                        "python -c \"import nltk; nltk.download('punkt')\" "
+                        "or set nltk_auto_download=True"
+                    )
+        except ImportError:
+            raise RuntimeError(
+                "NLTK requested but not installed. "
+                "Install with: pip install nltk"
+            )
+    
+    def _regex_tokenize(self, text: str) -> List[str]:
+        """Fallback regex-based sentence tokenization."""
+        return re.split(r"(?<=[.!?])\s+", text)
 
     def process_and_validate_content(self, raw_text: Optional[str]) -> Dict[str, str]:
         """
@@ -155,17 +201,8 @@ class TextProcessor:
         if not processed_text:
             return []
 
-        # Tokenize into sentences
-        try:
-            sentences = sent_tokenize(processed_text)
-        except Exception as e:
-            logger.error(f"Error tokenizing text: {e}")
-            # Fallback to simple regex-based sentence splitting
-            # This will work even if NLTK data is not available
-            sentences = re.split(r"(?<=[.!?])\s+", processed_text)
-            logger.info(
-                f"Using fallback sentence tokenization. Split into {len(sentences)} sentences."
-            )
+        # Tokenize into sentences using the configured tokenizer
+        sentences = self._sentence_tokenizer(processed_text)
 
         chunks = []
         current_chunk = []
