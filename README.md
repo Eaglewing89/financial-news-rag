@@ -86,6 +86,8 @@ results = rag.search_articles(
     )
 ```
 
+Use the [`.env.example`](./.env.example) to get set up quickly!
+
 See the [Usage Guide](./docs/usage_guide.md) for a full walkthrough and more examples.
 
 Or check out the [Notebook Example](./examples/financial_news_rag_example.ipynb) for an interactive tutorial. 

@@ -44,6 +44,8 @@ The `financial-news-rag` system requires API keys for two services: EODHD (for f
 
 You need to create a `.env` file in the root of your project directory.
 
+An example is provided in the [`.env.example`](../.env.example)
+
 #### a. EODHD API Key
 
 1.  Sign up for an account on the [EODHD website](https://eodhd.com/).
