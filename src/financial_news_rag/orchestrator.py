@@ -123,7 +123,7 @@ class FinancialNewsRAG:
             api_key=self.gemini_api_key, model_name=self.config.reranker_default_model
         )
 
-        logger.info("FinancialNewsRAG orchestrator initialized successfully")
+        logger.info("FinancialNewsRAG orchestrator initialized")
 
     def fetch_and_store_articles(
         self,
@@ -170,7 +170,6 @@ class FinancialNewsRAG:
         try:
             # Fetch by tag
             if tag:
-                logger.info(f"Fetching articles with tag: {tag}")
                 api_result = self.eodhd_client.fetch_news(
                     tag=tag, from_date=from_date, to_date=to_date, limit=limit
                 )
@@ -207,7 +206,6 @@ class FinancialNewsRAG:
 
             # Fetch by symbol
             elif symbol:
-                logger.info(f"Fetching articles for symbol: {symbol}")
                 try:
                     api_result = self.eodhd_client.fetch_news(
                         symbol=symbol, from_date=from_date, to_date=to_date, limit=limit
@@ -245,18 +243,16 @@ class FinancialNewsRAG:
                     results["articles_fetched"] += len(fetched_articles)
                     results["articles_stored"] += stored_count
                 except Exception as e:
-                    logger.error(f"Error fetching news for symbol {symbol}: {str(e)}")
                     results["status"] = "FAILED"
                     results["errors"].append(
                         f"Error fetching news for symbol {symbol}: {str(e)}"
                     )
 
             logger.info(
-                f"Fetched {results['articles_fetched']} articles, stored {results['articles_stored']}"
+                f"Fetch operation completed: {results['articles_fetched']} articles fetched, {results['articles_stored']} stored"
             )
 
         except Exception as e:
-            logger.error(f"Error fetching and storing articles: {str(e)}")
             results["status"] = "FAILED"
             results["errors"].append(str(e))
 
@@ -292,12 +288,8 @@ class FinancialNewsRAG:
             articles = self.article_manager.get_articles_by_processing_status(
                 status=status, limit=limit
             )
-            logger.info(
-                f"Found {len(articles)} articles with {status} status for processing"
-            )
-
+            # Early return if no articles found - no logging needed as lower-level methods handle this
             if not articles:
-                logger.info(f"No articles with {status} status found for processing")
                 return results
 
             # Process each article
@@ -329,9 +321,6 @@ class FinancialNewsRAG:
                         results["articles_failed"] += 1
 
                 except Exception as e_article:
-                    logger.error(
-                        f"Error processing article {url_hash} for status {status}: {str(e_article)}"
-                    )
                     self.article_manager.update_article_processing_status(
                         url_hash, status="FAILED", error_message=str(e_article)
                     )
@@ -341,13 +330,10 @@ class FinancialNewsRAG:
                     )
 
             logger.info(
-                f"For status '{status}': Processed {results['articles_processed']} articles, {results['articles_failed']} failed"
+                f"Processing completed: {results['articles_processed']} articles processed, {results['articles_failed']} failed"
             )
 
         except Exception as e_main:
-            logger.error(
-                f"Error in process_articles_by_status for {status}: {str(e_main)}"
-            )
             results["status"] = "FAILED"
             results["errors"].append(str(e_main))
 
@@ -384,14 +370,8 @@ class FinancialNewsRAG:
                     status=status, limit=limit
                 )
             )
-            logger.info(
-                f"Found {len(articles_for_embedding)} articles with embedding status '{status}' for processing"
-            )
 
             if not articles_for_embedding:
-                logger.info(
-                    f"No articles with embedding status '{status}' found for processing"
-                )
                 return results
 
             # Generate embeddings for each article
@@ -401,9 +381,6 @@ class FinancialNewsRAG:
                     processed_content = article.get("processed_content")
 
                     if not processed_content:
-                        logger.warning(
-                            f"Missing processed content for article {url_hash}"
-                        )
                         self.article_manager.update_article_embedding_status(
                             url_hash=url_hash,
                             status="FAILED",
@@ -416,7 +393,6 @@ class FinancialNewsRAG:
                     chunks = self.text_processor.split_into_chunks(processed_content)
 
                     if not chunks:
-                        logger.warning(f"No chunks generated for article {url_hash}")
                         self.article_manager.update_article_embedding_status(
                             url_hash=url_hash,
                             status="FAILED",
@@ -424,10 +400,6 @@ class FinancialNewsRAG:
                         )
                         results["articles_failed"] += 1
                         continue
-
-                    logger.info(
-                        f"Generated {len(chunks)} chunks for article {url_hash}"
-                    )
 
                     # Generate and verify embeddings for these chunks
                     embedding_result = (
@@ -437,9 +409,6 @@ class FinancialNewsRAG:
                     all_embeddings_valid = embedding_result["all_valid"]
 
                     if not all_embeddings_valid:
-                        logger.warning(
-                            f"One or more chunk embeddings failed for article {url_hash}"
-                        )
                         self.article_manager.update_article_embedding_status(
                             url_hash=url_hash,
                             status="FAILED",
@@ -458,9 +427,6 @@ class FinancialNewsRAG:
 
                     # If re-embedding (status was 'FAILED'), delete existing embeddings first
                     if status == "FAILED":
-                        logger.info(
-                            f"Deleting existing embeddings for article {url_hash} before re-embedding."
-                        )
                         self.chroma_manager.delete_embeddings_by_article(url_hash)
 
                     # Store embeddings in ChromaDB using the new method
@@ -477,9 +443,6 @@ class FinancialNewsRAG:
                             vector_db_id=url_hash,  # Using url_hash as the vector_db_id
                         )
                         action = "re-embedded" if status == "FAILED" else "embedded"
-                        logger.info(
-                            f"Successfully {action} article {url_hash} in ChromaDB"
-                        )
                         results["articles_embedding_succeeded"] += 1
                     else:
                         self.article_manager.update_article_embedding_status(
@@ -488,15 +451,10 @@ class FinancialNewsRAG:
                             embedding_model=self.embeddings_generator.model_name,
                             error_message="Failed to store embeddings in ChromaDB",
                         )
-                        action = "re-embed" if status == "FAILED" else "embed"
-                        logger.error(
-                            f"Failed to {action} article {url_hash} in ChromaDB"
-                        )
                         results["articles_failed"] += 1
 
                 except Exception as e:
                     action = "re-embedding" if status == "FAILED" else "embedding"
-                    logger.error(f"Error {action} article {url_hash}: {str(e)}")
                     self.article_manager.update_article_embedding_status(
                         url_hash=url_hash, status="FAILED", error_message=str(e)
                     )
@@ -506,15 +464,10 @@ class FinancialNewsRAG:
                     )
 
             logger.info(
-                f"For embedding status '{status}': "
-                f"Successfully processed {results['articles_embedding_succeeded']} articles, "
-                f"{results['articles_failed']} failed"
+                f"Embedding operation completed: {results['articles_embedding_succeeded']} succeeded, {results['articles_failed']} failed"
             )
 
         except Exception as e:
-            logger.error(
-                f"Error in embed_processed_articles (status: {status}): {str(e)}"
-            )
             results["status"] = "FAILED"
             results["errors"].append(str(e))
 
@@ -530,14 +483,9 @@ class FinancialNewsRAG:
         try:
             # Call the ArticleManager's get_database_statistics method
             status = self.article_manager.get_database_statistics()
-
-            logger.info(
-                f"Article database status: {status.get('total_articles', 0)} total articles"
-            )
             return status
 
         except Exception as e:
-            logger.error(f"Error getting article database status: {str(e)}")
             return {"error": str(e), "status": "FAILED"}
 
     def get_vector_database_status(self) -> Dict[str, Any]:
@@ -550,13 +498,9 @@ class FinancialNewsRAG:
         try:
             # Get ChromaDB collection status
             collection_status = self.chroma_manager.get_collection_status()
-            logger.info(
-                f"Vector database status: {collection_status['total_chunks']} total chunks"
-            )
             return collection_status
 
         except Exception as e:
-            logger.error(f"Error getting vector database status: {str(e)}")
             return {"error": str(e), "status": "FAILED"}
 
     def search_articles(
@@ -586,8 +530,6 @@ class FinancialNewsRAG:
             List of article dictionaries with relevance scores
         """
         try:
-            logger.info(f"Searching for articles with query: '{query}'")
-
             # Generate embedding for the query
             query_embedding = self.embeddings_generator.generate_embeddings([query])[0]
 
@@ -618,12 +560,7 @@ class FinancialNewsRAG:
             )
 
             if not chroma_results:
-                logger.warning("No relevant articles found in ChromaDB")
                 return []
-
-            logger.info(
-                f"Retrieved {len(chroma_results)} relevant chunks from ChromaDB"
-            )
 
             # Extract unique article hashes from the results
             unique_article_hashes = set()
@@ -658,19 +595,13 @@ class FinancialNewsRAG:
                     articles.append(article)
 
             if not articles:
-                logger.warning(
-                    "Could not retrieve any article content from the database"
-                )
                 return []
-
-            logger.info(f"Successfully fetched content for {len(articles)} articles")
 
             # Sort by similarity score (highest first)
             articles.sort(key=lambda x: x.get("similarity_score", 0), reverse=True)
 
             # Apply re-ranking if requested
             if rerank and articles:
-                logger.info("Applying re-ranking with Gemini LLM")
                 reranked_articles = self.reranker.rerank_articles(query, articles)
                 final_articles = reranked_articles[
                     :n_results
@@ -678,7 +609,6 @@ class FinancialNewsRAG:
             else:
                 final_articles = articles[:n_results]  # Limit to requested number
 
-            logger.info(f"Returning {len(final_articles)} articles")
             return final_articles
 
         except Exception as e:
@@ -716,10 +646,6 @@ class FinancialNewsRAG:
             cutoff_date = utils.get_cutoff_datetime(days)
             cutoff_timestamp = int(cutoff_date.timestamp())
 
-            logger.info(
-                f"Deleting articles older than {cutoff_date.isoformat()} ({days} days ago)"
-            )
-
             # Get article hashes older than the cutoff date
             article_hashes = self.chroma_manager.get_article_hashes_by_date_range(
                 older_than_timestamp=cutoff_timestamp
@@ -727,12 +653,7 @@ class FinancialNewsRAG:
             results["targeted_articles"] = len(article_hashes)
 
             if not article_hashes:
-                logger.info(f"No articles found older than {days} days")
                 return results
-
-            logger.info(
-                f"Found {len(article_hashes)} articles older than {days} days that will be deleted"
-            )
 
             # Delete each article from both databases
             for url_hash in article_hashes:
@@ -751,32 +672,17 @@ class FinancialNewsRAG:
                     if sqlite_deleted:
                         results["deleted_from_sqlite"] += 1
 
-                    # Log the result for this article
-                    if chroma_deleted and sqlite_deleted:
-                        logger.info(
-                            f"Successfully deleted article {url_hash} from both databases"
+                    # Track any issues for summary reporting
+                    if not chroma_deleted and not sqlite_deleted:
+                        results["errors"].append(
+                            f"Article {url_hash} not found in either database"
                         )
-                    elif chroma_deleted:
-                        logger.warning(
-                            f"Deleted embeddings for article {url_hash} but article not found in SQLite"
-                        )
+                    elif not sqlite_deleted:
                         results["errors"].append(
                             f"Article {url_hash} not found in SQLite"
                         )
-                    elif sqlite_deleted:
-                        logger.warning(
-                            f"Deleted article {url_hash} from SQLite but no embeddings found in ChromaDB"
-                        )
-                    else:
-                        logger.warning(
-                            f"Article {url_hash} not found in either database"
-                        )
-                        results["errors"].append(
-                            f"Article {url_hash} not found in either database"
-                        )
 
                 except Exception as e:
-                    logger.error(f"Error deleting article {url_hash}: {str(e)}")
                     results["errors"].append(
                         f"Error deleting article {url_hash}: {str(e)}"
                     )
@@ -787,19 +693,15 @@ class FinancialNewsRAG:
                 and results["deleted_from_chroma"] == 0
             ):
                 results["status"] = "FAILED"
-                logger.error("Failed to delete any articles")
             elif results["errors"]:
                 results["status"] = "PARTIAL_FAILURE"
-                logger.warning(
-                    f"Partially failed to delete some articles. {len(results['errors'])} errors occurred."
-                )
             else:
                 results["status"] = "SUCCESS"
 
-            # Log summary
+            # Log summary of deletion operation
             logger.info(
-                f"Delete operation summary: {results['deleted_from_sqlite']} deleted from SQLite, "
-                f"{results['deleted_from_chroma']} deleted from ChromaDB, "
+                f"Deletion completed: {results['deleted_from_sqlite']} from SQLite, "
+                f"{results['deleted_from_chroma']} from ChromaDB, "
                 f"{len(results['errors'])} errors"
             )
 
