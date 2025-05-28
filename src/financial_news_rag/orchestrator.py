@@ -113,7 +113,8 @@ class FinancialNewsRAG:
         self.article_manager = ArticleManager(db_path=db_path_to_use)
 
         self.text_processor = TextProcessor(
-            max_tokens_per_chunk=max_tokens_per_chunk_to_use
+            max_tokens_per_chunk=max_tokens_per_chunk_to_use,
+            config=self.config
         )
 
         self.embeddings_generator = EmbeddingsGenerator(
