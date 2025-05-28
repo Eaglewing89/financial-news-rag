@@ -2,11 +2,13 @@
 
 [← API reference Index](./index.md)
 
+
 # `text_processor` Module API Reference
 
 The `text_processor` module is designed to handle the cleaning, normalization, validation, and chunking of raw text content, specifically from financial news articles. It ensures that text is in a suitable format for further processing, such as embedding generation.
 
 ## `TextProcessor` Class
+
 
 This is the primary class in the module, providing all text processing functionalities.
 
@@ -15,14 +17,19 @@ This is the primary class in the module, providing all text processing functiona
 ```python
 from financial_news_rag.text_processor import TextProcessor
 
-# Example: Initialize with a max token count per chunk
+# Example: Initialize with a max token count per chunk (NLTK not used)
 processor = TextProcessor(max_tokens_per_chunk=512)
+
+# Example: Initialize with NLTK sentence tokenization (requires NLTK and punkt data)
+processor = TextProcessor(max_tokens_per_chunk=512, use_nltk=True, nltk_auto_download=True)
 ```
 
--   **`__init__(self, max_tokens_per_chunk: int)`**
+-   **`__init__(self, max_tokens_per_chunk: int, use_nltk: bool = False, nltk_auto_download: bool = False)`**
     -   Initializes the `TextProcessor`.
     -   **Parameters:**
         -   `max_tokens_per_chunk` (`int`): The maximum number of tokens allowed in a single text chunk. This is used by the `split_into_chunks` method to ensure that text segments are appropriately sized for embedding models.
+        -   `use_nltk` (`bool`, optional): Whether to use NLTK for sentence tokenization. Defaults to `False`. If `False`, a regex-based sentence splitter is used.
+        -   `nltk_auto_download` (`bool`, optional): If `True` and `use_nltk` is enabled, will attempt to auto-download the required NLTK data ("punkt") if not already present. Defaults to `False`.
 
 ### Methods
 
@@ -97,8 +104,14 @@ for i, chunk in enumerate(chunks):
     print(f"Chunk {i+1}: {chunk}")
 ```
 
-## NLTK Data Dependency
 
-The `TextProcessor` relies on NLTK's `punkt` tokenizer for sentence splitting. The module includes a helper function `download_nltk_data()` that attempts to download this resource if it's not found during module import. If the download fails or NLTK is not properly configured, the `split_into_chunks` method will use a fallback regex-based sentence splitter, which might be less accurate for complex sentences.
+## NLTK Data Dependency and Tokenization Behavior
+
+The `TextProcessor` can use either NLTK's `punkt` tokenizer or a built-in regex-based sentence splitter for chunking text:
+
+- By default (`use_nltk=False`), a regex-based sentence splitter is used, which does not require any external dependencies.
+- If `use_nltk=True`, the class will attempt to use NLTK's `sent_tokenize` for more accurate sentence splitting. This requires the `nltk` package and the `punkt` data resource to be installed.
+    - If `nltk_auto_download=True` is also set, the class will attempt to download the required NLTK data automatically if it is missing.
+    - If `nltk_auto_download=False` and the data is missing, an error will be raised instructing the user to manually install the required data.
 
 Logs are generated to inform about the status of NLTK data and the tokenizer being used.

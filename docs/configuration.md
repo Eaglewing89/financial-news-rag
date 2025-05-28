@@ -76,6 +76,7 @@ Settings for generating text embeddings.
 | :-------------------------------- | :---------------------------------- | :-------------------------------- | :--------------------------------------------------------------------------------------------------------- |
 | `embeddings_default_model`        | `EMBEDDINGS_DEFAULT_MODEL`          | `"text-embedding-004"`            | The default Gemini model to use for generating text embeddings.                                            |
 | `embeddings_default_task_type`    | `EMBEDDINGS_DEFAULT_TASK_TYPE`      | `"SEMANTIC_SIMILARITY"`           | The default task type for embeddings, influencing how embeddings are generated.                            |
+| `embeddings_default_rate_limit_delay` | `EMBEDDINGS_DEFAULT_RATE_LIMIT_DELAY` | `0.5` (seconds)                   | Default delay between calls when rate limiting is encountered for embedding generation.                  |
 | `embeddings_model_dimensions`     | `EMBEDDINGS_MODEL_DIMENSIONS`       | `{"text-embedding-004": 768}`     | A JSON string defining the embedding dimensions for different models. Custom values merge with and override defaults. Example: `''''{"your-model": 1024, "text-embedding-004": 768}''''' |
 | `chroma_default_embedding_dimension`| (Derived)                           | `768` (for default model)         | The embedding dimension used by ChromaDB, derived from `embeddings_default_model` and `embeddings_model_dimensions`. |
 
@@ -96,9 +97,20 @@ Settings for the re-ranking component.
 
 Settings for text processing and chunking.
 
-| Property                             | Environment Variable                     | Default Value | Description                                                              |
+| Property                             | Environment Variable                     | Default Value | Description                                                              | 
 | :----------------------------------- | :--------------------------------------- | :------------ | :----------------------------------------------------------------------- |
 | `textprocessor_max_tokens_per_chunk` | `TEXTPROCESSOR_MAX_TOKENS_PER_CHUNK`     | `2048`        | The maximum number of tokens allowed in a single chunk of text before embedding. |
+| `textprocessor_use_nltk`             | `TEXTPROCESSOR_USE_NLTK`                 | `False`       | Whether to use NLTK for sentence splitting. If `False`, basic splitting is used. |
+| `textprocessor_nltk_auto_download`   | `TEXTPROCESSOR_NLTK_AUTO_DOWNLOAD`       | `False`       | If `textprocessor_use_nltk` is `True`, this controls whether to automatically download NLTK data (e.g., 'punkt') if not found. |
+
+**Note on NLTK Usage for Text Processing:**
+
+For more advanced sentence tokenization beyond the default regular expression-based splitting, you can enable the Natural Language Toolkit (NLTK).
+-   To use NLTK, set the environment variable `TEXTPROCESSOR_USE_NLTK=true`.
+-   Using NLTK requires the 'punkt' tokenizer models. If these are not already installed in your Python environment or a standard NLTK data path, the application will attempt to use them.
+-   If you want the application to automatically download the 'punkt' tokenizer data if it's missing, you must also set `TEXTPROCESSOR_NLTK_AUTO_DOWNLOAD=true`.
+-   When auto-download is enabled, the NLTK data (specifically the `punkt` package) will be downloaded to the default NLTK data directory, which is typically `~/nltk_data` (i.e., a folder named `nltk_data` in your user's home directory).
+-   By default, the library is designed to be encapsulated and will not download external data like NLTK packages without explicit user consent via these settings, even if it means falling back to simpler tokenization methods. This ensures that no files are downloaded to your system without your awareness.
 
 ### 6. Database Configuration (SQLite)
 
