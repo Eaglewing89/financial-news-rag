@@ -106,6 +106,26 @@ Or check out the [Notebook Example](./examples/financial_news_rag_example.ipynb)
 
 ---
 
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
+
+### What does this mean?
+
+The MIT License is one of the most permissive open source licenses. It allows you to:
+
+- ✅ **Use** this software for any purpose, including commercial applications
+- ✅ **Modify** the code to fit your needs
+- ✅ **Distribute** copies of the original or modified software
+- ✅ **Sell** software that includes this code
+- ✅ **Include** this software in proprietary applications
+
+**Requirements:**
+- Include the original license and copyright notice in any copies
+- The software is provided "as is" without warranty
+
+---
+
 ## 🗺️ Workflow Visualizations
 
 ### Article Storage Pipeline
