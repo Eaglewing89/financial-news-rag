@@ -67,6 +67,7 @@ class BaseTestFinancialNewsRAGIntegration:
                 "DATABASE_PATH_OVERRIDE": self.test_db_path,
                 "CHROMA_DEFAULT_PERSIST_DIRECTORY_OVERRIDE": self.test_chroma_dir,
                 "CHROMA_DEFAULT_COLLECTION_NAME_OVERRIDE": "test_integration_collection",
+                "EMBEDDINGS_DEFAULT_RATE_LIMIT_DELAY": "0",
             },
         )
         self.env_patcher.start()

@@ -25,6 +25,7 @@ class TestEmbeddingsGeneratorInitialization:
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
             task_type=test_config.embeddings_default_task_type,
+            rate_limit_delay=0,
         )
 
         assert generator.model_name == test_config.embeddings_default_model
@@ -38,6 +39,7 @@ class TestEmbeddingsGeneratorInitialization:
             api_key=test_config.gemini_api_key,
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
+            rate_limit_delay=0,
         )
 
         # Should use default task type
@@ -51,6 +53,7 @@ class TestEmbeddingsGeneratorInitialization:
                 api_key="",
                 model_name=test_config.embeddings_default_model,
                 model_dimensions=test_config.embeddings_model_dimensions,
+                rate_limit_delay=0,
             )
 
         with pytest.raises(ValueError, match="API key is required"):
@@ -58,6 +61,7 @@ class TestEmbeddingsGeneratorInitialization:
                 api_key=None,
                 model_name=test_config.embeddings_default_model,
                 model_dimensions=test_config.embeddings_model_dimensions,
+                rate_limit_delay=0,
             )
 
     def test_init_unknown_model_raises_error(self, test_config):
@@ -67,6 +71,7 @@ class TestEmbeddingsGeneratorInitialization:
                 api_key=test_config.gemini_api_key,
                 model_name="unknown-model-name",
                 model_dimensions=test_config.embeddings_model_dimensions,
+                rate_limit_delay=0,
             )
 
     def test_init_missing_model_dimensions_raises_error(self, test_config):
@@ -78,6 +83,7 @@ class TestEmbeddingsGeneratorInitialization:
                 api_key=test_config.gemini_api_key,
                 model_name=test_config.embeddings_default_model,
                 model_dimensions=incomplete_dimensions,
+                rate_limit_delay=0,
             )
 
 
@@ -92,6 +98,7 @@ class TestEmbeddingsGeneratorEmbeddingGeneration:
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
             task_type=test_config.embeddings_default_task_type,
+            rate_limit_delay=0,
         )
 
     @pytest.fixture
@@ -119,6 +126,7 @@ class TestEmbeddingsGeneratorEmbeddingGeneration:
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
             task_type=test_config.embeddings_default_task_type,
+            rate_limit_delay=0,
         )
 
         # Mock the embedding response
@@ -184,6 +192,7 @@ class TestEmbeddingsGeneratorEmbeddingGeneration:
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
             task_type=test_config.embeddings_default_task_type,
+            rate_limit_delay=0,
         )
 
         # Mock the _embed_single_text method directly to return a list
@@ -230,6 +239,7 @@ class TestEmbeddingsGeneratorErrorHandling:
             api_key=test_config.gemini_api_key,
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
+            rate_limit_delay=0,
         )
 
     @pytest.fixture
@@ -249,6 +259,7 @@ class TestEmbeddingsGeneratorErrorHandling:
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
             task_type=test_config.embeddings_default_task_type,
+            rate_limit_delay=0,
         )
 
         # Mock the _embed_single_text method to raise an error and immediately fail
@@ -282,6 +293,7 @@ class TestEmbeddingsGeneratorErrorHandling:
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
             task_type=test_config.embeddings_default_task_type,
+            rate_limit_delay=0,
         )
 
         # Mock the _embed_single_text method to raise an error and immediately fail
@@ -313,6 +325,7 @@ class TestEmbeddingsGeneratorErrorHandling:
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
             task_type=test_config.embeddings_default_task_type,
+            rate_limit_delay=0,
         )
 
         # Mock invalid response (missing embeddings)
@@ -340,6 +353,7 @@ class TestEmbeddingsGeneratorErrorHandling:
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
             task_type=test_config.embeddings_default_task_type,
+            rate_limit_delay=0,
         )
 
         # Mock response with wrong number of embeddings
@@ -372,6 +386,7 @@ class TestEmbeddingsGeneratorErrorHandling:
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
             task_type=test_config.embeddings_default_task_type,
+            rate_limit_delay=0,
         )
 
         # Mock embedding with wrong dimensions
@@ -399,6 +414,7 @@ class TestEmbeddingsGeneratorBatchProcessing:
             api_key=test_config.gemini_api_key,
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
+            rate_limit_delay=0,
         )
 
     @patch("financial_news_rag.embeddings.genai.Client")
@@ -416,6 +432,7 @@ class TestEmbeddingsGeneratorBatchProcessing:
             api_key=test_config.gemini_api_key,
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
+            rate_limit_delay=0,
         )
 
         # Create large batch - reduced from 50 to 20 chunks
@@ -452,6 +469,7 @@ class TestEmbeddingsGeneratorBatchProcessing:
             api_key=test_config.gemini_api_key,
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
+            rate_limit_delay=0,
         )
 
         # Financial content chunks
@@ -489,6 +507,7 @@ class TestEmbeddingsGeneratorModelConfiguration:
             api_key=test_config.gemini_api_key,
             model_name="custom-model",
             model_dimensions=custom_dimensions,
+            rate_limit_delay=0,
         )
 
         assert generator.embedding_dim == 1024
@@ -500,6 +519,7 @@ class TestEmbeddingsGeneratorModelConfiguration:
             api_key=test_config.gemini_api_key,
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
+            rate_limit_delay=0,
         )
 
         # The implementation should handle model name formatting
@@ -522,6 +542,7 @@ class TestEmbeddingsGeneratorModelConfiguration:
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
             task_type=task_type,
+            rate_limit_delay=0,
         )
 
         assert generator.default_task_type == task_type
@@ -537,6 +558,7 @@ class TestEmbeddingsGeneratorUtilityMethods:
             api_key=test_config.gemini_api_key,
             model_name=test_config.embeddings_default_model,
             model_dimensions=test_config.embeddings_model_dimensions,
+            rate_limit_delay=0,
         )
 
     def test_embedding_dimensions_property(self, generator):
