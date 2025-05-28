@@ -70,6 +70,12 @@ class Config:
         self._textprocessor_max_tokens_per_chunk = int(
             self._get_env("TEXTPROCESSOR_MAX_TOKENS_PER_CHUNK", "2048")
         )
+        self._textprocessor_use_nltk = bool(
+            self._get_env("TEXTPROCESSOR_USE_NLTK", False)
+        )
+        self._textprocessor_nltk_auto_download = bool(
+            self._get_env("TEXTPROCESSOR_NLTK_AUTO_DOWNLOAD", False)
+        )
 
         # Database configuration
         self._database_path = self._get_env(
@@ -217,6 +223,16 @@ class Config:
     def textprocessor_max_tokens_per_chunk(self) -> int:
         """Get the maximum tokens per chunk for the TextProcessor."""
         return self._textprocessor_max_tokens_per_chunk
+    
+    @property
+    def textprocessor_use_nltk(self) -> bool:
+        """Get boolean use nltk for the TextProcessor."""
+        return self._textprocessor_use_nltk
+    
+    @property
+    def textprocessor_nltk_auto_download(self) -> bool:
+        """Get boolean auto download nltk data for the TextProcessor."""
+        return self._textprocessor_nltk_auto_download
 
     @property
     def database_path(self) -> str:

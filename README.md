@@ -79,7 +79,7 @@ rag.embed_processed_articles()
 
 # Article Search
 query = "Which billion-dollar M&A deals were announced in the tech sector in the last 30 days, and what were the valuation multiples?"
-results = orchestrator.search_articles(
+results = rag.search_articles(
         query=query, 
         n_results=50,
         rerank=True
